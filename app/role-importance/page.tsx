@@ -5,13 +5,15 @@ import { Controller, useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Slider } from "@/components/ui/slider"
+import { useState } from "react"
 
-export default function RoleIMportancePage() {
+export default function RoleImportancePage() {
     const { control, watch } = useForm({
         defaultValues: Object.fromEntries(
             creditRoles.map(role => [role.id, 5])
         ),
     })
+    const [values, setValues] = useState<Record<string, number>>({})
 
     return (
         <div className="max-w-3xl mx-auto p-6">
@@ -25,7 +27,7 @@ export default function RoleIMportancePage() {
                         <label className="font-medium">
                             {role.name}
                         </label>
-                        <Controller
+                        {/* <Controller
                             name={role.id}
                             control={control}
                             render={({ field }) => (
@@ -41,7 +43,17 @@ export default function RoleIMportancePage() {
                         />
                         <div className="text-sm text-gray-500">
                             Value: {watch(role.id) ?? 5}
-                        </div>          
+                        </div>           */}
+                        <Slider
+                            min={1}
+                            max={10}
+                            step={1}
+                            defaultValue={[5]}
+                            onValueChange={([v]) => setValues(prev => ({ ...prev, [role.id]: v}))}
+                        />
+                        <div className="text-sm text-muted-foreground mt-1">
+                            Value: {values[role.id] ?? 5}
+                        </div>
                     </div>
                 ))}
             </form>
