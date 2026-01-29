@@ -51,7 +51,7 @@ export default function RoleImportancePage() {
                             defaultValue={[5]}
                             onValueChange={([v]) => setValues(prev => ({ ...prev, [role.id]: v}))}
                         />
-                        <div className="text-sm text=muted-foreground mt-1">
+                        <div className="text-sm text-muted-foreground mt-1">
                             Value: {values[role.id] ?? 5}
                         </div>
                     </div>
