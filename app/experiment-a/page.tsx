@@ -33,6 +33,9 @@ export default function ExperimentAPage() {
 
     function handleDragEnd(event: any) {
         const { active, over } = event
+        if (!over) {
+            return
+        }
         if (active.id !== over.id) {
             setItems(items => {
                 const oldIndex = items.findIndex(i => i.id === active.id)
