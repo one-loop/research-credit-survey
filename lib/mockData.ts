@@ -104,3 +104,97 @@ export const experimentAAuthors: Author[] = [
         contributions: ["Investigation", "Formal Analysis"]
     }
 ]
+
+// 5 different trial sets for Experiment A
+export const experimentATrials: Author[][] = [
+    // Trial 1
+    [
+        {
+            id: "ax",
+            initials: "A.X.",
+            contributions: ["Conceptualization", "Methodology", "Formal Analysis"]
+        },
+        {
+            id: "by",
+            initials: "B.Y.",
+            contributions: ["Methodology", "Formal Analysis"]
+        },
+        {
+            id: "cz",
+            initials: "C.Z.",
+            contributions: ["Investigation", "Formal Analysis"]
+        }
+    ],
+    // Trial 2
+    [
+        {
+            id: "dx",
+            initials: "D.X.",
+            contributions: ["Software", "Validation", "Data Curation"]
+        },
+        {
+            id: "ey",
+            initials: "E.Y.",
+            contributions: ["Investigation", "Resources"]
+        },
+        {
+            id: "fz",
+            initials: "F.Z.",
+            contributions: ["Writing – Original Draft", "Visualization"]
+        }
+    ],
+    // Trial 3
+    [
+        {
+            id: "gw",
+            initials: "G.W.",
+            contributions: ["Conceptualization", "Supervision", "Funding Acquisition"]
+        },
+        {
+            id: "hv",
+            initials: "H.V.",
+            contributions: ["Methodology", "Project Administration"]
+        },
+        {
+            id: "iu",
+            initials: "I.U.",
+            contributions: ["Writing – Review & Editing", "Visualization"]
+        }
+    ],
+    // Trial 4
+    [
+        {
+            id: "jt",
+            initials: "J.T.",
+            contributions: ["Investigation", "Formal Analysis", "Validation"]
+        },
+        {
+            id: "ks",
+            initials: "K.S.",
+            contributions: ["Software", "Data Curation"]
+        },
+        {
+            id: "lr",
+            initials: "L.R.",
+            contributions: ["Resources", "Project Administration"]
+        }
+    ],
+    // Trial 5
+    [
+        {
+            id: "mq",
+            initials: "M.Q.",
+            contributions: ["Conceptualization", "Writing – Original Draft"]
+        },
+        {
+            id: "np",
+            initials: "N.P.",
+            contributions: ["Formal Analysis", "Visualization"]
+        },
+        {
+            id: "oo",
+            initials: "O.O.",
+            contributions: ["Supervision", "Writing – Review & Editing"]
+        }
+    ]
+]
