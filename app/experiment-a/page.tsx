@@ -53,15 +53,18 @@ export default function ExperimentAPage() {
     function handleNextTrial() {
         // Save current trial result
         const ranking = items.map(i => i.id)
-        setTrialResults([...trialResults, ranking])
+        setTrialResults(prevResults => [...prevResults, ranking])
 
-        // Move to next trial
-        if (currentTrial < totalTrials - 1) {
-            setCurrentTrial(currentTrial + 1)
-            setItems([...experimentATrials[currentTrial + 1]])
-        } else {
-            setCurrentTrial(totalTrials) // Mark as complete
-        }
+        // Move to next trial using functional update to avoid stale state
+        setCurrentTrial(prevTrial => {
+            const nextTrial = prevTrial + 1
+            if (nextTrial < totalTrials) {
+                setItems([...experimentATrials[nextTrial]])
+                return nextTrial
+            }
+            // Mark as complete
+            return totalTrials
+        })
     }
 
     if (isComplete) {
