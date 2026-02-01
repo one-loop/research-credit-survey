@@ -9,3 +9,9 @@ export type Author = {
     initials: string
     contributions: string[]
 }
+
+export type Work = {
+    work_id: string
+    display_name: string
+    authors: Author[]
+}

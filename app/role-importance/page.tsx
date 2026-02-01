@@ -1,25 +1,28 @@
 "use client"
 
 import { creditRoles } from "@/lib/mockData"
-import { Controller, useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Slider } from "@/components/ui/slider"
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 
-export default function RoleImportancePage() {
-    const { control, watch } = useForm({
-        defaultValues: Object.fromEntries(
-            creditRoles.map(role => [role.id, 5])
-        ),
-    })
+function RoleImportanceContent() {
+    const searchParams = useSearchParams()
+    const authorId = searchParams.get("authorId")
+    const experimentHref = authorId ? `/experiment-a?authorId=${encodeURIComponent(authorId)}` : "/experiment-a"
     const [values, setValues] = useState<Record<string, number>>({})
 
     return (
         <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6">
+            <h1 className="text-2xl font-bold mb-3">
                 Role Importance
             </h1>
+
+            <p className="mb-6">
+                Please rate each contributor role according to its importance toward the final article.
+            </p>
 
             <form className="space-y-6">
                 {creditRoles.map(role => (
@@ -59,12 +62,24 @@ export default function RoleImportancePage() {
             </form>
 
             <div className="mt-8 flex justify-end">
-                <Link href="/experiment-a">
+                <Link href={experimentHref}>
                     <Button>
                         Continue
                     </Button>
                 </Link>
             </div>
         </div>
+    )
+}
+
+export default function RoleImportancePage() {
+    return (
+        <Suspense fallback={
+            <div className="max-w-3xl mx-auto p-6">
+                <p className="text-muted-foreground">Loading…</p>
+            </div>
+        }>
+            <RoleImportanceContent />
+        </Suspense>
     )
 }
