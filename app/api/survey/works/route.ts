@@ -34,19 +34,17 @@ export async function GET(request: NextRequest) {
 
     if (authorId) {
         const workContainingAuthor = findWorkByAuthorId(authorId)
-        if (workContainingAuthor && assignableWorkIds.has(workContainingAuthor.work_id)) {
+        if (workContainingAuthor) {
             selected.push(workContainingAuthor)
-            const rest = assignable.filter((w) => w.work_id !== workContainingAuthor.work_id)
-            for (let i = 0; i < rest.length && selected.length < WORKS_PER_RESPONDENT; i++) {
-                selected.push(rest[i])
-            }
         }
     }
 
     if (selected.length < WORKS_PER_RESPONDENT) {
-        selected = []
         for (let i = 0; i < assignable.length && selected.length < WORKS_PER_RESPONDENT; i++) {
-            selected.push(assignable[i])
+            const candidate = assignable[i]
+            if (!selected.some((w) => w.work_id === candidate.work_id)) {
+                selected.push(candidate)
+            }
         }
     }
 
