@@ -138,7 +138,8 @@ function ExperimentAPageContent() {
                 <div className="space-y-4">
                     <h2 className="text-lg font-semibold">Your Rankings</h2>
                     {trialResults.map((ranking, index) => {
-                        const work = works[index]
+                        const work = works?.[index]
+                        if (!work) return null
                         return (
                             <div key={work.work_id} className="border rounded p-4">
                                 <h3 className="font-medium mb-2">Work {index + 1}</h3>
