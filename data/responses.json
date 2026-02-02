@@ -1,0 +1,38 @@
+[
+  {
+    "workIds": [
+      "work_16",
+      "work_own",
+      "work_1",
+      "work_2",
+      "work_3"
+    ],
+    "rankings": {
+      "work_16": [
+        "o1",
+        "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      ],
+      "work_own": [
+        "ax",
+        "cz",
+        "by"
+      ],
+      "work_1": [
+        "ey",
+        "dx",
+        "fz"
+      ],
+      "work_2": [
+        "gw",
+        "iu",
+        "hv"
+      ],
+      "work_3": [
+        "jt",
+        "ks",
+        "lr"
+      ]
+    },
+    "completedAt": "2026-02-01T19:54:57.488Z"
+  }
+]
