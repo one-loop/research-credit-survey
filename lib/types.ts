@@ -14,4 +14,8 @@ export type Work = {
     work_id: string
     display_name: string
     authors: Author[]
+    doi?: string
+    journal?: string
+    publication_date?: string
+    corresponding_email?: string
 }
