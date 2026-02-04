@@ -3,7 +3,7 @@
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, Fragment } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Mail } from "lucide-react"
@@ -213,19 +213,89 @@ function ExperimentAPageContent() {
                     <div className="mb-6 space-y-3">
                         <p className="text-lg font-medium mb-2">Author contributions</p>
                         <p className="text-lg leading-relaxed text-muted-foreground font-medium">
-                            {currentWork.authors.map((a, index) => {
-                                const colorClass = authorColorMap.get(a.id)!
-                                const isLast = index === currentWork.authors.length - 1
-                                return (
-                                    <span key={a.id}>
-                                        <span className={`font-semibold ${colorClass}`}>
-                                            {a.initials}
-                                        </span>{" "}
-                                        contributed to {a.contributions.join(", ")}
-                                        {isLast ? "." : "; "}
-                                    </span>
+                            {(() => {
+                                // Map CRediT role names to verb phrases
+                                const roleVerbMap: Record<string, string> = {
+                                    "Conceptualization": "conceived the study",
+                                    "Methodology": "designed the methodology",
+                                    "Software": "developed the software",
+                                    "Validation": "validated the results",
+                                    "Formal Analysis": "conducted the analysis",
+                                    "Investigation": "performed the investigation",
+                                    "Resources": "provided resources",
+                                    "Data Curation": "processed the data",
+                                    "Writing – Original Draft": "wrote the manuscript",
+                                    "Writing – Review & Editing": "reviewed and edited the manuscript",
+                                    "Visualization": "did the visualizations",
+                                    "Supervision": "supervised the study",
+                                    "Project Administration": "administered the project",
+                                    "Funding Acquisition": "acquired funding",
+                                }
+
+                                // Group authors by contribution role
+                                const roleGroups = new Map<string, typeof currentWork.authors>()
+                                currentWork.authors.forEach((author) => {
+                                    author.contributions.forEach((role) => {
+                                        if (!roleGroups.has(role)) {
+                                            roleGroups.set(role, [])
+                                        }
+                                        roleGroups.get(role)!.push(author)
+                                    })
+                                })
+
+                                // Convert to array and format each group
+                                const formattedGroups = Array.from(roleGroups.entries()).map(
+                                    ([role, authors]) => {
+                                        const verbPhrase = roleVerbMap[role] || `contributed to ${role}`
+                                        const authorNames = authors.map((a) => {
+                                            const colorClass = authorColorMap.get(a.id)!
+                                            return (
+                                                <span key={a.id} className={`font-semibold ${colorClass}`}>
+                                                    {a.initials}
+                                                </span>
+                                            )
+                                        })
+
+                                        // Format author list with "and" before last
+                                        let authorList: React.ReactNode
+                                        if (authorNames.length === 1) {
+                                            authorList = authorNames[0]
+                                        } else if (authorNames.length === 2) {
+                                            authorList = (
+                                                <>
+                                                    {authorNames[0]} and {authorNames[1]}
+                                                </>
+                                            )
+                                        } else {
+                                            authorList = (
+                                                <>
+                                                    {authorNames.slice(0, -1).map((name, i) => (
+                                                        <Fragment key={i}>
+                                                            {name}
+                                                            {i < authorNames.length - 2 ? ", " : ""}
+                                                        </Fragment>
+                                                    ))}
+                                                    , and {authorNames[authorNames.length - 1]}
+                                                </>
+                                            )
+                                        }
+
+                                        return (
+                                            <span key={role}>
+                                                {authorList} {verbPhrase}
+                                            </span>
+                                        )
+                                    }
                                 )
-                            })}
+
+                                // Join groups with periods and spaces
+                                return formattedGroups.map((group, index) => (
+                                    <span key={index}>
+                                        {group}
+                                        {index < formattedGroups.length - 1 ? ". " : "."}
+                                    </span>
+                                ))
+                            })()}
                         </p>
                     </div>
 
