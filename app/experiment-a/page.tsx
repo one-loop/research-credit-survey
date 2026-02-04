@@ -1,11 +1,12 @@
 "use client"
 
 import { DndContext, closestCenter } from "@dnd-kit/core"
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
 
 function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
@@ -22,7 +23,7 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
             style={style}
             {...attributes}
             {...listeners}
-            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing"
+            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100]"
         >
             {children}
         </div>
@@ -41,6 +42,8 @@ function ExperimentAPageContent() {
     const [items, setItems] = useState<Author[]>([])
     const [submitDone, setSubmitDone] = useState(false)
 
+    const authorColors = ["text-red-600", "text-blue-600", "text-green-600", "text-amber-600"]
+
     useEffect(() => {
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)
@@ -50,9 +53,18 @@ function ExperimentAPageContent() {
                 return res.json()
             })
             .then((data: { works: Work[] }) => {
-                setWorks(data.works ?? [])
-                if (data.works?.length > 0) {
-                    setItems([...data.works[0].authors])
+                const incoming = data.works ?? []
+                // Randomize order of the 5 selected works so the respondent's
+                // own work is not always shown first.
+                const shuffled = [...incoming]
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1))
+                    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+                }
+
+                setWorks(shuffled)
+                if (shuffled.length > 0) {
+                    setItems([...shuffled[0].authors])
                 }
                 setError(null)
             })
@@ -166,6 +178,21 @@ function ExperimentAPageContent() {
         )
     }
 
+    // Create a color map based on original author order, so colors stay consistent when dragging
+    const authorColorMap = currentWork
+        ? new Map(
+              currentWork.authors.map((a, index) => [
+                  a.id,
+                  authorColors[index % authorColors.length],
+              ])
+          )
+        : new Map<string, string>()
+
+    // Find the original index of the corresponding author (envelope icon position)
+    const correspondingAuthorIndex = currentWork
+        ? currentWork.authors.findIndex((a) => a.is_corresponding)
+        : -1
+
     return (
         <div className="max-w-3xl mx-auto p-6">
             <div className="mb-6">
@@ -184,31 +211,50 @@ function ExperimentAPageContent() {
             {currentWork && (
                 <>
                     <div className="mb-6 space-y-3">
-                        <p className="text-sm font-medium mb-2">Author contributions</p>
-                        {currentWork.authors.map((a) => (
-                            <div key={a.id} className="text-sm border rounded p-2 bg-muted/50">
-                                <strong>{a.initials}</strong>: {a.contributions.join(", ")}
-                            </div>
-                        ))}
+                        <p className="text-lg font-medium mb-2">Author contributions</p>
+                        <p className="text-lg leading-relaxed text-muted-foreground font-medium">
+                            {currentWork.authors.map((a, index) => {
+                                const colorClass = authorColorMap.get(a.id)!
+                                const isLast = index === currentWork.authors.length - 1
+                                return (
+                                    <span key={a.id}>
+                                        <span className={`font-semibold ${colorClass}`}>
+                                            {a.initials}
+                                        </span>{" "}
+                                        contributed to {a.contributions.join(", ")}
+                                        {isLast ? "." : "; "}
+                                    </span>
+                                )
+                            })}
+                        </p>
                     </div>
 
                     <div className="mb-6">
-                        <p className="text-sm font-medium mb-3">
-                            Please order the authors from first to last as they should appear on the byline (top = highest contribution).
+                        <p className="font-medium mb-6">
+                            Please order the author positions for this paper. (left = highest contribution).
+                        </p>
+                        <p className="mb-12 text-muted-foreground text-sm">
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground inline" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
                         </p>
                         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                            <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-                                <div className="space-y-3">
-                                    {items.map((author, index) => (
-                                        <SortableItem key={author.id} id={author.id}>
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-medium">{author.initials}</span>
-                                                <span className="text-xs text-muted-foreground">
-                                                    Rank {index + 1}
-                                                </span>
-                                            </div>
-                                        </SortableItem>
-                                    ))}
+                            <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
+                                <div className="flex flex-row flex-wrap gap-3">
+                                    {items.map((author, positionIndex) => {
+                                        const colorClass = authorColorMap.get(author.id)!
+                                        const showEnvelope = correspondingAuthorIndex >= 0 && positionIndex === correspondingAuthorIndex
+                                        return (
+                                            <SortableItem key={author.id} id={author.id}>
+                                                <div className="flex items-center gap-1.5 align-center justify-center">
+                                                    <span className={`font-medium ${colorClass}`}>
+                                                        {author.initials}
+                                                    </span>
+                                                    {showEnvelope && (
+                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    )}
+                                                </div>
+                                            </SortableItem>
+                                        )
+                                    })}
                                 </div>
                             </SortableContext>
                         </DndContext>

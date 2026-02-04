@@ -204,11 +204,11 @@ export const experimentATrials: Author[][] = [
 // The work containing that author is included as one of the 5 works.
 export const worksPool: Work[] = [
     {
-        work_id: "work_own",
+        work_id: "work_0",
         display_name: "A Mixed-Methods Study of Collaboration in Open Science",
-        authors: [
+        authors: [  
             { id: "ax", initials: "A.X.", contributions: ["Conceptualization", "Methodology", "Formal Analysis"] },
-            { id: "by", initials: "B.Y.", contributions: ["Methodology", "Formal Analysis"] },
+            { id: "by", initials: "B.Y.", contributions: ["Methodology", "Formal Analysis"], is_corresponding: true },
             { id: "cz", initials: "C.Z.", contributions: ["Investigation", "Formal Analysis"] }
         ]
     },
@@ -217,7 +217,7 @@ export const worksPool: Work[] = [
         display_name: "Replication and Reproducibility in Computational Neuroscience",
         authors: [
             { id: "dx", initials: "D.X.", contributions: ["Software", "Validation", "Data Curation"] },
-            { id: "ey", initials: "E.Y.", contributions: ["Investigation", "Resources"] },
+            { id: "ey", initials: "E.Y.", contributions: ["Investigation", "Resources"], is_corresponding: true },
             { id: "fz", initials: "F.Z.", contributions: ["Writing – Original Draft", "Visualization"] }
         ]
     },
@@ -225,7 +225,7 @@ export const worksPool: Work[] = [
         work_id: "work_2",
         display_name: "Team Dynamics in Multi-Site Research Consortia",
         authors: [
-            { id: "gw", initials: "G.W.", contributions: ["Conceptualization", "Supervision", "Funding Acquisition"] },
+            { id: "gw", initials: "G.W.", contributions: ["Conceptualization", "Supervision", "Funding Acquisition"], is_corresponding: true },
             { id: "hv", initials: "H.V.", contributions: ["Methodology", "Project Administration"] },
             { id: "iu", initials: "I.U.", contributions: ["Writing – Review & Editing", "Visualization"] }
         ]
@@ -234,7 +234,7 @@ export const worksPool: Work[] = [
         work_id: "work_3",
         display_name: "Meta-Analysis of Peer Review Outcomes",
         authors: [
-            { id: "jt", initials: "J.T.", contributions: ["Investigation", "Formal Analysis", "Validation"] },
+            { id: "jt", initials: "J.T.", contributions: ["Investigation", "Formal Analysis", "Validation"], is_corresponding: true  },
             { id: "ks", initials: "K.S.", contributions: ["Software", "Data Curation"] },
             { id: "lr", initials: "L.R.", contributions: ["Resources", "Project Administration"] }
         ]
@@ -243,7 +243,7 @@ export const worksPool: Work[] = [
         work_id: "work_4",
         display_name: "Citation Networks and Knowledge Diffusion",
         authors: [
-            { id: "mq", initials: "M.Q.", contributions: ["Conceptualization", "Writing – Original Draft"] },
+            { id: "mq", initials: "M.Q.", contributions: ["Conceptualization", "Writing – Original Draft"], is_corresponding: true  },
             { id: "np", initials: "N.P.", contributions: ["Formal Analysis", "Visualization"] },
             { id: "oo", initials: "O.O.", contributions: ["Supervision", "Writing – Review & Editing"] }
         ]
@@ -253,7 +253,7 @@ export const worksPool: Work[] = [
         display_name: "Survey Methods in Health Services Research",
         authors: [
             { id: "pp", initials: "P.P.", contributions: ["Conceptualization", "Investigation"] },
-            { id: "qq", initials: "Q.Q.", contributions: ["Formal Analysis", "Writing – Original Draft"] }
+            { id: "qq", initials: "Q.Q.", contributions: ["Formal Analysis", "Writing – Original Draft"], is_corresponding: true  }
         ]
     },
     {
@@ -262,14 +262,14 @@ export const worksPool: Work[] = [
         authors: [
             { id: "rr", initials: "R.R.", contributions: ["Software", "Validation"] },
             { id: "ss", initials: "S.S.", contributions: ["Data Curation", "Visualization"] },
-            { id: "tt", initials: "T.T.", contributions: ["Writing – Review & Editing"] }
+            { id: "tt", initials: "T.T.", contributions: ["Writing – Review & Editing"], is_corresponding: true  }
         ]
     },
     {
         work_id: "work_7",
         display_name: "Ethics and Consent in Longitudinal Studies",
         authors: [
-            { id: "uu", initials: "U.U.", contributions: ["Conceptualization", "Project Administration"] },
+            { id: "uu", initials: "U.U.", contributions: ["Conceptualization", "Project Administration"], is_corresponding: true  },
             { id: "vv", initials: "V.V.", contributions: ["Investigation", "Resources"] }
         ]
     },
@@ -277,7 +277,7 @@ export const worksPool: Work[] = [
         work_id: "work_8",
         display_name: "Open Data Practices in Ecology",
         authors: [
-            { id: "ww", initials: "W.W.", contributions: ["Data Curation", "Writing – Original Draft"] },
+            { id: "ww", initials: "W.W.", contributions: ["Data Curation", "Writing – Original Draft"], is_corresponding: true  },
             { id: "xx", initials: "X.X.", contributions: ["Formal Analysis", "Visualization"] }
         ]
     },
@@ -286,7 +286,7 @@ export const worksPool: Work[] = [
         display_name: "Preprint Servers and Publication Speed",
         authors: [
             { id: "yy", initials: "Y.Y.", contributions: ["Investigation", "Formal Analysis"] },
-            { id: "zz", initials: "Z.Z.", contributions: ["Methodology", "Writing – Original Draft"] }
+            { id: "zz", initials: "Z.Z.", contributions: ["Methodology", "Writing – Original Draft"], is_corresponding: true  }
         ]
     },
     {
@@ -295,14 +295,14 @@ export const worksPool: Work[] = [
         authors: [
             { id: "a1", initials: "A.A.", contributions: ["Conceptualization", "Supervision"] },
             { id: "b1", initials: "B.B.", contributions: ["Investigation", "Resources"] },
-            { id: "c1", initials: "C.C.", contributions: ["Writing – Original Draft", "Visualization"] }
+            { id: "c1", initials: "C.C.", contributions: ["Writing – Original Draft", "Visualization"], is_corresponding: true  }
         ]
     },
     {
         work_id: "work_11",
         display_name: "Quality Assurance in Systematic Reviews",
         authors: [
-            { id: "d1", initials: "D.D.", contributions: ["Validation", "Data Curation"] },
+            { id: "d1", initials: "D.D.", contributions: ["Validation", "Data Curation"], is_corresponding: true  },
             { id: "e1", initials: "E.E.", contributions: ["Methodology", "Formal Analysis"] }
         ]
     },
@@ -311,14 +311,14 @@ export const worksPool: Work[] = [
         display_name: "Author Order Conventions in Mathematics",
         authors: [
             { id: "f1", initials: "F.F.", contributions: ["Conceptualization", "Formal Analysis"] },
-            { id: "g1", initials: "G.G.", contributions: ["Writing – Original Draft"] }
+            { id: "g1", initials: "G.G.", contributions: ["Writing – Original Draft"], is_corresponding: true  }
         ]
     },
     {
         work_id: "work_13",
         display_name: "Gender and Collaboration in STEM",
         authors: [
-            { id: "h1", initials: "H.H.", contributions: ["Investigation", "Formal Analysis"] },
+            { id: "h1", initials: "H.H.", contributions: ["Investigation", "Formal Analysis"], is_corresponding: true  },
             { id: "i1", initials: "I.I.", contributions: ["Visualization", "Writing – Review & Editing"] }
         ]
     },
@@ -327,7 +327,7 @@ export const worksPool: Work[] = [
         display_name: "Funding and Research Output in Biomedicine",
         authors: [
             { id: "j1", initials: "J.J.", contributions: ["Funding Acquisition", "Supervision"] },
-            { id: "k1", initials: "K.K.", contributions: ["Investigation", "Writing – Original Draft"] }
+            { id: "k1", initials: "K.K.", contributions: ["Investigation", "Writing – Original Draft"], is_corresponding: true  }
         ]
     },
     {
@@ -335,14 +335,14 @@ export const worksPool: Work[] = [
         display_name: "Reproducibility of Statistical Analyses",
         authors: [
             { id: "l1", initials: "L.L.", contributions: ["Software", "Validation"] },
-            { id: "m1", initials: "M.M.", contributions: ["Formal Analysis", "Data Curation"] }
+            { id: "m1", initials: "M.M.", contributions: ["Formal Analysis", "Data Curation"], is_corresponding: true  }
         ]
     },
     {
         work_id: "work_16",
         display_name: "Co-Authorship Networks in Social Science",
         authors: [
-            { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", initials: "N.N.", contributions: ["Conceptualization", "Formal Analysis"] },
+            { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", initials: "N.N.", contributions: ["Conceptualization", "Formal Analysis"], is_corresponding: true  },
             { id: "o1", initials: "O.O.", contributions: ["Visualization", "Writing – Original Draft"] }
         ]
     },
@@ -351,7 +351,8 @@ export const worksPool: Work[] = [
         display_name: "Peer Review and Manuscript Revision",
         authors: [
             { id: "p1", initials: "P.P.", contributions: ["Writing – Review & Editing", "Validation"] },
-            { id: "q1", initials: "Q.Q.", contributions: ["Investigation", "Resources"] }
+            { id: "q1", initials: "Q.Q.", contributions: ["Investigation", "Resources"], is_corresponding: true  }
         ]
     }
 ]
+
