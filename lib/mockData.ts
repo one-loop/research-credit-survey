@@ -217,7 +217,7 @@ export const worksPool: Work[] = [
         display_name: "Replication and Reproducibility in Computational Neuroscience",
         authors: [
             { id: "dx", initials: "D.X.", contributions: ["Software", "Validation", "Data Curation"] },
-            { id: "ey", initials: "E.Y.", contributions: ["Investigation", "Resources"], is_corresponding: true },
+            { id: "ey", initials: "E.Y.", contributions: ["Investigation", "Resources", "Software"], is_corresponding: true },
             { id: "fz", initials: "F.Z.", contributions: ["Writing – Original Draft", "Visualization"] }
         ]
     },
