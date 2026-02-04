@@ -226,7 +226,7 @@ function ExperimentAPageContent() {
                                     "Data Curation": "processed the data",
                                     "Writing – Original Draft": "wrote the manuscript",
                                     "Writing – Review & Editing": "reviewed and edited the manuscript",
-                                    "Visualization": "did the visualizations",
+                                    "Visualization": "created the visualizations",
                                     "Supervision": "supervised the study",
                                     "Project Administration": "administered the project",
                                     "Funding Acquisition": "acquired funding",
