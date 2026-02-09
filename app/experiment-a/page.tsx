@@ -200,6 +200,11 @@ function ExperimentAPageContent() {
                 <p className="text-muted-foreground">
                     Work {currentIndex + 1} of {totalWorks}
                 </p>
+                {currentWork?.isOwnWork && (
+                    <p className="mt-1 text-xs text-amber-600">
+                        [Debug] This work was selected using the provided authorId and is the respondent&apos;s own paper.
+                    </p>
+                )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">
                     <div
                         className="bg-primary h-2 rounded-full transition-all"

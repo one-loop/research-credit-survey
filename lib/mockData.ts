@@ -206,6 +206,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_0",
         display_name: "A Mixed-Methods Study of Collaboration in Open Science",
+        field: "field_a",
         authors: [  
             { id: "ax", initials: "A.X.", contributions: ["Conceptualization", "Methodology", "Formal Analysis"] },
             { id: "by", initials: "B.Y.", contributions: ["Methodology", "Formal Analysis"], is_corresponding: true },
@@ -215,6 +216,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_1",
         display_name: "Replication and Reproducibility in Computational Neuroscience",
+        field: "field_a",
         authors: [
             { id: "dx", initials: "D.X.", contributions: ["Software", "Validation", "Data Curation"] },
             { id: "ey", initials: "E.Y.", contributions: ["Investigation", "Resources", "Software"], is_corresponding: true },
@@ -224,6 +226,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_2",
         display_name: "Team Dynamics in Multi-Site Research Consortia",
+        field: "field_a",
         authors: [
             { id: "gw", initials: "G.W.", contributions: ["Conceptualization", "Supervision", "Funding Acquisition"], is_corresponding: true },
             { id: "hv", initials: "H.V.", contributions: ["Methodology", "Project Administration"] },
@@ -233,6 +236,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_3",
         display_name: "Meta-Analysis of Peer Review Outcomes",
+        field: "field_a",
         authors: [
             { id: "jt", initials: "J.T.", contributions: ["Investigation", "Formal Analysis", "Validation"], is_corresponding: true  },
             { id: "ks", initials: "K.S.", contributions: ["Software", "Data Curation"] },
@@ -242,6 +246,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_4",
         display_name: "Citation Networks and Knowledge Diffusion",
+        field: "field_a",
         authors: [
             { id: "mq", initials: "M.Q.", contributions: ["Conceptualization", "Writing – Original Draft"], is_corresponding: true  },
             { id: "np", initials: "N.P.", contributions: ["Formal Analysis", "Visualization"] },
@@ -251,6 +256,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_5",
         display_name: "Survey Methods in Health Services Research",
+        field: "field_a",
         authors: [
             { id: "pp", initials: "P.P.", contributions: ["Conceptualization", "Investigation"] },
             { id: "qq", initials: "Q.Q.", contributions: ["Formal Analysis", "Writing – Original Draft"], is_corresponding: true  }
@@ -259,6 +265,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_6",
         display_name: "Machine Learning for Literature Screening",
+        field: "field_a",
         authors: [
             { id: "rr", initials: "R.R.", contributions: ["Software", "Validation"] },
             { id: "ss", initials: "S.S.", contributions: ["Data Curation", "Visualization"] },
@@ -268,6 +275,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_7",
         display_name: "Ethics and Consent in Longitudinal Studies",
+        field: "field_a",
         authors: [
             { id: "uu", initials: "U.U.", contributions: ["Conceptualization", "Project Administration"], is_corresponding: true  },
             { id: "vv", initials: "V.V.", contributions: ["Investigation", "Resources"] }
@@ -276,6 +284,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_8",
         display_name: "Open Data Practices in Ecology",
+        field: "field_a",
         authors: [
             { id: "ww", initials: "W.W.", contributions: ["Data Curation", "Writing – Original Draft"], is_corresponding: true  },
             { id: "xx", initials: "X.X.", contributions: ["Formal Analysis", "Visualization"] }
@@ -284,6 +293,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_9",
         display_name: "Preprint Servers and Publication Speed",
+        field: "field_a",
         authors: [
             { id: "yy", initials: "Y.Y.", contributions: ["Investigation", "Formal Analysis"] },
             { id: "zz", initials: "Z.Z.", contributions: ["Methodology", "Writing – Original Draft"], is_corresponding: true  }
@@ -292,6 +302,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_10",
         display_name: "Interdisciplinary Collaboration in Climate Science",
+        field: "field_b",
         authors: [
             { id: "a1", initials: "A.A.", contributions: ["Conceptualization", "Supervision"] },
             { id: "b1", initials: "B.B.", contributions: ["Investigation", "Resources"] },
@@ -301,6 +312,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_11",
         display_name: "Quality Assurance in Systematic Reviews",
+        field: "field_b",
         authors: [
             { id: "d1", initials: "D.D.", contributions: ["Validation", "Data Curation"], is_corresponding: true  },
             { id: "e1", initials: "E.E.", contributions: ["Methodology", "Formal Analysis"] }
@@ -309,6 +321,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_12",
         display_name: "Author Order Conventions in Mathematics",
+        field: "field_b",
         authors: [
             { id: "f1", initials: "F.F.", contributions: ["Conceptualization", "Formal Analysis"] },
             { id: "g1", initials: "G.G.", contributions: ["Writing – Original Draft"], is_corresponding: true  }
@@ -317,6 +330,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_13",
         display_name: "Gender and Collaboration in STEM",
+        field: "field_b",
         authors: [
             { id: "h1", initials: "H.H.", contributions: ["Investigation", "Formal Analysis"], is_corresponding: true  },
             { id: "i1", initials: "I.I.", contributions: ["Visualization", "Writing – Review & Editing"] }
@@ -325,6 +339,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_14",
         display_name: "Funding and Research Output in Biomedicine",
+        field: "field_b",
         authors: [
             { id: "j1", initials: "J.J.", contributions: ["Funding Acquisition", "Supervision"] },
             { id: "k1", initials: "K.K.", contributions: ["Investigation", "Writing – Original Draft"], is_corresponding: true  }
@@ -333,6 +348,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_15",
         display_name: "Reproducibility of Statistical Analyses",
+        field: "field_b",
         authors: [
             { id: "l1", initials: "L.L.", contributions: ["Software", "Validation"] },
             { id: "m1", initials: "M.M.", contributions: ["Formal Analysis", "Data Curation"], is_corresponding: true  }
@@ -341,6 +357,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_16",
         display_name: "Co-Authorship Networks in Social Science",
+        field: "field_b",
         authors: [
             { id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", initials: "N.N.", contributions: ["Conceptualization", "Formal Analysis"], is_corresponding: true  },
             { id: "o1", initials: "O.O.", contributions: ["Visualization", "Writing – Original Draft"] }
@@ -349,6 +366,7 @@ export const worksPool: Work[] = [
     {
         work_id: "work_17",
         display_name: "Peer Review and Manuscript Revision",
+        field: "field_b",
         authors: [
             { id: "p1", initials: "P.P.", contributions: ["Writing – Review & Editing", "Validation"] },
             { id: "q1", initials: "Q.Q.", contributions: ["Investigation", "Resources"], is_corresponding: true  }
