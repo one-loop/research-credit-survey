@@ -20,4 +20,11 @@ export type Work = {
     journal?: string
     publication_date?: string
     corresponding_email?: string
+    /**
+     * Debug-only flag used in the Experiment A flow
+     * to identify the respondent's own work when an
+     * authorId query parameter is supplied.
+     * This is not intended to be shown in production.
+     */
+    isOwnWork?: boolean
 }
