@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (never commit — contains Supabase URL and service_role key)
 .env*
+!.env.example
+
+# local/sensitive data (survey responses, exposure state, large datasets)
+/data/*.json
+*.jsonl
 
 # vercel
 .vercel
