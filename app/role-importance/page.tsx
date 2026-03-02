@@ -4,7 +4,7 @@ import { creditRoles } from "@/lib/mockData"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Slider } from "@/components/ui/slider"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 
@@ -13,6 +13,37 @@ function RoleImportanceContent() {
     const authorId = searchParams.get("authorId")
     const experimentHref = authorId ? `/experiment-a?authorId=${encodeURIComponent(authorId)}` : "/experiment-a"
     const [values, setValues] = useState<Record<string, number>>({})
+    const [worksReady, setWorksReady] = useState(false)
+    const [worksError, setWorksError] = useState<string | null>(null)
+
+    useEffect(() => {
+        const params = new URLSearchParams()
+        if (authorId) params.set("authorId", authorId)
+
+        setWorksReady(false)
+        setWorksError(null)
+
+        fetch(`/api/survey/works?${params.toString()}`)
+            .then((res) => {
+                if (!res.ok) throw new Error("Failed to prepare next step")
+                return res.json()
+            })
+            .then((data: { works: unknown; dataSource?: string }) => {
+                if (typeof window !== "undefined") {
+                    const keyAuthor = authorId ?? "none"
+                    const storageKey = `experimentA_works_${keyAuthor}`
+                    window.sessionStorage.setItem(storageKey, JSON.stringify(data))
+                }
+                setWorksReady(true)
+            })
+            .catch((err) => {
+                console.error("[role-importance] prefetch works error:", err)
+                setWorksError(err instanceof Error ? err.message : "Failed to prepare next step")
+                // allow user to continue anyway; Experiment A will fetch directly
+                setWorksReady(false)
+            })
+        // re-run when authorId changes
+    }, [authorId])
 
     return (
         <div className="max-w-3xl mx-auto p-6">
@@ -61,12 +92,28 @@ function RoleImportanceContent() {
                 ))}
             </form>
 
-            <div className="mt-8 flex justify-end">
-                <Link href={experimentHref}>
-                    <Button>
-                        Continue
+            <div className="mt-8 flex flex-col items-end gap-2">
+                {!worksReady && !worksError && (
+                    <p className="text-xs text-muted-foreground">
+                        Preparing the next task… please wait a moment.
+                    </p>
+                )}
+                {worksError && (
+                    <p className="text-xs text-destructive">
+                        Could not pre-load the next task. You can continue, but the next page may take a few seconds to load.
+                    </p>
+                )}
+                {worksReady ? (
+                    <Link href={experimentHref}>
+                        <Button>
+                            Continue
+                        </Button>
+                    </Link>
+                ) : (
+                    <Button disabled>
+                        {worksError ? "Continue (may be slower)" : "Loading next step…"}
                     </Button>
-                </Link>
+                )}
             </div>
         </div>
     )

@@ -1,27 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { promises as fs } from "fs"
-import path from "path"
-import { worksPool } from "@/lib/mockData"
+import { worksPool as mockWorksPool } from "@/lib/mockData"
+import { getExperimentPapers } from "@/lib/db/papers"
+import { isSupabaseConfigured } from "@/lib/supabase/server"
 import type { Work } from "@/lib/types"
 
-const EXPOSURE_PATH = path.join(process.cwd(), "data", "workExposure.json")
-const MAX_EXPOSURE = 3
 const WORKS_PER_RESPONDENT = 5
-
-type ExposureMap = Record<string, number>
-
-async function readExposure(): Promise<ExposureMap> {
-    try {
-        const raw = await fs.readFile(EXPOSURE_PATH, "utf-8")
-        return JSON.parse(raw) as ExposureMap
-    } catch {
-        return {}
-    }
-}
-
-function findWorkByAuthorId(authorId: string) {
-    return worksPool.find((w) => w.authors.some((a) => a.id === authorId))
-}
 
 function shuffle<T>(array: T[]): T[] {
     const result = [...array]
@@ -34,53 +17,48 @@ function shuffle<T>(array: T[]): T[] {
 
 export async function GET(request: NextRequest) {
     const authorId = request.nextUrl.searchParams.get("authorId") ?? undefined
+    const useSupabase = isSupabaseConfigured()
 
-    const exposure = await readExposure()
+    let selected: Work[] = []
+    let dataSource: "supabase" | "mock" = "mock"
 
-    const isUnderCap = (workId: string) => (exposure[workId] ?? 0) < MAX_EXPOSURE
-
-    let ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
-
-    const selected: Work[] = []
-
-    // Always include the respondent's own paper (if found),
-    // even if it has already reached the exposure cap.
-    if (ownWork) {
-        // Mark this work as the respondent's own work for debugging.
-        // This flag can be used on the client to visually verify that
-        // the correct paper is included. It should not be surfaced in
-        // the production UI.
-        selected.push({ ...ownWork, isOwnWork: true })
-    }
-
-    const remainingSlots = WORKS_PER_RESPONDENT - selected.length
-
-    // Determine field constraint based on the respondent's own paper
-    const targetField = ownWork?.field
-
-    let candidatePool = worksPool.filter((work) => {
-        if (ownWork && work.work_id === ownWork.work_id) return false
-        if (!isUnderCap(work.work_id)) return false
-        if (targetField && work.field !== targetField) return false
-        return true
-    })
-
-    // If we didn't find a field (e.g. no ownWork), fall back to all under-cap works
-    if (!targetField) {
-        candidatePool = worksPool.filter((work) => {
-            if (ownWork && work.work_id === ownWork.work_id) return false
-            return isUnderCap(work.work_id)
-        })
-    }
-
-    const shuffled = shuffle(candidatePool)
-
-    for (const work of shuffled) {
-        if (selected.length >= WORKS_PER_RESPONDENT) break
-        if (!selected.some((w) => w.work_id === work.work_id)) {
-            selected.push(work)
+    if (useSupabase) {
+        const start = Date.now()
+        selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT)
+        const duration = Date.now() - start
+        console.log("[survey/works] Supabase experiment papers took", duration, "ms")
+        if (selected.length > 0) {
+            dataSource = "supabase"
         }
     }
 
-    return NextResponse.json({ works: selected })
+    if (selected.length === 0 || !useSupabase) {
+        dataSource = "mock"
+        const worksPool = mockWorksPool
+        const findWorkByAuthorId = (id: string) =>
+            worksPool.find((w) => w.authors.some((a) => a.id === id))
+        let ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
+        if (ownWork) selected.push({ ...ownWork, isOwnWork: true })
+        const targetField = ownWork?.field
+        const candidatePool = worksPool.filter((w) => {
+            if (ownWork && w.work_id === ownWork.work_id) return false
+            if (targetField && w.field !== targetField) return false
+            return true
+        })
+        const pool = targetField
+            ? candidatePool
+            : worksPool.filter((w) => !ownWork || w.work_id !== ownWork.work_id)
+        const shuffled = shuffle(pool)
+        for (const work of shuffled) {
+            if (selected.length >= WORKS_PER_RESPONDENT) break
+            if (!selected.some((s) => s.work_id === work.work_id)) selected.push(work)
+        }
+    }
+    const res = NextResponse.json({
+        works: selected,
+        dataSource,
+    })
+    res.headers.set("X-Data-Source", dataSource)
+    return res
 }
+

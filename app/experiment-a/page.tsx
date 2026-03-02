@@ -35,6 +35,7 @@ function ExperimentAPageContent() {
     const authorId = searchParams.get("authorId") ?? undefined
 
     const [works, setWorks] = useState<Work[] | null>(null)
+    const [dataSource, setDataSource] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [currentIndex, setCurrentIndex] = useState(0)
@@ -47,13 +48,50 @@ function ExperimentAPageContent() {
     useEffect(() => {
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)
+
+        setLoading(true)
+        setError(null)
+
+        const keyAuthor = authorId ?? "none"
+        const storageKey = `experimentA_works_${keyAuthor}`
+
+        let usedPrefetch = false
+
+        if (typeof window !== "undefined") {
+            const stored = window.sessionStorage.getItem(storageKey)
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored) as { works: Work[]; dataSource?: string }
+                    const incoming = parsed.works ?? []
+                    if (parsed.dataSource) setDataSource(parsed.dataSource)
+                    const shuffled = [...incoming]
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1))
+                        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+                    }
+                    setWorks(shuffled)
+                    if (shuffled.length > 0) {
+                        setItems([...shuffled[0].authors])
+                    }
+                    setError(null)
+                    setLoading(false)
+                    usedPrefetch = true
+                } catch (err) {
+                    console.error("[experiment-a] failed to parse prefetched works from sessionStorage:", err)
+                }
+            }
+        }
+
+        if (usedPrefetch) return
+
         fetch(`/api/survey/works?${params.toString()}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load works")
                 return res.json()
             })
-            .then((data: { works: Work[] }) => {
+            .then((data: { works: Work[]; dataSource?: string }) => {
                 const incoming = data.works ?? []
+                if (data.dataSource) setDataSource(data.dataSource)
                 // Randomize order of the 5 selected works so the respondent's
                 // own work is not always shown first.
                 const shuffled = [...incoming]
@@ -203,6 +241,11 @@ function ExperimentAPageContent() {
                 {currentWork?.isOwnWork && (
                     <p className="mt-1 text-xs text-amber-600">
                         [Debug] This work was selected using the provided authorId and is the respondent&apos;s own paper.
+                    </p>
+                )}
+                {dataSource && (
+                    <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
+                        [Debug] Data source: {dataSource === "supabase" ? "Supabase (papers table)" : "mock data"}.
                     </p>
                 )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">
