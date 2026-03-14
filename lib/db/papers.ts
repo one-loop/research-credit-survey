@@ -172,9 +172,16 @@ export async function getExperimentPapers(
             data?.length ?? 0
         )
         if (error || !data?.length) return []
-        return (data as PaperRow[]).map((row, index) =>
-            mapPaperToWork(row, index === 0 && !!authorId)
-        )
+        return (data as PaperRow[]).map((row) => {
+            const isOwnWork =
+                !!authorId &&
+                Array.isArray((row as any).authors) &&
+                (row as any).authors.some(
+                    (author: PaperAuthor) => author.author_id === authorId
+                )
+
+            return mapPaperToWork(row, isOwnWork)
+        })
     } catch (err) {
         console.error(
             "[papers] getExperimentPapers exception:",
