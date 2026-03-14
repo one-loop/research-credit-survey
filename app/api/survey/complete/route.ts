@@ -1,25 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { promises as fs } from "fs"
 import path from "path"
+import { incrementWorkExposure } from "@/lib/db/papers"
+import { isSupabaseConfigured } from "@/lib/supabase/server"
 
-const EXPOSURE_PATH = path.join(process.cwd(), "data", "workExposure.json")
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
-
-type ExposureMap = Record<string, number>
-
-async function readExposure(): Promise<ExposureMap> {
-    try {
-        const raw = await fs.readFile(EXPOSURE_PATH, "utf-8")
-        return JSON.parse(raw) as ExposureMap
-    } catch {
-        return {}
-    }
-}
-
-async function writeExposure(exposure: ExposureMap): Promise<void> {
-    await fs.mkdir(path.dirname(EXPOSURE_PATH), { recursive: true })
-    await fs.writeFile(EXPOSURE_PATH, JSON.stringify(exposure, null, 2), "utf-8")
-}
 
 async function appendResponse(payload: {
     workIds: string[]
@@ -57,13 +42,10 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    const exposure = await readExposure()
-
-    for (const workId of workIds) {
-        exposure[workId] = (exposure[workId] ?? 0) + 1
+    if (isSupabaseConfigured()) {
+        await incrementWorkExposure(workIds)
     }
 
-    await writeExposure(exposure)
     await appendResponse({
         workIds,
         rankings,
