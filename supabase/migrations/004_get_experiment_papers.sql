@@ -40,19 +40,17 @@ BEGIN
   IF field_val IS NOT NULL THEN
     RETURN QUERY
     SELECT p.*
-    FROM papers p
+    FROM papers p TABLESAMPLE SYSTEM (1)
     WHERE p.field = field_val
       AND p.work_id <> own_rec.work_id
       AND (p.work_exposure IS NULL OR p.work_exposure < 3)
-    ORDER BY random()
     LIMIT remaining;
   ELSE
     -- 3. Otherwise, just sample under-cap papers globally.
     RETURN QUERY
     SELECT p.*
-    FROM papers p
+    FROM papers p TABLESAMPLE SYSTEM (1)
     WHERE p.work_exposure IS NULL OR p.work_exposure < 3
-    ORDER BY random()
     LIMIT remaining;
   END IF;
 END;
