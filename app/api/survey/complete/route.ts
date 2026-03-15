@@ -48,8 +48,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (isSupabaseConfigured()) {
-        await incrementWorkExposure(workIds)
-
         const supabase = getSupabase()
         const { error } = await supabase
             .from("experiment_responses")
@@ -62,6 +60,10 @@ export async function POST(request: NextRequest) {
 
         if (error) {
             console.error("Failed to save experiment response:", error.message)
+            return NextResponse.json(
+                { ok: false, error: "Failed to save survey response" },
+                { status: 500 }
+            )
         }
     }
 
@@ -70,6 +72,10 @@ export async function POST(request: NextRequest) {
         rankings,
         completedAt: new Date().toISOString(),
     })
+
+    if (isSupabaseConfigured()) {
+        await incrementWorkExposure(workIds)
+    }
 
     return NextResponse.json({ ok: true })
 }
