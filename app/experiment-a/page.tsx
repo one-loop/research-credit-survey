@@ -148,9 +148,8 @@ function ExperimentAPageContent() {
             })
 
             let roleImportance: Record<string, number> | undefined
-            if (typeof window !== "undefined") {
-                const keyAuthor = authorId ?? "none"
-                const storageKey = `roleImportance_${keyAuthor}`
+            if (typeof window !== "undefined" && authorId) {
+                const storageKey = `roleImportance_${authorId}`
                 const stored = window.sessionStorage.getItem(storageKey)
                 if (stored) {
                     try {
