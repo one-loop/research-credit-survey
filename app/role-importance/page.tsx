@@ -16,6 +16,14 @@ function RoleImportanceContent() {
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)
 
+    // Persist role-importance answers so Experiment A can include them in the final submission
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const keyAuthor = authorId ?? "none"
+        const storageKey = `roleImportance_${keyAuthor}`
+        window.sessionStorage.setItem(storageKey, JSON.stringify(values))
+    }, [authorId, values])
+
     useEffect(() => {
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)
