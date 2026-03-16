@@ -14,12 +14,15 @@ function HomeContent() {
 
     return (
         <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-4">
+            <h1 className="text-2xl font-bold mb-8">
                 Contributor Role Taxonomy (CRediT)
             </h1>
 
-            <p className="mb-4 text-muted-foreground">
-                In this survey, we are interested in how different contributor roles relate to how authors are listed on a paper. On the next pages you will be asked to rate how important each role is and to rank authors on example papers. Please answer based on your own judgment and experience with research collaboration.
+            <p className="mb-2 text-muted-foreground">
+                In this survey, we are interested in how different contributor roles relate to how authors are listed on a paper. Below is a description of all 14 standard Contributor Role Taxonomy (CRediT) contributor roles, designed to represent the key types of contributions made to research articles. On the next pages you will be asked to rate how important each role is in the publication of an article, and to rank authors on example papers.
+            </p>
+            <p className="mb-8 text-muted-foreground">
+                Please answer based on your own judgment and experience with research collaboration.
             </p>
 
             <div className="space-y-4">
