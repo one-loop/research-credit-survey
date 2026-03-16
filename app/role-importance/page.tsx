@@ -83,6 +83,7 @@ function RoleImportanceContent() {
                             <button
                                 key={v}
                                 type="button"
+                                aria-pressed={isSelected}
                                 onClick={() =>
                                 setValues((prev) => ({ ...prev, [role.id]: v }))
                                 }
