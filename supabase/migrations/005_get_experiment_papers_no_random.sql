@@ -1,7 +1,7 @@
--- Redefine get_experiment_papers to avoid ORDER BY random(),
--- which was causing multi-second latency on large tables.
+-- Redefine get_experiment_papers to replace the prior TABLESAMPLE SYSTEM (1)
+-- approach, which was causing multi-second latency on large tables.
 -- This version returns deterministic-but-varied papers by using
--- indexed columns (work_exposure, created_at) for ordering.
+-- indexed columns (work_exposure, created_at) for ordering instead of sampling.
 
 CREATE OR REPLACE FUNCTION get_experiment_papers(author_id text, works_per int DEFAULT 5)
 RETURNS SETOF papers
