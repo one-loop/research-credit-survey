@@ -11,8 +11,9 @@ function RoleImportanceContent() {
     const searchParams = useSearchParams()
     const authorId = searchParams.get("authorId")
     const experimentHref = authorId ? `/experiment-a?authorId=${encodeURIComponent(authorId)}` : "/experiment-a"
-    const defaultValues = Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>
-    const [values, setValues] = useState<Record<string, number>>(defaultValues)
+    const [values, setValues] = useState<Record<string, number>>(
+        () => Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>
+    )
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)
 
