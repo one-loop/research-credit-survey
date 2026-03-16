@@ -59,3 +59,13 @@ BEGIN
 END;
 $$;
 
+-- Indexes to support get_experiment_papers ordering without explicit sorts.
+-- Same-field branch: filter on field and under-cap exposure, order by (work_exposure, created_at DESC).
+CREATE INDEX IF NOT EXISTS idx_papers_field_work_exposure_created_at
+  ON papers (field, work_exposure, created_at DESC)
+  WHERE (work_exposure IS NULL OR work_exposure < 3);
+
+-- Global branch: under-cap exposure only, same ordering.
+CREATE INDEX IF NOT EXISTS idx_papers_work_exposure_created_at
+  ON papers (work_exposure, created_at DESC)
+  WHERE (work_exposure IS NULL OR work_exposure < 3);
