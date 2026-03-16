@@ -22,6 +22,7 @@ BEGIN
     INTO own_rec
     FROM papers
     WHERE authors @> jsonb_build_array(jsonb_build_object('author_id', author_id))
+    ORDER BY work_exposure NULLS FIRST, created_at DESC
     LIMIT 1;
 
     IF FOUND THEN
