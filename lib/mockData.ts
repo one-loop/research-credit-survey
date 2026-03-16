@@ -5,85 +5,85 @@ export const creditRoles: CreditRole[] = [
         id: "conceptualization",
         name: "Conceptualization",
         description:
-            "Ideas; formulation or evolution of overarching research goals and aims",
+            "Came up with the main research idea and goals.",
     },
     {
         id: "methodology",
         name: "Methodology",
         description:
-            "Development or design of methodology; creation of models",
+            "Designed how the study was done (methods, study design).",
     },
     {
         id: "software",
         name: "Software",
         description:
-            "Programming, software development; designing computer programs; implementation of computer code and supporting algorithms",
+            "Wrote or maintained the code and software used in the study.",
     },
     {
         id: "validation",
         name: "Validation",
         description:
-            "Verification of the overall replication/reproducibility of results/experiments and other research outputs",
+            "Checked that the methods and results were correct and reproducible.",
     },
     {
         id: "formal-analysis",
         name: "Formal Analysis",
         description:
-            "Application of statistical, mathematical, computational, or other formal techniques to analyze or synthesize study data",
+            "Did the statistical or mathematical analysis of the data.",
     },
     {
         id: "investigation",
         name: "Investigation",
         description:
-            "Conducting a research and investigation process, specifically performing the experiments, or data/evidence collection",
+            "Collected data or ran the experiments.",
     },
     {
         id: "resources",
         name: "Resources",
         description:
-            "Provision of study materials, reagents, materials, patients, laboratory samples, animals, instrumentation, computing resources, or other analysis tools",
+            "Provided key resources such as data, samples, equipment, or participants.",
     },
     {
         id: "data-curation",
         name: "Data Curation",
         description:
-            "Management activities to annotate, scrub data and maintain research data for initial use and later re-use",
+            "Cleaned, organized, and documented the data so it could be used and reused.",
     },
     {
         id: "writing-original-draft",
         name: "Writing – Original Draft",
         description:
-            "Preparation, creation and/or presentation of the published work, specifically writing the initial draft (including substantive translation)",
+            "Wrote the first full version of the manuscript.",
     },
     {
         id: "writing-review-editing",
         name: "Writing – Review & Editing",
         description:
-            "Preparation, creation and/or presentation of the published work by those from the original research group, specifically critical review, commentary or revision",
+            "Revised, edited, or commented on the manuscript after the first draft.",
     },
     {
         id: "visualization",
         name: "Visualization",
         description:
-            "Preparation, creation and/or presentation of the published work, specifically visualization and data presentation",
+            "Created figures, tables, or other visual displays of the results.",
     },
     {
         id: "supervision",
         name: "Supervision",
         description:
-            "Oversight and leadership responsibility for the research activity planning and execution, including mentorship external to the core team",
+            "Oversaw and guided the research team or project.",
     },
     {
         id: "project-administration",
         name: "Project Administration",
         description:
-            "Management and coordination responsibility for the research activity planning and execution",
+            "Managed the day‑to‑day running and coordination of the project.",
     },
     {
         id: "funding-acquisition",
         name: "Funding Acquisition",
         description:
-            "Acquisition of the financial support for the project leading to this publication",
+            "Secured the funding that made the study possible.",
     },
 ]
 

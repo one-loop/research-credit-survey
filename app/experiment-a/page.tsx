@@ -23,7 +23,7 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
             style={style}
             {...attributes}
             {...listeners}
-            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100]"
+            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100] bg-violet-50 border-violet-950 text-violet-950"
         >
             {children}
         </div>
@@ -366,7 +366,7 @@ function ExperimentAPageContent() {
                             Please order the author positions for this paper. (left = highest contribution).
                         </p>
                         <p className="mb-12 text-muted-foreground text-sm">
-                            <Mail className="h-3.5 w-3.5 text-muted-foreground inline" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
+                            <Mail className="h-3.5 w-3.5 inline stroke-violet-950 text-violet-950" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
                         </p>
                         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                             <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
@@ -381,7 +381,7 @@ function ExperimentAPageContent() {
                                                         {author.initials}
                                                     </span>
                                                     {showEnvelope && (
-                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <Mail className="h-3.5 w-3.5 stroke-violet-950 text-violet-950" />
                                                     )}
                                                 </div>
                                             </SortableItem>
