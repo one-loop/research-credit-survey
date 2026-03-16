@@ -3,7 +3,6 @@
 import { creditRoles } from "@/lib/mockData"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Slider } from "@/components/ui/slider"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
