@@ -52,7 +52,8 @@ BEGIN
     RETURN QUERY
     SELECT p.*
     FROM papers p
-    WHERE p.work_exposure IS NULL OR p.work_exposure < 3
+    WHERE (own_rec.work_id IS NULL OR p.work_id <> own_rec.work_id)
+      AND (p.work_exposure IS NULL OR p.work_exposure < 3)
     ORDER BY p.work_exposure NULLS FIRST, p.created_at DESC
     LIMIT remaining;
   END IF;
