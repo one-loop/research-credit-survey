@@ -16,6 +16,25 @@ function RoleImportanceContent() {
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)
 
+    // Persist role-importance answers so Experiment A can include them in the final submission
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const keyAuthor = authorId ?? "none"
+        const storageKey = `roleImportance_${keyAuthor}`
+        // Materialize defaults: ensure every credit role has a value (default 5) in the persisted payload
+        const materializedValues: Record<string, number> = {}
+        for (const role of creditRoles as any[]) {
+            // Support both string roles and object roles with an identifier field
+            const key =
+                typeof role === "string"
+                    ? role
+                    : (role as any).id ?? (role as any).key ?? (role as any).name
+            if (!key) continue
+            materializedValues[key] = values[key] ?? 5
+        }
+        window.sessionStorage.setItem(storageKey, JSON.stringify(materializedValues))
+    }, [authorId, values])
+
     useEffect(() => {
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)

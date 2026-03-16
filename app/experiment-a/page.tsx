@@ -146,11 +146,25 @@ function ExperimentAPageContent() {
             works.forEach((w, i) => {
                 rankings[w.work_id] = newResults[i] ?? []
             })
+
+            let roleImportance: Record<string, number> | undefined
+            if (typeof window !== "undefined" && authorId) {
+                const storageKey = `roleImportance_${authorId}`
+                const stored = window.sessionStorage.getItem(storageKey)
+                if (stored) {
+                    try {
+                        roleImportance = JSON.parse(stored) as Record<string, number>
+                    } catch (err) {
+                        console.error("[experiment-a] failed to parse roleImportance from sessionStorage:", err)
+                    }
+                }
+            }
+
             try {
                 await fetch("/api/survey/complete", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ workIds, rankings })
+                    body: JSON.stringify({ workIds, rankings, authorId, roleImportance })
                 })
                 setSubmitDone(true)
             } catch {

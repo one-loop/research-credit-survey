@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { promises as fs } from "fs"
 import path from "path"
 import { incrementWorkExposure } from "@/lib/db/papers"
-import { isSupabaseConfigured } from "@/lib/supabase/server"
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
 
@@ -24,7 +24,12 @@ async function appendResponse(payload: {
 }
 
 export async function POST(request: NextRequest) {
-    let body: { workIds: string[]; rankings: Record<string, string[]> }
+    let body: {
+        workIds: string[]
+        rankings: Record<string, string[]>
+        authorId?: string
+        roleImportance?: Record<string, number>
+    }
     try {
         body = await request.json()
     } catch {
@@ -34,7 +39,7 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    const { workIds, rankings } = body
+    const { workIds, rankings, authorId, roleImportance } = body
     if (!Array.isArray(workIds) || !rankings || typeof rankings !== "object") {
         return NextResponse.json(
             { error: "Body must include workIds (array) and rankings (object)" },
@@ -43,7 +48,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (isSupabaseConfigured()) {
-        await incrementWorkExposure(workIds)
+        const supabase = getSupabase()
+        const { error } = await supabase
+            .from("experiment_responses")
+            .insert({
+                author_id: authorId ?? null,
+                work_ids: workIds,
+                rankings, // stored as JSONB
+                role_importance: roleImportance ?? null,
+            })
+
+        if (error) {
+            console.error("Failed to save experiment response:", error.message)
+            return NextResponse.json(
+                { ok: false, error: "Failed to save survey response" },
+                { status: 500 }
+            )
+        }
     }
 
     await appendResponse({
@@ -51,6 +72,10 @@ export async function POST(request: NextRequest) {
         rankings,
         completedAt: new Date().toISOString(),
     })
+
+    if (isSupabaseConfigured()) {
+        await incrementWorkExposure(workIds)
+    }
 
     return NextResponse.json({ ok: true })
 }
