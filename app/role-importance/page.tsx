@@ -64,40 +64,48 @@ function RoleImportanceContent() {
             </p>
 
             <form className="space-y-6">
-                {creditRoles.map(role => (
-                    <div key={role.id}>
-                        <label className="font-medium">
-                            {role.name}
+                {creditRoles.map((role) => {
+                    const current = values[role.id] ?? 5
+                    return (
+                    <div key={role.id} className="space-y-2">
+                        <label className="font-medium block">
+                        {role.name}
                         </label>
-                        {/* <Controller
-                            name={role.id}
-                            control={control}
-                            render={({ field }) => (
-                                <Slider
-                                    min={1}
-                                    max={10}
-                                    step={1}
-                                    className="mx-auto w-full"
-                                    value={[field.value ?? 5]}
-                                    onValueChange={(vals) => field.onChange(vals[0])}
-                                />
-                            )}
-                        />
-                        <div className="text-sm text-gray-500">
-                            Value: {watch(role.id) ?? 5}
-                        </div>           */}
-                        <Slider
-                            min={1}
-                            max={10}
-                            step={1}
-                            defaultValue={[5]}
-                            onValueChange={([v]) => setValues(prev => ({ ...prev, [role.id]: v}))}
-                        />
-                        <div className="text-sm text-muted-foreground mt-1">
-                            Value: {values[role.id] ?? 5}
+                        <p className="text-sm text-muted-foreground mb-4">
+                        {role.description}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                        {Array.from({ length: 10 }, (_, i) => {
+                            const v = i + 1
+                            const isSelected = v === current
+                            return (
+                            <button
+                                key={v}
+                                type="button"
+                                onClick={() =>
+                                setValues((prev) => ({ ...prev, [role.id]: v }))
+                                }
+                                className={[
+                                    "h-12 flex items-center justify-center flex-grow rounded-sm border text-sm font-medium bg-violet-100/50 border-violet-950 text-violet-950",
+                                    "transition-all duration-150 ease-out",
+                                    "hover:scale-105 hover:bg-violet-900/10",
+                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary",
+                                    isSelected
+                                      ? "shadow-sm bg-white border-violet-950 border-2 hover:bg-white"
+                                      : "bg-background text-muted-foreground"
+                                  ].join(" ")}
+                            >
+                                {v}
+                            </button>
+                            )
+                        })}
+                        </div>
+                        <div className="text-xs text-muted-foreground mb-[50px]">
+                        {/* Selected: {current} */}
                         </div>
                     </div>
-                ))}
+                    )
+                })}
             </form>
 
             <div className="mt-8 flex flex-col items-end gap-2">

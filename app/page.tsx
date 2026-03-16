@@ -18,6 +18,10 @@ function HomeContent() {
                 Contributor Role Taxonomy (CRediT)
             </h1>
 
+            <p className="mb-4 text-muted-foreground">
+                In this survey, we are interested in how different contributor roles relate to how authors are listed on a paper. On the next pages you will be asked to rate how important each role is and to rank authors on example papers. Please answer based on your own judgment and experience with research collaboration.
+            </p>
+
             <div className="space-y-4">
                 {creditRoles.map(role => (
                     <Card key={role.id}>
