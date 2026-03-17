@@ -47,6 +47,12 @@ export async function POST(request: NextRequest) {
         )
     }
 
+    const { creditRoles } = await import("@/lib/mockData")
+
+    const roleImportanceWithDefault =
+        roleImportance ??
+        (Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>)
+
     if (isSupabaseConfigured()) {
         const supabase = getSupabase()
         const { error } = await supabase
@@ -55,7 +61,7 @@ export async function POST(request: NextRequest) {
                 author_id: authorId ?? null,
                 work_ids: workIds,
                 rankings, // stored as JSONB
-                role_importance: roleImportance ?? null,
+                role_importance: roleImportanceWithDefault,
             })
 
         if (error) {
