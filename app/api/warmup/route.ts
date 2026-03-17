@@ -11,7 +11,7 @@ export async function GET() {
         try {
             const start = Date.now()
             // authorId = null so this just exercises the generic path
-            const works = await getExperimentPapers(null, 5)
+            const works = await getExperimentPapers(undefined, 5)
             const duration = Date.now() - start
             console.log("[warmup] getExperimentPapers took", duration, "ms | rows:", works.length)
         } catch (err) {
