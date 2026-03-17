@@ -3,7 +3,6 @@ import { promises as fs } from "fs"
 import path from "path"
 import { incrementWorkExposure } from "@/lib/db/papers"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
-import { creditRoles } from "@/lib/mockData"
 
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
 
@@ -47,6 +46,8 @@ export async function POST(request: NextRequest) {
             { status: 400 }
         )
     }
+
+    const { creditRoles } = await import("@/lib/mockData")
 
     const roleImportanceWithDefault =
         roleImportance ??
