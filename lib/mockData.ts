@@ -202,7 +202,7 @@ export const experimentATrials: Author[][] = [
 // Pool of Works for Experiment A (queue: max 3 respondents per Work)
 // Author IDs can be UUIDs (or numbers) for respondent links: /experiment-a?authorId=<uuid>
 // The work containing that author is included as one of the 5 works.
-export const worksPool: Work[] = [
+const baseWorksPool: Work[] = [
     {
         work_id: "work_0",
         display_name: "A Mixed-Methods Study of Collaboration in Open Science",
@@ -373,4 +373,24 @@ export const worksPool: Work[] = [
         ]
     }
 ]
+
+function enrichMockAuthor(author: Author, workIndex: number, authorIndex: number): Author {
+    // Deterministic mock values for experiments that show academic metadata.
+    const defaultInstitution = `Mock Institute ${workIndex + 1}-${authorIndex + 1}`
+    const defaultAcademicAge = 3 + ((workIndex + authorIndex) % 27)
+    const defaultHIndex = 1 + ((workIndex * 7 + authorIndex * 5) % 45)
+    return {
+        ...author,
+        first_institution_name: author.first_institution_name ?? defaultInstitution,
+        academic_age: author.academic_age ?? defaultAcademicAge,
+        h_index: author.h_index ?? defaultHIndex,
+    }
+}
+
+export const worksPool: Work[] = baseWorksPool.map((work, workIndex) => ({
+    ...work,
+    authors: work.authors.map((author, authorIndex) =>
+        enrichMockAuthor(author, workIndex, authorIndex)
+    ),
+}))
 

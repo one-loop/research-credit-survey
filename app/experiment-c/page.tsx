@@ -23,14 +23,14 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
             style={style}
             {...attributes}
             {...listeners}
-            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100] bg-violet-50 border-violet-950 text-violet-950"
+            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100]"
         >
             {children}
         </div>
     )
 }
 
-function ExperimentAPageContent() {
+function ExperimentCPageContent() {
     const searchParams = useSearchParams()
     const authorId = searchParams.get("authorId") ?? undefined
 
@@ -54,14 +54,11 @@ function ExperimentAPageContent() {
 
         const keyAuthor = authorId ?? "none"
         const storageKey = `experimentWorks_${keyAuthor}`
-        const legacyStorageKey = `experimentA_works_${keyAuthor}`
 
         let usedPrefetch = false
 
         if (typeof window !== "undefined") {
-            const stored =
-                window.sessionStorage.getItem(storageKey) ??
-                window.sessionStorage.getItem(legacyStorageKey)
+            const stored = window.sessionStorage.getItem(storageKey)
             if (stored) {
                 try {
                     const parsed = JSON.parse(stored) as { works: Work[]; dataSource?: string }
@@ -80,7 +77,7 @@ function ExperimentAPageContent() {
                     setLoading(false)
                     usedPrefetch = true
                 } catch (err) {
-                    console.error("[experiment-a] failed to parse prefetched works from sessionStorage:", err)
+                    console.error("[experiment-c] failed to parse prefetched works from sessionStorage:", err)
                 }
             }
         }
@@ -95,8 +92,6 @@ function ExperimentAPageContent() {
             .then((data: { works: Work[]; dataSource?: string }) => {
                 const incoming = data.works ?? []
                 if (data.dataSource) setDataSource(data.dataSource)
-                // Randomize order of the 5 selected works so the respondent's
-                // own work is not always shown first.
                 const shuffled = [...incoming]
                 for (let i = shuffled.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1))
@@ -151,14 +146,15 @@ function ExperimentAPageContent() {
             })
 
             let roleImportance: Record<string, number> | undefined
-            if (typeof window !== "undefined" && authorId) {
-                const storageKey = `roleImportance_${authorId}`
+            if (typeof window !== "undefined") {
+                const keyAuthor = authorId ?? "none"
+                const storageKey = `roleImportance_${keyAuthor}`
                 const stored = window.sessionStorage.getItem(storageKey)
                 if (stored) {
                     try {
                         roleImportance = JSON.parse(stored) as Record<string, number>
                     } catch (err) {
-                        console.error("[experiment-a] failed to parse roleImportance from sessionStorage:", err)
+                        console.error("[experiment-c] failed to parse roleImportance from sessionStorage:", err)
                     }
                 }
             }
@@ -172,7 +168,7 @@ function ExperimentAPageContent() {
                         rankings,
                         authorId,
                         roleImportance,
-                        experimentType: "A",
+                        experimentType: "C",
                     })
                 })
                 setSubmitDone(true)
@@ -193,7 +189,7 @@ function ExperimentAPageContent() {
     if (error || !works || totalWorks === 0) {
         return (
             <div className="max-w-3xl mx-auto p-6">
-                <h1 className="text-2xl font-bold mb-4">Experiment A</h1>
+                <h1 className="text-2xl font-bold mb-4">Experiment C</h1>
                 <p className="text-destructive">
                     {error ?? "No works available. Try again later."}
                 </p>
@@ -204,29 +200,10 @@ function ExperimentAPageContent() {
     if (isComplete && submitDone) {
         return (
             <div className="max-w-3xl mx-auto p-6">
-                <h1 className="text-2xl font-bold mb-4">Experiment A Complete</h1>
+                <h1 className="text-2xl font-bold mb-4">Experiment C Complete</h1>
                 <p className="mb-6 text-muted-foreground">
                     Thank you for completing all {totalWorks} works!
                 </p>
-                <div className="space-y-4">
-                    <h2 className="text-lg font-semibold">Your Rankings</h2>
-                    {trialResults.map((ranking, index) => {
-                        const work = works?.[index]
-                        if (!work) return null
-                        return (
-                            <div key={work.work_id} className="border rounded p-4">
-                                <h3 className="font-medium mb-2">Work {index + 1}</h3>
-                                <ol className="list-decimal list-inside space-y-1">
-                                    {ranking.map((authorId, rank) => (
-                                        <li key={authorId} className="text-sm">
-                                            {work.authors.find((a) => a.id === authorId)?.initials} (Rank {rank + 1})
-                                        </li>
-                                    ))}
-                                </ol>
-                            </div>
-                        )
-                    })}
-                </div>
             </div>
         )
     }
@@ -239,7 +216,6 @@ function ExperimentAPageContent() {
         )
     }
 
-    // Create a color map based on original author order, so colors stay consistent when dragging
     const authorColorMap = currentWork
         ? new Map(
               currentWork.authors.map((a, index) => [
@@ -249,7 +225,6 @@ function ExperimentAPageContent() {
           )
         : new Map<string, string>()
 
-    // Find the original index of the corresponding author (envelope icon position)
     const correspondingAuthorIndex = currentWork
         ? currentWork.authors.findIndex((a) => a.is_corresponding)
         : -1
@@ -261,11 +236,6 @@ function ExperimentAPageContent() {
                 <p className="text-muted-foreground">
                     Work {currentIndex + 1} of {totalWorks}
                 </p>
-                {currentWork?.isOwnWork && (
-                    <p className="mt-1 text-xs text-amber-600">
-                        [Debug] This work was selected using the provided authorId and is the respondent&apos;s own paper.
-                    </p>
-                )}
                 {dataSource && (
                     <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
                         [Debug] Data source: {dataSource === "supabase" ? "Supabase (papers table)" : "mock data"}.
@@ -285,14 +255,13 @@ function ExperimentAPageContent() {
                         <p className="text-lg font-medium mb-2">Author contributions</p>
                         <p className="text-lg leading-relaxed text-muted-foreground font-medium">
                             {(() => {
-                                // Map CRediT role names to verb phrases
                                 const roleVerbMap: Record<string, string> = {
                                     "Conceptualization": "conceived the study",
-                                    "Methodology": "designed the methodology",
+                                    "Methodology": "did the methodology",
                                     "Software": "developed the software",
                                     "Validation": "validated the results",
-                                    "Formal Analysis": "conducted the analysis",
-                                    "Investigation": "performed the investigation",
+                                    "Formal Analysis": "performed formal analysis",
+                                    "Investigation": "conducted investigation",
                                     "Resources": "provided resources",
                                     "Data Curation": "processed the data",
                                     "Writing – Original Draft": "wrote the manuscript",
@@ -303,7 +272,6 @@ function ExperimentAPageContent() {
                                     "Funding Acquisition": "acquired funding",
                                 }
 
-                                // Group authors by contribution role
                                 const roleGroups = new Map<string, typeof currentWork.authors>()
                                 currentWork.authors.forEach((author) => {
                                     author.contributions.forEach((role) => {
@@ -314,7 +282,6 @@ function ExperimentAPageContent() {
                                     })
                                 })
 
-                                // Convert to array and format each group
                                 const formattedGroups = Array.from(roleGroups.entries()).map(
                                     ([role, authors]) => {
                                         const verbPhrase = roleVerbMap[role] || `contributed to ${role}`
@@ -327,7 +294,6 @@ function ExperimentAPageContent() {
                                             )
                                         })
 
-                                        // Format author list with "and" before last
                                         let authorList: React.ReactNode
                                         if (authorNames.length === 1) {
                                             authorList = authorNames[0]
@@ -359,7 +325,6 @@ function ExperimentAPageContent() {
                                     }
                                 )
 
-                                // Join groups with periods and spaces
                                 return formattedGroups.map((group, index) => (
                                     <span key={index}>
                                         {group}
@@ -371,11 +336,22 @@ function ExperimentAPageContent() {
                     </div>
 
                     <div className="mb-6">
+                        <p className="font-medium mb-2">Academic Information:</p>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                            {currentWork.authors.map((author) => (
+                                <p key={author.id}>
+                                    <span className="font-medium text-foreground">{author.initials}</span>: Institution: {author.first_institution_name ?? "N/A"}; Academic Age: {author.academic_age ?? "N/A"}; h-index: {author.h_index ?? "N/A"}
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mb-6">
                         <p className="font-medium mb-6">
-                            Please order the author positions for this paper. (left = highest contribution).
+                            Please order the authors from first to last as you think they should appear on the byline.
                         </p>
                         <p className="mb-12 text-muted-foreground text-sm">
-                            <Mail className="h-3.5 w-3.5 inline stroke-violet-950 text-violet-950" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground inline" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
                         </p>
                         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                             <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
@@ -390,7 +366,7 @@ function ExperimentAPageContent() {
                                                         {author.initials}
                                                     </span>
                                                     {showEnvelope && (
-                                                        <Mail className="h-3.5 w-3.5 stroke-violet-950 text-violet-950" />
+                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                                                     )}
                                                 </div>
                                             </SortableItem>
@@ -412,14 +388,15 @@ function ExperimentAPageContent() {
     )
 }
 
-export default function ExperimentAPage() {
+export default function ExperimentCPage() {
     return (
         <Suspense fallback={
             <div className="max-w-3xl mx-auto p-6">
                 <p className="text-muted-foreground">Loading…</p>
             </div>
         }>
-            <ExperimentAPageContent />
+            <ExperimentCPageContent />
         </Suspense>
     )
 }
+

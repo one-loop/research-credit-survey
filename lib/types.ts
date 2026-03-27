@@ -9,6 +9,10 @@ export type Author = {
     initials: string
     contributions: string[]
     is_corresponding?: boolean
+    name?: string
+    academic_age?: number
+    h_index?: number
+    first_institution_name?: string
 }
 
 export type Work = {

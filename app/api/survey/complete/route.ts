@@ -9,6 +9,7 @@ const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
 async function appendResponse(payload: {
     workIds: string[]
     rankings: Record<string, string[]>
+    experimentType?: "A" | "B" | "C"
     completedAt: string
 }): Promise<void> {
     let existing: unknown[] = []
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
         rankings: Record<string, string[]>
         authorId?: string
         roleImportance?: Record<string, number>
+        experimentType?: "A" | "B" | "C"
     }
     try {
         body = await request.json()
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    const { workIds, rankings, authorId, roleImportance } = body
+    const { workIds, rankings, authorId, roleImportance, experimentType } = body
     if (!Array.isArray(workIds) || !rankings || typeof rankings !== "object") {
         return NextResponse.json(
             { error: "Body must include workIds (array) and rankings (object)" },
@@ -62,6 +64,7 @@ export async function POST(request: NextRequest) {
                 work_ids: workIds,
                 rankings, // stored as JSONB
                 role_importance: roleImportanceWithDefault,
+                experiment_type: experimentType ?? null,
             })
 
         if (error) {
@@ -76,6 +79,7 @@ export async function POST(request: NextRequest) {
     await appendResponse({
         workIds,
         rankings,
+        experimentType,
         completedAt: new Date().toISOString(),
     })
 

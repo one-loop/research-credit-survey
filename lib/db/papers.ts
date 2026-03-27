@@ -9,6 +9,12 @@ type PaperAuthor = {
     corresponding?: boolean
     name?: string
     orcid?: string
+    academic_age?: number
+    h_index?: number
+    institutions?: Array<{
+        institution_id?: string
+        institution_name?: string | null
+    }>
     [key: string]: unknown
 }
 
@@ -32,6 +38,14 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
         initials: a.initials ?? "?",
         contributions: Array.isArray(a.contributions) ? a.contributions : [],
         is_corresponding: Boolean(a.corresponding),
+        name: typeof a.name === "string" ? a.name : undefined,
+        academic_age: typeof a.academic_age === "number" ? a.academic_age : undefined,
+        h_index: typeof a.h_index === "number" ? a.h_index : undefined,
+        first_institution_name:
+            Array.isArray(a.institutions) &&
+            typeof a.institutions[0]?.institution_name === "string"
+                ? a.institutions[0].institution_name
+                : undefined,
     }))
     const displayName =
         paper.topic ?? paper.journal ?? paper.work_id

@@ -10,12 +10,22 @@ import { Suspense } from "react"
 function RoleImportanceContent() {
     const searchParams = useSearchParams()
     const authorId = searchParams.get("authorId")
-    const experimentHref = authorId ? `/experiment-a?authorId=${encodeURIComponent(authorId)}` : "/experiment-a"
+    const [assignedExperiment, setAssignedExperiment] = useState<"A" | "C" | null>(null)
+    const experimentPath = assignedExperiment === "C" ? "/experiment-c" : "/experiment-a"
+    const experimentHref = authorId
+        ? `${experimentPath}?authorId=${encodeURIComponent(authorId)}`
+        : experimentPath
     const [values, setValues] = useState<Record<string, number>>(
         () => Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>
     )
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)
+
+    useEffect(() => {
+        // Assign experiment fresh each time this page is visited (50/50 A vs C)
+        const randomAssignment: "A" | "C" = Math.random() < 0.5 ? "A" : "C"
+        setAssignedExperiment(randomAssignment)
+    }, [authorId])
 
     // Persist role-importance answers so Experiment A can include them in the final submission
     useEffect(() => {
@@ -37,6 +47,7 @@ function RoleImportanceContent() {
     }, [authorId, values])
 
     useEffect(() => {
+        if (!assignedExperiment) return
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)
 
@@ -51,7 +62,7 @@ function RoleImportanceContent() {
             .then((data: { works: unknown; dataSource?: string }) => {
                 if (typeof window !== "undefined") {
                     const keyAuthor = authorId ?? "none"
-                    const storageKey = `experimentA_works_${keyAuthor}`
+                    const storageKey = `experimentWorks_${keyAuthor}`
                     window.sessionStorage.setItem(storageKey, JSON.stringify(data))
                 }
                 setWorksReady(true)
@@ -63,7 +74,7 @@ function RoleImportanceContent() {
                 setWorksReady(false)
             })
         // re-run when authorId changes
-    }, [authorId])
+    }, [authorId, assignedExperiment])
 
     return (
         <div className="max-w-3xl mx-auto p-6">
