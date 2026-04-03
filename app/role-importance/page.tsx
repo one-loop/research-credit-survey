@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 function RoleImportanceContent() {
     const searchParams = useSearchParams()
@@ -91,14 +92,21 @@ function RoleImportanceContent() {
                     const current = values[role.id] ?? 5
                     return (
                     <div key={role.id} className="space-y-2">
-                        <label className="font-medium block">
-                        {role.name}
-                        </label>
+                        <Tooltip>
+                            <label className="font-medium block">
+                            <TooltipTrigger>
+                                {role.name}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {role.description}
+                            </TooltipContent>
+                            </label>
+                        </Tooltip>
                         <p className="text-sm text-muted-foreground mb-4">
                         {role.description}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                        {Array.from({ length: 10 }, (_, i) => {
+                        {Array.from({ length: 5 }, (_, i) => {
                             const v = i + 1
                             const isSelected = v === current
                             return (
