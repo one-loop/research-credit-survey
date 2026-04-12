@@ -12,10 +12,7 @@ function RoleImportanceContent() {
     const searchParams = useSearchParams()
     const authorId = searchParams.get("authorId")
     const [assignedExperiment, setAssignedExperiment] = useState<"A" | "C" | null>(null)
-    const experimentPath = assignedExperiment === "C" ? "/experiment-c" : "/experiment-a"
-    const experimentHref = authorId
-        ? `${experimentPath}?authorId=${encodeURIComponent(authorId)}`
-        : experimentPath
+    const trialHref = authorId ? `/trial?authorId=${encodeURIComponent(authorId)}` : "/trial"
     const [values, setValues] = useState<Record<string, number>>(
         () => Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>
     )
@@ -27,6 +24,12 @@ function RoleImportanceContent() {
         const randomAssignment: "A" | "C" = Math.random() < 0.5 ? "A" : "C"
         setAssignedExperiment(randomAssignment)
     }, [authorId])
+
+    useEffect(() => {
+        if (typeof window === "undefined" || !assignedExperiment) return
+        const keyAuthor = authorId ?? "none"
+        window.sessionStorage.setItem(`surveyExperiment_${keyAuthor}`, assignedExperiment)
+    }, [authorId, assignedExperiment])
 
     // Persist role-importance answers so Experiment A can include them in the final submission
     useEffect(() => {
@@ -55,6 +58,7 @@ function RoleImportanceContent() {
         setWorksReady(false)
         setWorksError(null)
 
+        if (assignedExperiment) params.set("experimentType", assignedExperiment)
         fetch(`/api/survey/works?${params.toString()}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to prepare next step")
@@ -152,15 +156,17 @@ function RoleImportanceContent() {
                     </p>
                 )}
                 {worksReady ? (
-                    <Link href={experimentHref}>
+                    <Link href={trialHref}>
                         <Button>
                             Continue
                         </Button>
                     </Link>
+                ) : worksError ? (
+                    <Link href={trialHref}>
+                        <Button variant="outline">Continue (pre-load failed)</Button>
+                    </Link>
                 ) : (
-                    <Button disabled>
-                        {worksError ? "Continue (may be slower)" : "Loading next step…"}
-                    </Button>
+                    <Button disabled>Loading next step…</Button>
                 )}
             </div>
         </div>

@@ -17,6 +17,8 @@ function shuffle<T>(array: T[]): T[] {
 
 export async function GET(request: NextRequest) {
     const authorId = request.nextUrl.searchParams.get("authorId") ?? undefined
+    const experimentType =
+        request.nextUrl.searchParams.get("experimentType") === "C" ? "C" : "A"
     const useSupabase = isSupabaseConfigured()
 
     let selected: Work[] = []
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     if (useSupabase) {
         const start = Date.now()
-        selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT)
+        selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT, experimentType)
         const duration = Date.now() - start
         console.log("[survey/works] Supabase experiment papers took", duration, "ms")
         if (selected.length > 0) {

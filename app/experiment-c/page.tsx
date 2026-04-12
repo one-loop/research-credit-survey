@@ -4,11 +4,12 @@ import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense, Fragment } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
+import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 
 const roleDetailsMap: Record<string, { verb: string; description: string }> = {
     "Conceptualization": {
@@ -92,8 +93,10 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
 
 function ExperimentCPageContent() {
     const searchParams = useSearchParams()
+    const router = useRouter()
     const authorId = searchParams.get("authorId") ?? undefined
 
+    const [trialGate, setTrialGate] = useState<"pending" | "failed" | "ok">("pending")
     const [works, setWorks] = useState<Work[] | null>(null)
     const [dataSource, setDataSource] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
@@ -107,6 +110,21 @@ function ExperimentCPageContent() {
     const authorColors = ["text-red-600", "text-blue-600", "text-green-600", "text-amber-600"]
 
     useEffect(() => {
+        if (typeof window === "undefined") return
+        if (sessionStorage.getItem(trialFailedKey(authorId)) === "true") {
+            setTrialGate("failed")
+            return
+        }
+        if (sessionStorage.getItem(trialPassedKey(authorId)) !== "true") {
+            router.replace(`/trial?authorId=${encodeURIComponent(authorId ?? "")}`)
+            return
+        }
+        setTrialGate("ok")
+    }, [authorId, router])
+
+    useEffect(() => {
+        if (trialGate !== "ok") return
+
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)
 
@@ -145,6 +163,7 @@ function ExperimentCPageContent() {
 
         if (usedPrefetch) return
 
+        params.set("experimentType", "C")
         fetch(`/api/survey/works?${params.toString()}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load works")
@@ -167,7 +186,7 @@ function ExperimentCPageContent() {
             })
             .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false))
-    }, [authorId])
+    }, [authorId, trialGate])
 
     const totalWorks = works?.length ?? 0
     const isComplete = totalWorks > 0 && currentIndex >= totalWorks
@@ -239,6 +258,26 @@ function ExperimentCPageContent() {
         }
     }
 
+    if (trialGate === "pending") {
+        return (
+            <div className="max-w-3xl mx-auto p-6">
+                <p className="text-muted-foreground">Checking session…</p>
+            </div>
+        )
+    }
+
+    if (trialGate === "failed") {
+        return (
+            <div className="max-w-3xl mx-auto p-6">
+                <h1 className="text-2xl font-bold mb-4">Survey ended</h1>
+                <p className="text-muted-foreground leading-relaxed">
+                    This session cannot continue because the instruction check was not completed successfully.
+                    Thank you for your time.
+                </p>
+            </div>
+        )
+    }
+
     if (loading) {
         return (
             <div className="max-w-3xl mx-auto p-6">
@@ -295,10 +334,10 @@ function ExperimentCPageContent() {
                     You will then be asked to <span className="font-semibold text-black">order the author positions</span> in the paper's byline from highest to lowest according to how you believe the authors contributed to the paper.
                 </p>
                 <p className="text-muted-foreground mb-6 leading-relaxed">
-                    We will begin by showing you a <span className="font-semibold text-black">practice trial</span> to familiarize you with the task. Once you are comfortable with the task, we will begin showing you the actual papers.
+                    You have already completed the short <span className="font-semibold text-black">practice task and instruction check</span>. When you continue, you will see the five study papers.
                 </p>
                 <div className="flex justify-end">
-                    <Button onClick={() => setShowIntro(false)}>Begin Experiment</Button>
+                    <Button onClick={() => setShowIntro(false)}>Begin main study</Button>
                 </div>
             </div>
         )
