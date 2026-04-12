@@ -30,6 +30,8 @@ export type PaperRow = {
     corresponding_email: string | null
     authors: PaperAuthor[] | null
     created_at?: string
+    /** Total survey exposures (increments on any experiment completion that included this work). */
+    work_exposure?: number | null
 }
 
 type ExperimentType = "A" | "B" | "C"
@@ -63,7 +65,8 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
     }
 }
 
-const PAPER_COLUMNS = "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors"
+const PAPER_COLUMNS =
+    "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors,work_exposure"
 
 function shuffle<T>(array: T[]): T[] {
     const result = [...array]
@@ -102,6 +105,37 @@ async function getPapersPool(
     } catch {
         return []
     }
+}
+
+function workExposureValue(p: PaperRow): number {
+    const v = p.work_exposure
+    if (typeof v !== "number" || Number.isNaN(v)) return 0
+    return v
+}
+
+/**
+ * For Experiment A (after own paper): only papers with DB work_exposure < 3 and A-session count < 3.
+ * Prefer work_exposure > 1, highest first; then exposure ≤ 1, prioritizing any prior A appearances (shuffled within tier).
+ */
+function orderPapersForExperimentAFillers(
+    rows: PaperRow[],
+    aCountByWorkId: Map<string, number>
+): PaperRow[] {
+    const eligible = rows.filter((p) => {
+        const ex = workExposureValue(p)
+        const ac = aCountByWorkId.get(p.work_id) ?? 0
+        return ex < 3 && ac < 3
+    })
+
+    const highExposure = eligible
+        .filter((p) => workExposureValue(p) > 1)
+        .sort((a, b) => workExposureValue(b) - workExposureValue(a))
+
+    const low = eligible.filter((p) => workExposureValue(p) <= 1)
+    const lowWithA = shuffle(low.filter((p) => (aCountByWorkId.get(p.work_id) ?? 0) > 0))
+    const lowNew = shuffle(low.filter((p) => (aCountByWorkId.get(p.work_id) ?? 0) === 0))
+
+    return [...highExposure, ...lowWithA, ...lowNew]
 }
 
 async function getExperimentAResponseCounts(workIds: string[]): Promise<Map<string, number>> {
@@ -158,16 +192,9 @@ async function getExperimentAPapersPrioritized(
 
     const fieldPoolIds = fieldPool.map((p) => p.work_id)
     const fieldCounts = await getExperimentAResponseCounts(fieldPoolIds)
-    const underTargetInField = fieldPool.filter((p) => (fieldCounts.get(p.work_id) ?? 0) < 3)
+    const orderedInField = orderPapersForExperimentAFillers(fieldPool, fieldCounts)
 
-    const prioritizedInField = shuffle(
-        underTargetInField.filter((p) => (fieldCounts.get(p.work_id) ?? 0) > 0)
-    )
-    const newInField = shuffle(
-        underTargetInField.filter((p) => (fieldCounts.get(p.work_id) ?? 0) === 0)
-    )
-
-    for (const row of [...prioritizedInField, ...newInField]) {
+    for (const row of orderedInField) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
         selected.push(mapPaperToWork(row))
@@ -183,16 +210,9 @@ async function getExperimentAPapersPrioritized(
     })
     const globalPoolIds = globalPool.map((p) => p.work_id)
     const globalCounts = await getExperimentAResponseCounts(globalPoolIds)
-    const underTargetGlobal = globalPool.filter((p) => (globalCounts.get(p.work_id) ?? 0) < 3)
+    const orderedGlobal = orderPapersForExperimentAFillers(globalPool, globalCounts)
 
-    const prioritizedGlobal = shuffle(
-        underTargetGlobal.filter((p) => (globalCounts.get(p.work_id) ?? 0) > 0)
-    )
-    const newGlobal = shuffle(
-        underTargetGlobal.filter((p) => (globalCounts.get(p.work_id) ?? 0) === 0)
-    )
-
-    for (const row of [...prioritizedGlobal, ...newGlobal]) {
+    for (const row of orderedGlobal) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
         selected.push(mapPaperToWork(row))

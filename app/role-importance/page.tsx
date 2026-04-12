@@ -20,9 +20,21 @@ function RoleImportanceContent() {
     const [worksError, setWorksError] = useState<string | null>(null)
 
     useEffect(() => {
-        // Assign experiment fresh each time this page is visited (50/50 A vs C)
-        const randomAssignment: "A" | "C" = Math.random() < 0.5 ? "A" : "C"
-        setAssignedExperiment(randomAssignment)
+        let cancelled = false
+        fetch("/api/survey/experiment-assignment")
+            .then((res) => {
+                if (!res.ok) throw new Error("assignment failed")
+                return res.json() as Promise<{ experiment: "A" | "C" }>
+            })
+            .then((data) => {
+                if (!cancelled) setAssignedExperiment(data.experiment)
+            })
+            .catch(() => {
+                if (!cancelled) setAssignedExperiment("A")
+            })
+        return () => {
+            cancelled = true
+        }
     }, [authorId])
 
     useEffect(() => {

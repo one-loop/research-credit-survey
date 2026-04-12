@@ -104,7 +104,6 @@ function ExperimentCPageContent() {
     const [currentIndex, setCurrentIndex] = useState(0)
     const [trialResults, setTrialResults] = useState<string[][]>([])
     const [items, setItems] = useState<Author[]>([])
-    const [submitDone, setSubmitDone] = useState(false)
     const [showIntro, setShowIntro] = useState(true)
 
     const authorColors = ["text-red-600", "text-blue-600", "text-green-600", "text-amber-600"]
@@ -240,7 +239,7 @@ function ExperimentCPageContent() {
             }
 
             try {
-                await fetch("/api/survey/complete", {
+                const res = await fetch("/api/survey/complete", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -249,9 +248,16 @@ function ExperimentCPageContent() {
                         authorId,
                         roleImportance,
                         experimentType: "C",
-                    })
+                    }),
                 })
-                setSubmitDone(true)
+                const data = (await res.json()) as { ok?: boolean; responseId?: string; error?: string }
+                if (!res.ok || !data.ok || !data.responseId) {
+                    setError(data.error ?? "Failed to submit rankings")
+                    return
+                }
+                const params = new URLSearchParams({ responseId: data.responseId })
+                if (authorId) params.set("authorId", authorId)
+                router.replace(`/post-survey?${params.toString()}`)
             } catch {
                 setError("Failed to submit rankings")
             }
@@ -297,18 +303,7 @@ function ExperimentCPageContent() {
         )
     }
 
-    if (isComplete && submitDone) {
-        return (
-            <div className="max-w-3xl mx-auto p-6">
-                <h1 className="text-2xl font-bold mb-4">Experiment C Complete</h1>
-                <p className="mb-6 text-muted-foreground">
-                    Thank you for completing all {totalWorks} works!
-                </p>
-            </div>
-        )
-    }
-
-    if (isComplete && !submitDone) {
+    if (isComplete) {
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <p className="text-muted-foreground">Submitting your responses…</p>
