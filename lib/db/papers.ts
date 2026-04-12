@@ -32,6 +32,8 @@ export type PaperRow = {
     created_at?: string
 }
 
+type ExperimentType = "A" | "B" | "C"
+
 function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
     const authors: Author[] = (paper.authors ?? []).map((a, position) => ({
         id: a.author_id ?? String(position),
@@ -62,6 +64,144 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
 }
 
 const PAPER_COLUMNS = "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors"
+
+function shuffle<T>(array: T[]): T[] {
+    const result = [...array]
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[result[i], result[j]] = [result[j], result[i]]
+    }
+    return result
+}
+
+async function getPapersPool(
+    opts: {
+        field?: string
+        excludeWorkIds: string[]
+        limit: number
+    }
+): Promise<PaperRow[]> {
+    const { field, excludeWorkIds, limit } = opts
+    if (!isSupabaseConfigured()) return []
+    try {
+        const supabase = getSupabase()
+        let query = supabase
+            .from("papers")
+            .select(PAPER_COLUMNS)
+            .limit(limit)
+
+        if (field) query = query.eq("field", field)
+        if (excludeWorkIds.length > 0) {
+            const escapedIds = excludeWorkIds.map((id) => `"${id.replace(/"/g, '\\"')}"`)
+            query = query.not("work_id", "in", `(${escapedIds.join(",")})`)
+        }
+
+        const { data, error } = await query
+        if (error || !data?.length) return []
+        return data as PaperRow[]
+    } catch {
+        return []
+    }
+}
+
+async function getExperimentAResponseCounts(workIds: string[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>()
+    if (!isSupabaseConfigured() || workIds.length === 0) return counts
+
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("work_ids")
+            .eq("experiment_type", "A")
+            .overlaps("work_ids", workIds)
+
+        if (error || !data?.length) return counts
+
+        const workIdSet = new Set(workIds)
+        for (const row of data as Array<{ work_ids: string[] | null }>) {
+            for (const workId of row.work_ids ?? []) {
+                if (!workIdSet.has(workId)) continue
+                counts.set(workId, (counts.get(workId) ?? 0) + 1)
+            }
+        }
+        return counts
+    } catch {
+        return counts
+    }
+}
+
+async function getExperimentAPapersPrioritized(
+    authorId: string | undefined,
+    worksPer: number
+): Promise<Work[]> {
+    const selected: Work[] = []
+    const selectedIds = new Set<string>()
+
+    if (authorId) {
+        const ownWork = await getPaperByAuthorId(authorId)
+        if (ownWork) {
+            selected.push(ownWork)
+            selectedIds.add(ownWork.work_id)
+        }
+    }
+
+    let remaining = worksPer - selected.length
+    if (remaining <= 0) return selected
+
+    const field = selected[0]?.field
+    const fieldPool = await getPapersPool({
+        field,
+        excludeWorkIds: Array.from(selectedIds),
+        limit: 500,
+    })
+
+    const fieldPoolIds = fieldPool.map((p) => p.work_id)
+    const fieldCounts = await getExperimentAResponseCounts(fieldPoolIds)
+    const underTargetInField = fieldPool.filter((p) => (fieldCounts.get(p.work_id) ?? 0) < 3)
+
+    const prioritizedInField = shuffle(
+        underTargetInField.filter((p) => (fieldCounts.get(p.work_id) ?? 0) > 0)
+    )
+    const newInField = shuffle(
+        underTargetInField.filter((p) => (fieldCounts.get(p.work_id) ?? 0) === 0)
+    )
+
+    for (const row of [...prioritizedInField, ...newInField]) {
+        if (remaining <= 0) break
+        if (selectedIds.has(row.work_id)) continue
+        selected.push(mapPaperToWork(row))
+        selectedIds.add(row.work_id)
+        remaining -= 1
+    }
+
+    if (remaining <= 0) return selected
+
+    const globalPool = await getPapersPool({
+        excludeWorkIds: Array.from(selectedIds),
+        limit: 800,
+    })
+    const globalPoolIds = globalPool.map((p) => p.work_id)
+    const globalCounts = await getExperimentAResponseCounts(globalPoolIds)
+    const underTargetGlobal = globalPool.filter((p) => (globalCounts.get(p.work_id) ?? 0) < 3)
+
+    const prioritizedGlobal = shuffle(
+        underTargetGlobal.filter((p) => (globalCounts.get(p.work_id) ?? 0) > 0)
+    )
+    const newGlobal = shuffle(
+        underTargetGlobal.filter((p) => (globalCounts.get(p.work_id) ?? 0) === 0)
+    )
+
+    for (const row of [...prioritizedGlobal, ...newGlobal]) {
+        if (remaining <= 0) break
+        if (selectedIds.has(row.work_id)) continue
+        selected.push(mapPaperToWork(row))
+        selectedIds.add(row.work_id)
+        remaining -= 1
+    }
+
+    return selected
+}
 
 /**
  * Find one paper where authors (JSONB) contains an author with the given author_id.
@@ -165,9 +305,13 @@ export async function incrementWorkExposure(workIds: string[]): Promise<boolean>
  */
 export async function getExperimentPapers(
     authorId: string | undefined,
-    worksPer: number
+    worksPer: number,
+    experimentType: ExperimentType = "A"
 ): Promise<Work[]> {
     if (!isSupabaseConfigured()) return []
+    if (experimentType === "A") {
+        return getExperimentAPapersPrioritized(authorId, worksPer)
+    }
     try {
         const supabase = getSupabase()
         const start = Date.now()

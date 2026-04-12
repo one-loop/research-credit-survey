@@ -4,10 +4,75 @@ import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense, Fragment } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
+import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
+
+const roleDetailsMap: Record<string, { verb: string; description: string }> = {
+    "Conceptualization": {
+        verb: "conceived the study",
+        description: "Ideas, formulation or evolution of overarching research goals and aims.",
+    },
+    "Methodology": {
+        verb: "designed the methodology",
+        description: "Development or design of methodology; creation of models.",
+    },
+    "Software": {
+        verb: "developed the software",
+        description: "Programming, software development, and implementation of code and supporting algorithms.",
+    },
+    "Validation": {
+        verb: "validated the results",
+        description: "Verification and reproducibility of results, experiments, or outputs.",
+    },
+    "Formal Analysis": {
+        verb: "conducted the analysis",
+        description: "Application of statistical, mathematical, computational, or other formal techniques to analyze data.",
+    },
+    "Formal analysis": {
+        verb: "conducted the analysis",
+        description: "Application of statistical, mathematical, computational, or other formal techniques to analyze data.",
+    },
+    "Investigation": {
+        verb: "performed the investigation",
+        description: "Conducting experiments or data/evidence collection.",
+    },
+    "Resources": {
+        verb: "provided resources",
+        description: "Provision of study materials, samples, instrumentation, computing resources, or other tools.",
+    },
+    "Data curation": {
+        verb: "processed the data",
+        description: "Management activities to annotate, clean, and maintain research data for initial use and later reuse.",
+    },
+    "Writing – original draft": {
+        verb: "wrote the manuscript",
+        description: "Preparation, creation, and/or presentation of the published work in the initial draft form.",
+    },
+    "Writing – review & editing": {
+        verb: "reviewed and edited the manuscript",
+        description: "Critical review, commentary, or revision of the manuscript at any stage, including pre- or post-publication.",
+    },
+    "Visualization": {
+        verb: "created the visualizations",
+        description: "Preparation and creation of visual representations and data presentations.",
+    },
+    "Supervision": {
+        verb: "supervised the study",
+        description: "Oversight and leadership responsibility for planning and execution, including mentorship external to the core team.",
+    },
+    "Project administration": {
+        verb: "administered the project",
+        description: "Management and coordination responsibility for planning and executing the research activity.",
+    },
+    "Funding acquisition": {
+        verb: "acquired funding",
+        description: "Acquisition of financial support for the project leading to this publication.",
+    },
+}
 
 function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
@@ -23,7 +88,7 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
             style={style}
             {...attributes}
             {...listeners}
-            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100] bg-violet-50 border-violet-950 text-violet-950"
+            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100px] bg-violet-50 border-violet-950 text-violet-950"
         >
             {children}
         </div>
@@ -32,8 +97,10 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
 
 function ExperimentAPageContent() {
     const searchParams = useSearchParams()
+    const router = useRouter()
     const authorId = searchParams.get("authorId") ?? undefined
 
+    const [trialGate, setTrialGate] = useState<"pending" | "failed" | "ok">("pending")
     const [works, setWorks] = useState<Work[] | null>(null)
     const [dataSource, setDataSource] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
@@ -42,10 +109,26 @@ function ExperimentAPageContent() {
     const [trialResults, setTrialResults] = useState<string[][]>([])
     const [items, setItems] = useState<Author[]>([])
     const [submitDone, setSubmitDone] = useState(false)
+    const [showIntro, setShowIntro] = useState(true)
 
     const authorColors = ["text-red-600", "text-blue-600", "text-green-600", "text-amber-600"]
 
     useEffect(() => {
+        if (typeof window === "undefined") return
+        if (sessionStorage.getItem(trialFailedKey(authorId)) === "true") {
+            setTrialGate("failed")
+            return
+        }
+        if (sessionStorage.getItem(trialPassedKey(authorId)) !== "true") {
+            router.replace(`/trial?authorId=${encodeURIComponent(authorId ?? "")}`)
+            return
+        }
+        setTrialGate("ok")
+    }, [authorId, router])
+
+    useEffect(() => {
+        if (trialGate !== "ok") return
+
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)
 
@@ -87,6 +170,7 @@ function ExperimentAPageContent() {
 
         if (usedPrefetch) return
 
+        params.set("experimentType", "A")
         fetch(`/api/survey/works?${params.toString()}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load works")
@@ -111,7 +195,7 @@ function ExperimentAPageContent() {
             })
             .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false))
-    }, [authorId])
+    }, [authorId, trialGate])
 
     const totalWorks = works?.length ?? 0
     const isComplete = totalWorks > 0 && currentIndex >= totalWorks
@@ -182,6 +266,26 @@ function ExperimentAPageContent() {
         }
     }
 
+    if (trialGate === "pending") {
+        return (
+            <div className="max-w-3xl mx-auto p-6">
+                <p className="text-muted-foreground">Checking session…</p>
+            </div>
+        )
+    }
+
+    if (trialGate === "failed") {
+        return (
+            <div className="max-w-3xl mx-auto p-6">
+                <h1 className="text-2xl font-bold mb-4">Survey ended</h1>
+                <p className="text-muted-foreground leading-relaxed">
+                    This session cannot continue because the instruction check was not completed successfully.
+                    Thank you for your time.
+                </p>
+            </div>
+        )
+    }
+
     if (loading) {
         return (
             <div className="max-w-3xl mx-auto p-6">
@@ -239,6 +343,33 @@ function ExperimentAPageContent() {
         )
     }
 
+    if (showIntro && !isComplete) {
+        return (
+            <div className="max-w-3xl mx-auto p-6">
+                <h1 className="text-2xl font-bold mb-4">Before You Begin</h1>
+                <p className="text-muted-foreground mb-3 leading-relaxed">
+                    You are about to see a sample of <span className="font-semibold text-black">5 papers</span> from your field within a journal
+                    that we understand you have a history of publishing in.
+                </p>
+                <p className="text-muted-foreground mb-3 leading-relaxed">
+                    The papers are <span className="font-semibold text-black">anonymized</span> and the authors are represented by their <span className="font-semibold text-black">initials</span>.
+                </p>
+                <p className="text-muted-foreground mb-3 leading-relaxed">
+                    For each paper, you will be given a list of anonymized authors and their <span className="font-semibold text-black">individual contributions</span>. 
+                </p>
+                <p className="text-muted-foreground mb-3 leading-relaxed">
+                    You will then be asked to <span className="font-semibold text-black">order the author positions</span> in the paper's byline from highest to lowest according to how you believe the authors contributed to the paper.
+                </p>
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                    You have already completed the short <span className="font-semibold text-black">practice task and instruction check</span>. When you continue, you will see the five study papers.
+                </p>
+                <div className="flex justify-end">
+                    <Button onClick={() => setShowIntro(false)}>Begin main study</Button>
+                </div>
+            </div>
+        )
+    }
+
     // Create a color map based on original author order, so colors stay consistent when dragging
     const authorColorMap = currentWork
         ? new Map(
@@ -282,27 +413,11 @@ function ExperimentAPageContent() {
             {currentWork && (
                 <>
                     <div className="mb-6 space-y-3">
-                        <p className="text-lg font-medium mb-2">Author contributions</p>
+                        <p className="text-lg font-medium mb-0">Author contributions</p>
+                        <p className="text-sm text-muted-foreground mb-4">You can hover over a contribution role to see more information about it.</p>
                         <p className="text-lg leading-relaxed text-muted-foreground font-medium">
+                            <TooltipProvider>
                             {(() => {
-                                // Map CRediT role names to verb phrases
-                                const roleVerbMap: Record<string, string> = {
-                                    "Conceptualization": "conceived the study",
-                                    "Methodology": "designed the methodology",
-                                    "Software": "developed the software",
-                                    "Validation": "validated the results",
-                                    "Formal Analysis": "conducted the analysis",
-                                    "Investigation": "performed the investigation",
-                                    "Resources": "provided resources",
-                                    "Data Curation": "processed the data",
-                                    "Writing – Original Draft": "wrote the manuscript",
-                                    "Writing – Review & Editing": "reviewed and edited the manuscript",
-                                    "Visualization": "created the visualizations",
-                                    "Supervision": "supervised the study",
-                                    "Project Administration": "administered the project",
-                                    "Funding Acquisition": "acquired funding",
-                                }
-
                                 // Group authors by contribution role
                                 const roleGroups = new Map<string, typeof currentWork.authors>()
                                 currentWork.authors.forEach((author) => {
@@ -317,7 +432,10 @@ function ExperimentAPageContent() {
                                 // Convert to array and format each group
                                 const formattedGroups = Array.from(roleGroups.entries()).map(
                                     ([role, authors]) => {
-                                        const verbPhrase = roleVerbMap[role] || `contributed to ${role}`
+                                        const roleDetails = roleDetailsMap[role] ?? {
+                                            verb: `contributed to ${role}`,
+                                            description: role,
+                                        }
                                         const authorNames = authors.map((a) => {
                                             const colorClass = authorColorMap.get(a.id)!
                                             return (
@@ -352,9 +470,17 @@ function ExperimentAPageContent() {
                                         }
 
                                         return (
-                                            <span key={role}>
-                                                {authorList} {verbPhrase}
-                                            </span>
+                                            <Tooltip key={role}>
+                                                <TooltipTrigger asChild>
+                                                    <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
+                                                        {authorList} {roleDetails.verb}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent sideOffset={6} className="max-w-sm leading-relaxed">
+                                                    <p className="font-semibold">{role}</p>
+                                                    <p>{roleDetails.description}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
                                         )
                                     }
                                 )
@@ -367,6 +493,7 @@ function ExperimentAPageContent() {
                                     </span>
                                 ))
                             })()}
+                            </TooltipProvider>
                         </p>
                     </div>
 
