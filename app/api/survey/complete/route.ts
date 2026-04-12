@@ -87,15 +87,19 @@ export async function POST(request: NextRequest) {
         responseId = randomUUID()
     }
 
-    await appendResponse({
-        responseId,
-        workIds,
-        rankings,
-        authorId: authorId ?? null,
-        role_importance: roleImportanceWithDefault,
-        experimentType,
-        completedAt: new Date().toISOString(),
-    })
+    // Local JSON is only for offline/dev: serverless deploys have a read-only filesystem,
+    // so writing here would throw after a successful Supabase insert and break the client flow.
+    if (!isSupabaseConfigured()) {
+        await appendResponse({
+            responseId,
+            workIds,
+            rankings,
+            authorId: authorId ?? null,
+            role_importance: roleImportanceWithDefault,
+            experimentType,
+            completedAt: new Date().toISOString(),
+        })
+    }
 
     if (isSupabaseConfigured()) {
         await incrementWorkExposure(workIds)
