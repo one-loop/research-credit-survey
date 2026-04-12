@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { randomUUID } from "crypto"
 import { promises as fs } from "fs"
 import path from "path"
 import { incrementWorkExposure } from "@/lib/db/papers"
@@ -8,8 +9,11 @@ import { creditRoles } from "@/lib/mockData"
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
 
 async function appendResponse(payload: {
+    responseId: string
     workIds: string[]
     rankings: Record<string, string[]>
+    authorId: string | null
+    role_importance: Record<string, number>
     experimentType?: "A" | "B" | "C"
     completedAt: string
 }): Promise<void> {
@@ -54,9 +58,11 @@ export async function POST(request: NextRequest) {
         roleImportance ??
         (Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>)
 
+    let responseId: string
+
     if (isSupabaseConfigured()) {
         const supabase = getSupabase()
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from("experiment_responses")
             .insert({
                 author_id: authorId ?? null,
@@ -65,6 +71,8 @@ export async function POST(request: NextRequest) {
                 role_importance: roleImportanceWithDefault,
                 experiment_type: experimentType ?? null,
             })
+            .select("id")
+            .single()
 
         if (error) {
             console.error("Failed to save experiment response:", error.message)
@@ -73,11 +81,17 @@ export async function POST(request: NextRequest) {
                 { status: 500 }
             )
         }
+        responseId = data.id as string
+    } else {
+        responseId = randomUUID()
     }
 
     await appendResponse({
+        responseId,
         workIds,
         rankings,
+        authorId: authorId ?? null,
+        role_importance: roleImportanceWithDefault,
         experimentType,
         completedAt: new Date().toISOString(),
     })
@@ -86,5 +100,5 @@ export async function POST(request: NextRequest) {
         await incrementWorkExposure(workIds)
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, responseId })
 }
