@@ -365,7 +365,9 @@ function ExperimentAPageContent() {
 
                     <div className="mb-6">
                         <p className="font-medium mb-6">
-                            Please order the author positions for this paper. (left = highest contribution).
+                            Given the information above, please sort these authors in the way you think they would
+                            appear on the byline of the {currentWork.journal} journal in the{" "}
+                            {currentWork.domain ?? currentWork.field ?? "relevant"} domain (left = highest contribution).
                         </p>
                         <p className="mb-12 text-muted-foreground text-sm">
                             <Mail className="h-3.5 w-3.5 inline stroke-violet-950 text-violet-950" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
