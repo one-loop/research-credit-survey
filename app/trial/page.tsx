@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import type { Author, Work } from "@/lib/types"
 import {
     getAssignedExperimentFromSession,
-    getRespondentDomainFromSession,
+    getRespondentContextFromSession,
     getTrialWorkForDomain,
     trialFailedKey,
     trialPassedKey,
@@ -63,8 +63,8 @@ function TrialPageContent() {
         }
         const exp = getAssignedExperimentFromSession(authorId)
         setExperiment(exp)
-        const domain = getRespondentDomainFromSession(authorId)
-        const w = getTrialWorkForDomain(domain, exp)
+        const context = getRespondentContextFromSession(authorId)
+        const w = getTrialWorkForDomain(context.domain, exp, context.journal)
         setWork(w)
         setItems([...w.authors])
     }, [authorId])
@@ -134,7 +134,7 @@ function TrialPageContent() {
                 <h1 className="text-2xl font-bold mb-4">Practice task</h1>
                 <p className="text-muted-foreground mb-4 leading-relaxed">
                     Before the main study, you will complete a short practice on a <strong>mock example</strong> from
-                    your broad area ({work.field}). This is not one of the papers that will count toward the study; it
+                    your broad area ({work.domain ?? work.field}). This is not one of the papers that will count toward the study; it
                     only shows what the questions look like and how to use the interface.
                 </p>
                 <div className="rounded-lg border bg-card p-4 mb-6 space-y-3 text-sm leading-relaxed">
@@ -198,14 +198,14 @@ function TrialPageContent() {
                             publication. What is true in this task?
                         </p>
                         <div className="space-y-2 text-sm">
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="follows_person" checked={q1 === "follows_person"} onChange={() => setQ1("follows_person")} />
                                 <span>
                                     The envelope always stays on the same initials no matter where I move that
                                     author&apos;s card.
                                 </span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input
                                     type="radio"
                                     name="q1"
@@ -218,11 +218,11 @@ function TrialPageContent() {
                                     can reorder everyone, and whoever sits in that slot is shown with the envelope.
                                 </span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="only_others" checked={q1 === "only_others"} onChange={() => setQ1("only_others")} />
                                 <span>Only authors without the envelope can be dragged; the corresponding person cannot move.</span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="always_first" checked={q1 === "always_first"} onChange={() => setQ1("always_first")} />
                                 <span>The corresponding slot is always the first position in every paper.</span>
                             </label>
@@ -235,11 +235,11 @@ function TrialPageContent() {
                             asking you to optimize for?
                         </p>
                         <div className="space-y-2 text-sm">
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q2" value="alpha" checked={q2 === "alpha"} onChange={() => setQ2("alpha")} />
                                 <span>Put them in strict alphabetical order by surname.</span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input
                                     type="radio"
                                     name="q2"
@@ -249,7 +249,7 @@ function TrialPageContent() {
                                 />
                                 <span>Order them from highest to lowest contribution, using my own judgment.</span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q2" value="random" checked={q2 === "random"} onChange={() => setQ2("random")} />
                                 <span>Order them randomly.</span>
                             </label>
@@ -301,7 +301,7 @@ function TrialPageContent() {
         <div className="max-w-3xl mx-auto p-6">
             <h1 className="text-2xl font-bold mb-2">Practice: author order</h1>
             <p className="text-sm text-muted-foreground mb-1">
-                Mock source · Field: <span className="font-medium text-foreground">{work.field}</span>
+                Mock source · Domain: <span className="font-medium text-foreground">{work.domain ?? work.field}</span>
             </p>
             <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p>
 
@@ -354,8 +354,9 @@ function TrialPageContent() {
 
             <div className="mb-6">
                 <p className="font-medium mb-2">
-                    Drag authors to order them by perceived contribution (left = highest). Every card can be moved,
-                    including into or out of the slot marked with the envelope.
+                    Given the information above, please sort these authors in the way you think they would appear in
+                    the byline of <span className="text-foreground">{work.journal}</span> journal in the{" "}
+                    <span className="text-foreground">{work.domain ?? work.field}</span> domain.
                 </p>
                 <div className="mb-4 text-muted-foreground text-sm leading-relaxed grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
                     <Mail
