@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button"
 import type { Author, Work } from "@/lib/types"
 import {
     getAssignedExperimentFromSession,
-    getRespondentFieldFromSession,
-    getTrialWorkForField,
+    getRespondentDomainFromSession,
+    getTrialWorkForDomain,
     trialFailedKey,
     trialPassedKey,
 } from "@/lib/trialWorks"
@@ -63,8 +63,8 @@ function TrialPageContent() {
         }
         const exp = getAssignedExperimentFromSession(authorId)
         setExperiment(exp)
-        const fld = getRespondentFieldFromSession(authorId)
-        const w = getTrialWorkForField(fld, exp)
+        const domain = getRespondentDomainFromSession(authorId)
+        const w = getTrialWorkForDomain(domain, exp)
         setWork(w)
         setItems([...w.authors])
     }, [authorId])

@@ -41,13 +41,13 @@ export async function GET(request: NextRequest) {
             worksPool.find((w) => w.authors.some((a) => a.id === id))
         let ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
         if (ownWork) selected.push({ ...ownWork, isOwnWork: true })
-        const targetField = ownWork?.field
+        const targetDomain = ownWork?.domain
         const candidatePool = worksPool.filter((w) => {
             if (ownWork && w.work_id === ownWork.work_id) return false
-            if (targetField && w.field !== targetField) return false
+            if (targetDomain && w.domain !== targetDomain) return false
             return true
         })
-        const pool = targetField
+        const pool = targetDomain
             ? candidatePool
             : worksPool.filter((w) => !ownWork || w.work_id !== ownWork.work_id)
         const shuffled = shuffle(pool)

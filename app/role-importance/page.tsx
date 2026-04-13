@@ -6,18 +6,17 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 function RoleImportanceContent() {
     const searchParams = useSearchParams()
     const authorId = searchParams.get("authorId")
     const [assignedExperiment, setAssignedExperiment] = useState<"A" | "C" | null>(null)
     const trialHref = authorId ? `/trial?authorId=${encodeURIComponent(authorId)}` : "/trial"
-    const [values, setValues] = useState<Record<string, number>>(
-        () => Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>
-    )
+    const [values, setValues] = useState<Record<string, number>>({})
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)
+    const [isPrefetching, setIsPrefetching] = useState(false)
+    const allRolesScored = creditRoles.every((role) => values[role.id] !== undefined)
 
     useEffect(() => {
         let cancelled = false
@@ -43,34 +42,23 @@ function RoleImportanceContent() {
         window.sessionStorage.setItem(`surveyExperiment_${keyAuthor}`, assignedExperiment)
     }, [authorId, assignedExperiment])
 
-    // Persist role-importance answers so Experiment A can include them in the final submission
+    // Persist partial role-importance answers as user progresses.
     useEffect(() => {
         if (typeof window === "undefined") return
         const keyAuthor = authorId ?? "none"
         const storageKey = `roleImportance_${keyAuthor}`
-        // Materialize defaults: ensure every credit role has a value (default 5) in the persisted payload
-        const materializedValues: Record<string, number> = {}
-        for (const role of creditRoles as any[]) {
-            // Support both string roles and object roles with an identifier field
-            const key =
-                typeof role === "string"
-                    ? role
-                    : (role as any).id ?? (role as any).key ?? (role as any).name
-            if (!key) continue
-            materializedValues[key] = values[key] ?? 5
-        }
-        window.sessionStorage.setItem(storageKey, JSON.stringify(materializedValues))
+        window.sessionStorage.setItem(storageKey, JSON.stringify(values))
     }, [authorId, values])
 
-    useEffect(() => {
-        if (!assignedExperiment) return
+    async function prefetchWorks(experiment: "A" | "C") {
         const params = new URLSearchParams()
         if (authorId) params.set("authorId", authorId)
 
         setWorksReady(false)
         setWorksError(null)
+        setIsPrefetching(true)
 
-        if (assignedExperiment) params.set("experimentType", assignedExperiment)
+        params.set("experimentType", experiment)
         fetch(`/api/survey/works?${params.toString()}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to prepare next step")
@@ -87,10 +75,16 @@ function RoleImportanceContent() {
             .catch((err) => {
                 console.error("[role-importance] prefetch works error:", err)
                 setWorksError(err instanceof Error ? err.message : "Failed to prepare next step")
-                // allow user to continue anyway; Experiment A will fetch directly
                 setWorksReady(false)
             })
-        // re-run when authorId changes
+            .finally(() => {
+                setIsPrefetching(false)
+            })
+    }
+
+    useEffect(() => {
+        if (!assignedExperiment) return
+        void prefetchWorks(assignedExperiment)
     }, [authorId, assignedExperiment])
 
     return (
@@ -105,19 +99,10 @@ function RoleImportanceContent() {
 
             <form className="space-y-6">
                 {creditRoles.map((role) => {
-                    const current = values[role.id] ?? 5
+                    const current = values[role.id]
                     return (
                     <div key={role.id} className="space-y-2">
-                        <Tooltip>
-                            <label className="font-medium block">
-                            <TooltipTrigger>
-                                {role.name}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                {role.description}
-                            </TooltipContent>
-                            </label>
-                        </Tooltip>
+                        <label className="font-medium block"> {role.name} </label>
                         <p className="text-sm text-muted-foreground mb-4">
                         {role.description}
                         </p>
@@ -164,21 +149,30 @@ function RoleImportanceContent() {
                 )}
                 {worksError && (
                     <p className="text-xs text-destructive">
-                        Could not pre-load the next task. You can continue, but the next page may take a few seconds to load.
+                        Could not pre-load the next task. Please retry to continue.
                     </p>
                 )}
-                {worksReady ? (
+                {worksReady && allRolesScored ? (
                     <Link href={trialHref}>
                         <Button>
                             Continue
                         </Button>
                     </Link>
                 ) : worksError ? (
-                    <Link href={trialHref}>
-                        <Button variant="outline">Continue (pre-load failed)</Button>
-                    </Link>
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            if (!assignedExperiment) return
+                            void prefetchWorks(assignedExperiment)
+                        }}
+                        disabled={!assignedExperiment || isPrefetching}
+                    >
+                        {isPrefetching ? "Retrying…" : "Retry loading next step"}
+                    </Button>
                 ) : (
-                    <Button disabled>Loading next step…</Button>
+                    <Button disabled>
+                        {!allRolesScored ? "Score every contribution to continue" : "Loading next step…"}
+                    </Button>
                 )}
             </div>
         </div>

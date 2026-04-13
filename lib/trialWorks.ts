@@ -2,12 +2,14 @@ import type { Author, Work } from "@/lib/types"
 
 /** Example titles for practice only (not real survey stimuli). */
 const TRIAL_TITLES: Record<string, string> = {
+    "Life Sciences": "Biological pathways and disease risk (practice example)",
+    "Physical Sciences": "Materials behavior under stress (practice example)",
+    "Social Sciences": "Survey design and nonresponse bias (practice example)",
     "Arts and Humanities": "Digital archives and public memory (practice example)",
     "Business, Management and Accounting": "Team incentives and project performance (practice example)",
     "Decision Sciences": "Judgment under uncertainty in forecasting (practice example)",
     "Economics, Econometrics and Finance": "Credit constraints and small-firm growth (practice example)",
     Psychology: "Attention and decision-making under load (practice example)",
-    "Social Sciences": "Survey design and nonresponse bias (practice example)",
     Dentistry: "Oral health interventions in community samples (practice example)",
     "Health Professions": "Clinical training outcomes and competency (practice example)",
     Medicine: "Sleep, inflammation, and recovery (practice example)",
@@ -77,36 +79,44 @@ function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
 }
 
 /**
- * Practice paper keyed to the respondent’s field (from prefetched works), with mock metadata only.
+ * Practice paper keyed to the respondent's broad domain when available,
+ * then field as a compatibility fallback.
  */
-export function getTrialWorkForField(field: string | undefined, experiment: "A" | "C"): Work {
-    const f = field && TRIAL_TITLES[field] ? field : undefined
-    const displayName = f ? TRIAL_TITLES[f] : "Collaboration and authorship (practice example)"
-    const fieldLabel = f ?? "General"
-    const slug = fieldLabel.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase() || "general"
+export function getTrialWorkForDomain(domain: string | undefined, experiment: "A" | "C"): Work {
+    const d = domain && TRIAL_TITLES[domain] ? domain : undefined
+    const displayName = d ? TRIAL_TITLES[d] : "Collaboration and authorship (practice example)"
+    const domainLabel = d ?? "General"
+    const slug = domainLabel.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase() || "general"
     return {
         work_id: `trial_practice_${slug}`,
         display_name: displayName,
-        field: fieldLabel,
+        field: domainLabel,
+        domain: domainLabel,
         journal: "PLOS ONE (practice example)",
         publication_date: "2018-01-01",
         authors: trialAuthorsForExperiment(experiment),
     }
 }
 
-export function getRespondentFieldFromSession(authorId: string | undefined): string | undefined {
+export function getRespondentDomainFromSession(authorId: string | undefined): string | undefined {
     if (typeof window === "undefined") return undefined
     const keyAuthor = authorId ?? "none"
     const raw = window.sessionStorage.getItem(`experimentWorks_${keyAuthor}`)
     if (!raw) return undefined
     try {
-        const data = JSON.parse(raw) as { works?: Array<{ field?: string }> }
-        const fld = data.works?.[0]?.field
-        return typeof fld === "string" ? fld : undefined
+        const data = JSON.parse(raw) as { works?: Array<{ domain?: string; field?: string }> }
+        const domain = data.works?.[0]?.domain
+        if (typeof domain === "string") return domain
+        const field = data.works?.[0]?.field
+        return typeof field === "string" ? field : undefined
     } catch {
         return undefined
     }
 }
+
+// Backward-compatible aliases for existing imports/callers.
+export const getTrialWorkForField = getTrialWorkForDomain
+export const getRespondentFieldFromSession = getRespondentDomainFromSession
 
 export function getAssignedExperimentFromSession(authorId: string | undefined): "A" | "C" {
     if (typeof window === "undefined") return "A"

@@ -21,6 +21,7 @@ export type Work = {
     authors: Author[]
     doi?: string
     field?: string
+    domain?: string
     journal?: string
     publication_date?: string
     corresponding_email?: string
