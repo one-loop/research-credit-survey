@@ -57,6 +57,7 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
         work_id: paper.work_id,
         display_name: displayName,
         field: paper.field ?? undefined,
+        domain: paper.domain ?? undefined,
         journal: paper.journal ?? undefined,
         publication_date: paper.publication_date ?? undefined,
         corresponding_email: paper.corresponding_email ?? undefined,
@@ -79,12 +80,12 @@ function shuffle<T>(array: T[]): T[] {
 
 async function getPapersPool(
     opts: {
-        field?: string
+        domain?: string
         excludeWorkIds: string[]
         limit: number
     }
 ): Promise<PaperRow[]> {
-    const { field, excludeWorkIds, limit } = opts
+    const { domain, excludeWorkIds, limit } = opts
     if (!isSupabaseConfigured()) return []
     try {
         const supabase = getSupabase()
@@ -93,7 +94,7 @@ async function getPapersPool(
             .select(PAPER_COLUMNS)
             .limit(limit)
 
-        if (field) query = query.eq("field", field)
+        if (domain) query = query.eq("domain", domain)
         if (excludeWorkIds.length > 0) {
             const escapedIds = excludeWorkIds.map((id) => `"${id.replace(/"/g, '\\"')}"`)
             query = query.not("work_id", "in", `(${escapedIds.join(",")})`)
@@ -183,18 +184,18 @@ async function getExperimentAPapersPrioritized(
     let remaining = worksPer - selected.length
     if (remaining <= 0) return selected
 
-    const field = selected[0]?.field
-    const fieldPool = await getPapersPool({
-        field,
+    const domain = selected[0]?.domain
+    const domainPool = await getPapersPool({
+        domain,
         excludeWorkIds: Array.from(selectedIds),
         limit: 500,
     })
 
-    const fieldPoolIds = fieldPool.map((p) => p.work_id)
-    const fieldCounts = await getExperimentAResponseCounts(fieldPoolIds)
-    const orderedInField = orderPapersForExperimentAFillers(fieldPool, fieldCounts)
+    const domainPoolIds = domainPool.map((p) => p.work_id)
+    const domainCounts = await getExperimentAResponseCounts(domainPoolIds)
+    const orderedInDomain = orderPapersForExperimentAFillers(domainPool, domainCounts)
 
-    for (const row of orderedInField) {
+    for (const row of orderedInDomain) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
         selected.push(mapPaperToWork(row))

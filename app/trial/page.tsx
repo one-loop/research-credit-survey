@@ -5,14 +5,14 @@ import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy 
 import { CSS } from "@dnd-kit/utilities"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { Suspense, useEffect, useMemo, useState, Fragment, type ReactNode } from "react"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Author, Work } from "@/lib/types"
 import {
     getAssignedExperimentFromSession,
-    getRespondentFieldFromSession,
-    getTrialWorkForField,
+    getRespondentContextFromSession,
+    getTrialWorkForDomain,
     trialFailedKey,
     trialPassedKey,
 } from "@/lib/trialWorks"
@@ -63,17 +63,11 @@ function TrialPageContent() {
         }
         const exp = getAssignedExperimentFromSession(authorId)
         setExperiment(exp)
-        const fld = getRespondentFieldFromSession(authorId)
-        const w = getTrialWorkForField(fld, exp)
+        const context = getRespondentContextFromSession(authorId)
+        const w = getTrialWorkForDomain(context.domain, exp, context.journal)
         setWork(w)
         setItems([...w.authors])
     }, [authorId])
-
-    const authorColors = ["text-red-600", "text-blue-600", "text-green-600", "text-amber-600"]
-    const authorColorMap = useMemo(() => {
-        if (!work) return new Map<string, string>()
-        return new Map(work.authors.map((a, i) => [a.id, authorColors[i % authorColors.length]]))
-    }, [work])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -140,7 +134,7 @@ function TrialPageContent() {
                 <h1 className="text-2xl font-bold mb-4">Practice task</h1>
                 <p className="text-muted-foreground mb-4 leading-relaxed">
                     Before the main study, you will complete a short practice on a <strong>mock example</strong> from
-                    your broad area ({work.field}). This is not one of the papers that will count toward the study; it
+                    your broad area ({work.domain ?? work.field}). This is not one of the papers that will count toward the study; it
                     only shows what the questions look like and how to use the interface.
                 </p>
                 <div className="rounded-lg border bg-card p-4 mb-6 space-y-3 text-sm leading-relaxed">
@@ -204,14 +198,14 @@ function TrialPageContent() {
                             publication. What is true in this task?
                         </p>
                         <div className="space-y-2 text-sm">
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="follows_person" checked={q1 === "follows_person"} onChange={() => setQ1("follows_person")} />
                                 <span>
                                     The envelope always stays on the same initials no matter where I move that
                                     author&apos;s card.
                                 </span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input
                                     type="radio"
                                     name="q1"
@@ -224,11 +218,11 @@ function TrialPageContent() {
                                     can reorder everyone, and whoever sits in that slot is shown with the envelope.
                                 </span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="only_others" checked={q1 === "only_others"} onChange={() => setQ1("only_others")} />
                                 <span>Only authors without the envelope can be dragged; the corresponding person cannot move.</span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="always_first" checked={q1 === "always_first"} onChange={() => setQ1("always_first")} />
                                 <span>The corresponding slot is always the first position in every paper.</span>
                             </label>
@@ -241,11 +235,11 @@ function TrialPageContent() {
                             asking you to optimize for?
                         </p>
                         <div className="space-y-2 text-sm">
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q2" value="alpha" checked={q2 === "alpha"} onChange={() => setQ2("alpha")} />
                                 <span>Put them in strict alphabetical order by surname.</span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input
                                     type="radio"
                                     name="q2"
@@ -255,7 +249,7 @@ function TrialPageContent() {
                                 />
                                 <span>Order them from highest to lowest contribution, using my own judgment.</span>
                             </label>
-                            <label className="flex gap-2 items-start cursor-pointer items-center">
+                            <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q2" value="random" checked={q2 === "random"} onChange={() => setQ2("random")} />
                                 <span>Order them randomly.</span>
                             </label>
@@ -287,92 +281,60 @@ function TrialPageContent() {
                 : `${fixedCorrSlot + 1} (from the left)`
 
     const roleDetailsMap: Record<string, { verb: string; description: string }> = {
-        Conceptualization: { verb: "conceived the study", description: "Ideas and goals." },
-        Methodology: { verb: "designed methods", description: "Study design and methods." },
-        Supervision: { verb: "supervised the work", description: "Oversight and mentorship." },
-        Investigation: { verb: "ran investigations", description: "Experiments or data collection." },
-        "Formal analysis": { verb: "analyzed data", description: "Formal analysis." },
-        Visualization: { verb: "made figures", description: "Visual presentation." },
-        "Data curation": { verb: "curated data", description: "Data cleaning and documentation." },
-        "Writing – original draft": { verb: "drafted the paper", description: "First draft writing." },
-        "Writing – review & editing": { verb: "edited the paper", description: "Review and revision." },
-        "Project administration": { verb: "administered the project", description: "Project coordination." },
-        Software: { verb: "built software", description: "Code and software." },
-        Validation: { verb: "validated results", description: "Verification." },
-        Resources: { verb: "provided resources", description: "Materials or tools." },
+        Conceptualization: { verb: "conceived the study", description: "Ideas, formulation or evolution of overarching research goals and aims." },
+        Methodology: { verb: "designed methods", description: "Development or design of methodology; creation of models." },
+        Supervision: { verb: "supervised the work", description: "Oversight and leadership responsibility for planning and execution." },
+        Investigation: { verb: "ran investigations", description: "Conducting experiments or data/evidence collection." },
+        "Formal analysis": { verb: "analyzed data", description: "Application of formal techniques to analyze data." },
+        Visualization: { verb: "made figures", description: "Preparation and creation of visual representations and data presentations." },
+        "Data curation": { verb: "curated data", description: "Data annotation, cleaning, and maintenance for use/reuse." },
+        "Writing – original draft": { verb: "drafted the paper", description: "Preparation and creation of the initial manuscript draft." },
+        "Writing – review & editing": { verb: "edited the paper", description: "Critical review, commentary, or revision of the manuscript." },
+        "Project administration": { verb: "administered the project", description: "Management and coordination for planning and execution." },
+        Software: { verb: "built software", description: "Programming, software development, and implementation of code and supporting algorithms." },
+        Validation: { verb: "validated results", description: "Verification and reproducibility of results, experiments, or outputs." },
+        Resources: { verb: "provided resources", description: "Provision of materials, instrumentation, computing resources, or other tools." },
+        "Funding acquisition": { verb: "secured funding", description: "Acquisition of financial support for the project." },
     }
 
     return (
         <div className="max-w-3xl mx-auto p-6">
             <h1 className="text-2xl font-bold mb-2">Practice: author order</h1>
             <p className="text-sm text-muted-foreground mb-1">
-                Mock source · Field: <span className="font-medium text-foreground">{work.field}</span>
+                Mock source · Domain: <span className="font-medium text-foreground">{work.domain ?? work.field}</span>
             </p>
             <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p>
 
             <div className="mb-6 space-y-3">
                 <p className="text-lg font-medium">Author contributions (practice)</p>
-                <p className="text-sm text-muted-foreground mb-2">Hover a role for a short description.</p>
-                <p className="text-lg leading-relaxed text-muted-foreground font-medium">
-                    <TooltipProvider>
-                        {(() => {
-                            const roleGroups = new Map<string, typeof work.authors>()
-                            work.authors.forEach((author) => {
-                                author.contributions.forEach((role) => {
-                                    if (!roleGroups.has(role)) roleGroups.set(role, [])
-                                    roleGroups.get(role)!.push(author)
-                                })
-                            })
-                            const formatted = Array.from(roleGroups.entries()).map(([role, authors]) => {
-                                const det = roleDetailsMap[role] ?? { verb: `contributed (${role})`, description: role }
-                                const names = authors.map((a) => (
-                                    <span key={a.id} className={`font-semibold ${authorColorMap.get(a.id)!}`}>
-                                        {a.initials}
-                                    </span>
-                                ))
-                                let list: ReactNode
-                                if (names.length === 1) list = names[0]
-                                else if (names.length === 2)
-                                    list = (
-                                        <>
-                                            {names[0]} and {names[1]}
-                                        </>
-                                    )
-                                else
-                                    list = (
-                                        <>
-                                            {names.slice(0, -1).map((n, i) => (
-                                                <Fragment key={i}>
-                                                    {n}
-                                                    {i < names.length - 2 ? ", " : ""}
-                                                </Fragment>
-                                            ))}
-                                            , and {names[names.length - 1]}
-                                        </>
-                                    )
-                                return (
-                                    <Tooltip key={role}>
-                                        <TooltipTrigger asChild>
-                                            <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
-                                                {list} {det.verb}
-                                            </span>
-                                        </TooltipTrigger>
-                                        <TooltipContent className="max-w-xs">
-                                            <p className="font-semibold">{role}</p>
-                                            <p>{det.description}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )
-                            })
-                            return formatted.map((g, i) => (
-                                <span key={i}>
-                                    {g}
-                                    {i < formatted.length - 1 ? ". " : "."}
-                                </span>
-                            ))
-                        })()}
-                    </TooltipProvider>
+                <p className="text-sm text-muted-foreground mb-2">
+                    You can hover over a contribution role to see more information about it.
                 </p>
+                <div className="space-y-1 text-md text-muted-foreground">
+                    {work.authors.map((author) => (
+                        <p key={author.id}>
+                            <span className="font-medium text-foreground">{author.initials}</span>:{" "}
+                            <TooltipProvider>
+                                {author.contributions.map((role, idx) => (
+                                    <span key={`${author.id}-${role}-${idx}`}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
+                                                    {role}
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-xs">
+                                                <p className="font-semibold">{role}</p>
+                                                <p>{roleDetailsMap[role]?.description ?? role}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                        {idx < author.contributions.length - 1 ? ", " : ""}
+                                    </span>
+                                ))}
+                            </TooltipProvider>
+                        </p>
+                    ))}
+                </div>
             </div>
 
             {experiment === "C" && (
@@ -392,8 +354,9 @@ function TrialPageContent() {
 
             <div className="mb-6">
                 <p className="font-medium mb-2">
-                    Drag authors to order them by perceived contribution (left = highest). Every card can be moved,
-                    including into or out of the slot marked with the envelope.
+                    Given the information above, please sort these authors in the way you think they would appear in
+                    the byline of <span className="text-foreground">{work.journal}</span> journal in the{" "}
+                    <span className="text-foreground">{work.domain ?? work.field}</span> domain.
                 </p>
                 <div className="mb-4 text-muted-foreground text-sm leading-relaxed grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
                     <Mail
@@ -410,12 +373,11 @@ function TrialPageContent() {
                     <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
                         <div className="flex flex-row flex-wrap gap-3">
                             {items.map((author, positionIndex) => {
-                                const colorClass = authorColorMap.get(author.id)!
                                 const showEnvelope = fixedCorrSlot >= 0 && positionIndex === fixedCorrSlot
                                 return (
                                     <TrialSortableItem key={author.id} id={author.id}>
                                         <div className="flex items-center gap-1.5 justify-center">
-                                            <span className={`font-medium ${colorClass}`}>{author.initials}</span>
+                                            <span className="font-medium">{author.initials}</span>
                                             {showEnvelope && (
                                                 <Mail className="h-3.5 w-3.5 stroke-violet-950 text-violet-950" />
                                             )}

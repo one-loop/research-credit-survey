@@ -2,32 +2,36 @@ import type { Author, Work } from "@/lib/types"
 
 /** Example titles for practice only (not real survey stimuli). */
 const TRIAL_TITLES: Record<string, string> = {
-    "Arts and Humanities": "Digital archives and public memory (practice example)",
-    "Business, Management and Accounting": "Team incentives and project performance (practice example)",
-    "Decision Sciences": "Judgment under uncertainty in forecasting (practice example)",
-    "Economics, Econometrics and Finance": "Credit constraints and small-firm growth (practice example)",
-    Psychology: "Attention and decision-making under load (practice example)",
-    "Social Sciences": "Survey design and nonresponse bias (practice example)",
-    Dentistry: "Oral health interventions in community samples (practice example)",
-    "Health Professions": "Clinical training outcomes and competency (practice example)",
-    Medicine: "Sleep, inflammation, and recovery (practice example)",
-    Nursing: "Patient education and readmission rates (practice example)",
-    Veterinary: "Zoonotic risk and surveillance networks (practice example)",
-    "Chemical Engineering": "Catalyst stability in continuous reactors (practice example)",
-    Chemistry: "Reaction pathways in aqueous catalysis (practice example)",
-    "Computer Science": "Robustness of text classifiers to domain shift (practice example)",
-    "Earth and Planetary Sciences": "Paleoclimate proxies from sediment cores (practice example)",
-    Energy: "Grid-scale storage and peak shaving (practice example)",
-    Engineering: "Structural health monitoring with sparse sensors (practice example)",
-    "Environmental Science": "Urban heat islands and vegetation cover (practice example)",
-    "Materials Science": "Thin-film interfaces and adhesion (practice example)",
-    Mathematics: "Spectral bounds for sparse graphs (practice example)",
-    "Physics and Astronomy": "Noise limits in weak-lensing surveys (practice example)",
-    "Agricultural and Biological Sciences": "Crop rotation and soil microbiome (practice example)",
-    "Biochemistry, Genetics and Molecular Biology": "Epigenetic regulation in cell stress (practice example)",
-    "Immunology and Microbiology": "Host–pathogen co-evolution in chronic infection (practice example)",
-    Neuroscience: "Oscillatory coupling during learning tasks (practice example)",
-    "Pharmacology, Toxicology and Pharmaceutics": "Dose–response modeling in combination therapy (practice example)",
+    "Life Sciences": "Biological pathways and disease risk",
+    "Health Sciences": "Care pathways and patient outcomes",
+    "Physical Sciences": "Materials behavior under stress",
+    "Social Sciences": "Survey design and nonresponse bias",
+}
+
+const ALLOWED_DOMAINS = new Set(["Social Sciences", "Life Sciences", "Physical Sciences", "Health Sciences"])
+
+function normalizeDomain(domain: string | undefined): string {
+    if (!domain) return "Social Sciences"
+    if (ALLOWED_DOMAINS.has(domain)) return domain
+    const d = domain.toLowerCase()
+    if (d.includes("health") || d.includes("medicine") || d.includes("nursing") || d.includes("veterinary")) {
+        return "Health Sciences"
+    }
+    if (d.includes("life") || d.includes("bio") || d.includes("neuro") || d.includes("pharma") || d.includes("immun")) {
+        return "Life Sciences"
+    }
+    if (d.includes("physical") || d.includes("chem") || d.includes("physics") || d.includes("engineering") || d.includes("material")) {
+        return "Physical Sciences"
+    }
+    return "Social Sciences"
+}
+
+function normalizeJournal(journal: string | undefined): "PLOS ONE" | "Proceedings of the National Academy of Sciences" {
+    const j = (journal ?? "").toLowerCase()
+    if (j.includes("proceedings of the national academy of sciences") || j.includes("pnas")) {
+        return "Proceedings of the National Academy of Sciences"
+    }
+    return "PLOS ONE"
 }
 
 function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
@@ -77,36 +81,59 @@ function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
 }
 
 /**
- * Practice paper keyed to the respondent’s field (from prefetched works), with mock metadata only.
+ * Practice paper keyed to the respondent's broad domain when available,
+ * then field as a compatibility fallback.
  */
-export function getTrialWorkForField(field: string | undefined, experiment: "A" | "C"): Work {
-    const f = field && TRIAL_TITLES[field] ? field : undefined
-    const displayName = f ? TRIAL_TITLES[f] : "Collaboration and authorship (practice example)"
-    const fieldLabel = f ?? "General"
-    const slug = fieldLabel.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase() || "general"
+export function getTrialWorkForDomain(
+    domain: string | undefined,
+    experiment: "A" | "C",
+    journal?: string
+): Work {
+    const domainLabel = normalizeDomain(domain)
+    const displayName = TRIAL_TITLES[domainLabel]
+    const slug = domainLabel.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase() || "general"
     return {
         work_id: `trial_practice_${slug}`,
         display_name: displayName,
-        field: fieldLabel,
-        journal: "PLOS ONE (practice example)",
+        field: domainLabel,
+        domain: domainLabel,
+        journal: normalizeJournal(journal),
         publication_date: "2018-01-01",
         authors: trialAuthorsForExperiment(experiment),
     }
 }
 
-export function getRespondentFieldFromSession(authorId: string | undefined): string | undefined {
-    if (typeof window === "undefined") return undefined
+export function getRespondentContextFromSession(
+    authorId: string | undefined
+): { domain?: string; journal?: string } {
+    if (typeof window === "undefined") return {}
     const keyAuthor = authorId ?? "none"
     const raw = window.sessionStorage.getItem(`experimentWorks_${keyAuthor}`)
-    if (!raw) return undefined
+    if (!raw) return {}
     try {
-        const data = JSON.parse(raw) as { works?: Array<{ field?: string }> }
-        const fld = data.works?.[0]?.field
-        return typeof fld === "string" ? fld : undefined
+        const data = JSON.parse(raw) as {
+            works?: Array<{ domain?: string; field?: string; journal?: string; authors?: Array<{ id?: string }> }>
+        }
+        const ownWork = authorId
+            ? data.works?.find((w) => Array.isArray(w.authors) && w.authors.some((a) => a.id === authorId))
+            : undefined
+        const base = ownWork ?? data.works?.[0]
+        return {
+            domain: base?.domain ?? base?.field,
+            journal: base?.journal,
+        }
     } catch {
-        return undefined
+        return {}
     }
 }
+
+export function getRespondentDomainFromSession(authorId: string | undefined): string | undefined {
+    return getRespondentContextFromSession(authorId).domain
+}
+
+// Backward-compatible aliases for existing imports/callers.
+export const getTrialWorkForField = getTrialWorkForDomain
+export const getRespondentFieldFromSession = getRespondentDomainFromSession
 
 export function getAssignedExperimentFromSession(authorId: string | undefined): "A" | "C" {
     if (typeof window === "undefined") return "A"

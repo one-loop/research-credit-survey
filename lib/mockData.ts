@@ -27,7 +27,7 @@ export const creditRoles: CreditRole[] = [
     },
     {
         id: "formal-analysis",
-        name: "Formal Analysis",
+        name: "Formal analysis",
         description:
             "Did the statistical or mathematical analysis of the data.",
     },
@@ -45,7 +45,7 @@ export const creditRoles: CreditRole[] = [
     },
     {
         id: "data-curation",
-        name: "Data Curation",
+        name: "Data curation",
         description:
             "Cleaned, organized, and documented the data so it could be used and reused.",
     },
@@ -389,6 +389,14 @@ function enrichMockAuthor(author: Author, workIndex: number, authorIndex: number
 
 export const worksPool: Work[] = baseWorksPool.map((work, workIndex) => ({
     ...work,
+    domain:
+        work.domain ??
+        (work.field === "field_a" ? "Social Sciences" : "Physical Sciences"),
+    journal:
+        work.journal ??
+        (workIndex % 2 === 0
+            ? "PLOS ONE"
+            : "Proceedings of the National Academy of Sciences"),
     authors: work.authors.map((author, authorIndex) =>
         enrichMockAuthor(author, workIndex, authorIndex)
     ),
