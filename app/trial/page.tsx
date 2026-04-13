@@ -5,7 +5,7 @@ import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy 
 import { CSS } from "@dnd-kit/utilities"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { Suspense, useEffect, useMemo, useState, Fragment, type ReactNode } from "react"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Author, Work } from "@/lib/types"
@@ -68,12 +68,6 @@ function TrialPageContent() {
         setWork(w)
         setItems([...w.authors])
     }, [authorId])
-
-    const authorColors = ["text-red-600", "text-blue-600", "text-green-600", "text-amber-600"]
-    const authorColorMap = useMemo(() => {
-        if (!work) return new Map<string, string>()
-        return new Map(work.authors.map((a, i) => [a.id, authorColors[i % authorColors.length]]))
-    }, [work])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -287,19 +281,20 @@ function TrialPageContent() {
                 : `${fixedCorrSlot + 1} (from the left)`
 
     const roleDetailsMap: Record<string, { verb: string; description: string }> = {
-        Conceptualization: { verb: "conceived the study", description: "Ideas and goals." },
-        Methodology: { verb: "designed methods", description: "Study design and methods." },
-        Supervision: { verb: "supervised the work", description: "Oversight and mentorship." },
-        Investigation: { verb: "ran investigations", description: "Experiments or data collection." },
-        "Formal analysis": { verb: "analyzed data", description: "Formal analysis." },
-        Visualization: { verb: "made figures", description: "Visual presentation." },
-        "Data curation": { verb: "curated data", description: "Data cleaning and documentation." },
-        "Writing – original draft": { verb: "drafted the paper", description: "First draft writing." },
-        "Writing – review & editing": { verb: "edited the paper", description: "Review and revision." },
-        "Project administration": { verb: "administered the project", description: "Project coordination." },
-        Software: { verb: "built software", description: "Code and software." },
-        Validation: { verb: "validated results", description: "Verification." },
-        Resources: { verb: "provided resources", description: "Materials or tools." },
+        Conceptualization: { verb: "conceived the study", description: "Ideas, formulation or evolution of overarching research goals and aims." },
+        Methodology: { verb: "designed methods", description: "Development or design of methodology; creation of models." },
+        Supervision: { verb: "supervised the work", description: "Oversight and leadership responsibility for planning and execution." },
+        Investigation: { verb: "ran investigations", description: "Conducting experiments or data/evidence collection." },
+        "Formal analysis": { verb: "analyzed data", description: "Application of formal techniques to analyze data." },
+        Visualization: { verb: "made figures", description: "Preparation and creation of visual representations and data presentations." },
+        "Data curation": { verb: "curated data", description: "Data annotation, cleaning, and maintenance for use/reuse." },
+        "Writing – original draft": { verb: "drafted the paper", description: "Preparation and creation of the initial manuscript draft." },
+        "Writing – review & editing": { verb: "edited the paper", description: "Critical review, commentary, or revision of the manuscript." },
+        "Project administration": { verb: "administered the project", description: "Management and coordination for planning and execution." },
+        Software: { verb: "built software", description: "Programming, software development, and implementation of code and supporting algorithms." },
+        Validation: { verb: "validated results", description: "Verification and reproducibility of results, experiments, or outputs." },
+        Resources: { verb: "provided resources", description: "Provision of materials, instrumentation, computing resources, or other tools." },
+        "Funding acquisition": { verb: "secured funding", description: "Acquisition of financial support for the project." },
     }
 
     return (
@@ -312,67 +307,34 @@ function TrialPageContent() {
 
             <div className="mb-6 space-y-3">
                 <p className="text-lg font-medium">Author contributions (practice)</p>
-                <p className="text-sm text-muted-foreground mb-2">Hover a role for a short description.</p>
-                <p className="text-lg leading-relaxed text-muted-foreground font-medium">
-                    <TooltipProvider>
-                        {(() => {
-                            const roleGroups = new Map<string, typeof work.authors>()
-                            work.authors.forEach((author) => {
-                                author.contributions.forEach((role) => {
-                                    if (!roleGroups.has(role)) roleGroups.set(role, [])
-                                    roleGroups.get(role)!.push(author)
-                                })
-                            })
-                            const formatted = Array.from(roleGroups.entries()).map(([role, authors]) => {
-                                const det = roleDetailsMap[role] ?? { verb: `contributed (${role})`, description: role }
-                                const names = authors.map((a) => (
-                                    <span key={a.id} className={`font-semibold ${authorColorMap.get(a.id)!}`}>
-                                        {a.initials}
-                                    </span>
-                                ))
-                                let list: ReactNode
-                                if (names.length === 1) list = names[0]
-                                else if (names.length === 2)
-                                    list = (
-                                        <>
-                                            {names[0]} and {names[1]}
-                                        </>
-                                    )
-                                else
-                                    list = (
-                                        <>
-                                            {names.slice(0, -1).map((n, i) => (
-                                                <Fragment key={i}>
-                                                    {n}
-                                                    {i < names.length - 2 ? ", " : ""}
-                                                </Fragment>
-                                            ))}
-                                            , and {names[names.length - 1]}
-                                        </>
-                                    )
-                                return (
-                                    <Tooltip key={role}>
-                                        <TooltipTrigger asChild>
-                                            <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
-                                                {list} {det.verb}
-                                            </span>
-                                        </TooltipTrigger>
-                                        <TooltipContent className="max-w-xs">
-                                            <p className="font-semibold">{role}</p>
-                                            <p>{det.description}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )
-                            })
-                            return formatted.map((g, i) => (
-                                <span key={i}>
-                                    {g}
-                                    {i < formatted.length - 1 ? ". " : "."}
-                                </span>
-                            ))
-                        })()}
-                    </TooltipProvider>
+                <p className="text-sm text-muted-foreground mb-2">
+                    You can hover over a contribution role to see more information about it.
                 </p>
+                <div className="space-y-1 text-md text-muted-foreground">
+                    {work.authors.map((author) => (
+                        <p key={author.id}>
+                            <span className="font-medium text-foreground">{author.initials}</span>:{" "}
+                            <TooltipProvider>
+                                {author.contributions.map((role, idx) => (
+                                    <span key={`${author.id}-${role}-${idx}`}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
+                                                    {role}
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-xs">
+                                                <p className="font-semibold">{role}</p>
+                                                <p>{roleDetailsMap[role]?.description ?? role}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                        {idx < author.contributions.length - 1 ? ", " : ""}
+                                    </span>
+                                ))}
+                            </TooltipProvider>
+                        </p>
+                    ))}
+                </div>
             </div>
 
             {experiment === "C" && (
@@ -410,12 +372,11 @@ function TrialPageContent() {
                     <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
                         <div className="flex flex-row flex-wrap gap-3">
                             {items.map((author, positionIndex) => {
-                                const colorClass = authorColorMap.get(author.id)!
                                 const showEnvelope = fixedCorrSlot >= 0 && positionIndex === fixedCorrSlot
                                 return (
                                     <TrialSortableItem key={author.id} id={author.id}>
                                         <div className="flex items-center gap-1.5 justify-center">
-                                            <span className={`font-medium ${colorClass}`}>{author.initials}</span>
+                                            <span className="font-medium">{author.initials}</span>
                                             {showEnvelope && (
                                                 <Mail className="h-3.5 w-3.5 stroke-violet-950 text-violet-950" />
                                             )}

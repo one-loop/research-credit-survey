@@ -27,7 +27,7 @@ export const creditRoles: CreditRole[] = [
     },
     {
         id: "formal-analysis",
-        name: "Formal Analysis",
+        name: "Formal analysis",
         description:
             "Did the statistical or mathematical analysis of the data.",
     },
@@ -45,7 +45,7 @@ export const creditRoles: CreditRole[] = [
     },
     {
         id: "data-curation",
-        name: "Data Curation",
+        name: "Data curation",
         description:
             "Cleaned, organized, and documented the data so it could be used and reused.",
     },

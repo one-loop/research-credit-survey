@@ -3,71 +3,30 @@
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { useState, useEffect, Suspense, Fragment } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 
-const roleDetailsMap: Record<string, { verb: string; description: string }> = {
-    "Conceptualization": {
-        verb: "conceived the study",
-        description: "Involves ideas, formulation or evolution of overarching research goals and aims.",
-    },
-    "Methodology": {
-        verb: "did the methodology",
-        description: "Involves development or design of methodology; creation of models and study design.",
-    },
-    "Software": {
-        verb: "developed the software",
-        description: "Involves programming, software development, and implementation of code and supporting algorithms.",
-    },
-    "Validation": {
-        verb: "validated the results",
-        description: "Involves verification and reproducibility of results, experiments, or outputs.",
-    },
-    "Formal analysis": {
-        verb: "performed formal analysis",
-        description: "Involves application of statistical, mathematical, computational, or other formal techniques to analyze data.",
-    },
-    "Investigation": {
-        verb: "conducted investigation",
-        description: "Involves conducting experiments or data/evidence collection.",
-    },
-    "Resources": {
-        verb: "provided resources",
-        description: "Involves provision of study materials, samples, instrumentation, computing resources, or other tools.",
-    },
-    "Data curation": {
-        verb: "processed the data",
-        description: "Involves management activities to annotate, clean, and maintain research data for initial use and later reuse.",
-    },
-    "Writing – original draft": {
-        verb: "wrote the manuscript",
-        description: "Involves preparation, creation, and/or presentation of the published work in the initial draft form.",
-    },
-    "Writing – review & editing": {
-        verb: "reviewed and edited the manuscript",
-        description: "Involves critical review, commentary, or revision of the manuscript at any stage, including pre- or post-publication.",
-    },
-    "Visualization": {
-        verb: "created the visualizations",
-        description: "Involves preparation and creation of visual representations and data presentations.",
-    },
-    "Supervision": {
-        verb: "supervised the study",
-        description: "Involves oversight and leadership responsibility for planning and execution, including mentorship external to the core team.",
-    },
-    "Project administration": {
-        verb: "administered the project",
-        description: "Involves management and coordination responsibility for planning and executing the research activity.",
-    },
-    "Funding acquisition": {
-        verb: "acquired funding",
-        description: "Involves acquisition of financial support for the project leading to this publication.",
-    },
+const roleDetailsMap: Record<string, string> = {
+    Conceptualization: "Ideas, formulation or evolution of overarching research goals and aims.",
+    Methodology: "Development or design of methodology; creation of models.",
+    Software: "Programming, software development, and implementation of code and supporting algorithms.",
+    Validation: "Verification and reproducibility of results, experiments, or outputs.",
+    "Formal analysis": "Application of formal techniques to analyze data.",
+    "Formal Analysis": "Application of formal techniques to analyze data.",
+    Investigation: "Conducting experiments or data/evidence collection.",
+    Resources: "Provision of materials, instrumentation, computing resources, or other tools.",
+    "Data curation": "Data annotation, cleaning, and maintenance for use/reuse.",
+    "Writing – original draft": "Preparation and creation of the initial manuscript draft.",
+    "Writing – review & editing": "Critical review, commentary, or revision of the manuscript.",
+    Visualization: "Preparation and creation of visual representations and data presentations.",
+    Supervision: "Oversight and leadership responsibility for planning and execution.",
+    "Project administration": "Management and coordination for planning and execution.",
+    "Funding acquisition": "Acquisition of financial support for the project.",
 }
 
 function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
@@ -105,8 +64,6 @@ function ExperimentCPageContent() {
     const [trialResults, setTrialResults] = useState<string[][]>([])
     const [items, setItems] = useState<Author[]>([])
     const [showIntro, setShowIntro] = useState(true)
-
-    const authorColors = ["text-red-600", "text-blue-600", "text-green-600", "text-amber-600"]
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -338,15 +295,6 @@ function ExperimentCPageContent() {
         )
     }
 
-    const authorColorMap = currentWork
-        ? new Map(
-              currentWork.authors.map((a, index) => [
-                  a.id,
-                  authorColors[index % authorColors.length],
-              ])
-          )
-        : new Map<string, string>()
-
     const correspondingAuthorIndex = currentWork
         ? currentWork.authors.findIndex((a) => a.is_corresponding)
         : -1
@@ -375,83 +323,34 @@ function ExperimentCPageContent() {
                 <>
                     <div className="mb-6 space-y-3">
                         <p className="text-lg font-medium mb-2">Author contributions</p>
-                        <p className="text-sm text-gray mb-2">You can hover over a contribution role to see more information about it.</p>
-                        <p className="text-lg leading-relaxed text-muted-foreground font-medium">
-                            <TooltipProvider>
-                            {(() => {
-                                const roleGroups = new Map<string, typeof currentWork.authors>()
-                                currentWork.authors.forEach((author) => {
-                                    author.contributions.forEach((role) => {
-                                        if (!roleGroups.has(role)) {
-                                            roleGroups.set(role, [])
-                                        }
-                                        roleGroups.get(role)!.push(author)
-                                    })
-                                })
-
-                                const formattedGroups = Array.from(roleGroups.entries()).map(
-                                    ([role, authors]) => {
-                                        const roleDetails = roleDetailsMap[role] ?? {
-                                            verb: `contributed to ${role}`,
-                                            description: role,
-                                        }
-                                        const authorNames = authors.map((a) => {
-                                            const colorClass = authorColorMap.get(a.id)!
-                                            return (
-                                                <span key={a.id} className={`font-semibold ${colorClass}`}>
-                                                    {a.initials}
-                                                </span>
-                                            )
-                                        })
-
-                                        let authorList: React.ReactNode
-                                        if (authorNames.length === 1) {
-                                            authorList = authorNames[0]
-                                        } else if (authorNames.length === 2) {
-                                            authorList = (
-                                                <>
-                                                    {authorNames[0]} and {authorNames[1]}
-                                                </>
-                                            )
-                                        } else {
-                                            authorList = (
-                                                <>
-                                                    {authorNames.slice(0, -1).map((name, i) => (
-                                                        <Fragment key={i}>
-                                                            {name}
-                                                            {i < authorNames.length - 2 ? ", " : ""}
-                                                        </Fragment>
-                                                    ))}
-                                                    , and {authorNames[authorNames.length - 1]}
-                                                </>
-                                            )
-                                        }
-
-                                        return (
-                                            <Tooltip key={role}>
-                                                <TooltipTrigger asChild>
-                                                    <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
-                                                        {authorList} {roleDetails.verb}
-                                                    </span>
-                                                </TooltipTrigger>
-                                                <TooltipContent sideOffset={6} className="max-w-sm leading-relaxed">
-                                                    <p className="font-semibold">{role}</p>
-                                                    <p>{roleDetails.description}</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        )
-                                    }
-                                )
-
-                                return formattedGroups.map((group, index) => (
-                                    <span key={index}>
-                                        {group}
-                                        {index < formattedGroups.length - 1 ? ". " : "."}
-                                    </span>
-                                ))
-                            })()}
-                            </TooltipProvider>
+                        <p className="text-sm text-muted-foreground">
+                            You can hover over a contribution role to see more information about it.
                         </p>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                            {currentWork.authors.map((author) => (
+                                <p key={author.id}>
+                                    <span className="font-medium text-foreground">{author.initials}</span>:{" "}
+                                    <TooltipProvider>
+                                        {author.contributions.map((role, idx) => (
+                                            <span key={`${author.id}-${role}-${idx}`}>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
+                                                            {role}
+                                                        </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent sideOffset={6} className="max-w-sm leading-relaxed">
+                                                        <p className="font-semibold">{role}</p>
+                                                        <p>{roleDetailsMap[role] ?? role}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                                {idx < author.contributions.length - 1 ? ", " : ""}
+                                            </span>
+                                        ))}
+                                    </TooltipProvider>
+                                </p>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="mb-6">
@@ -476,12 +375,11 @@ function ExperimentCPageContent() {
                             <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
                                 <div className="flex flex-row flex-wrap gap-3">
                                     {items.map((author, positionIndex) => {
-                                        const colorClass = authorColorMap.get(author.id)!
                                         const showEnvelope = correspondingAuthorIndex >= 0 && positionIndex === correspondingAuthorIndex
                                         return (
                                             <SortableItem key={author.id} id={author.id}>
                                                 <div className="flex items-center gap-1.5 align-center justify-center">
-                                                    <span className={`font-medium ${colorClass}`}>
+                                                    <span className="font-medium">
                                                         {author.initials}
                                                     </span>
                                                     {showEnvelope && (
