@@ -13,15 +13,26 @@ type Props = {
 export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) {
     const dialogRef = useRef<HTMLDivElement>(null)
     const previousFocusedElementRef = useRef<HTMLElement | null>(null)
+    const shouldRestoreFocusRef = useRef(false)
 
     useEffect(() => {
         if (!open) return
 
+        shouldRestoreFocusRef.current = false
         previousFocusedElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        const focusHandle = requestAnimationFrame(() => {
+            const dialog = dialogRef.current
+            if (!dialog) return
+            const firstFocusable = dialog.querySelector<HTMLElement>(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            )
+            firstFocusable?.focus()
+        })
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 event.preventDefault()
+                shouldRestoreFocusRef.current = true
                 onCancel()
                 return
             }
@@ -60,10 +71,18 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
 
         document.addEventListener("keydown", handleKeyDown)
         return () => {
+            cancelAnimationFrame(focusHandle)
             document.removeEventListener("keydown", handleKeyDown)
-            previousFocusedElementRef.current?.focus()
+            if (shouldRestoreFocusRef.current) {
+                previousFocusedElementRef.current?.focus()
+            }
         }
     }, [open, onCancel])
+
+    function handleCancel() {
+        shouldRestoreFocusRef.current = true
+        onCancel()
+    }
 
     if (!open) return null
 
@@ -84,7 +103,7 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
                     you want to submit?
                 </p>
                 <div className="flex justify-end gap-2">
-                    <Button variant="outline" type="button" onClick={onCancel} autoFocus>
+                    <Button variant="outline" type="button" onClick={handleCancel}>
                         Go back
                     </Button>
                     <Button type="button" onClick={onConfirm}>
