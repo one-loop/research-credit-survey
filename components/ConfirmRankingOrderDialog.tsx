@@ -63,7 +63,7 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
             if (event.shiftKey) {
                 if (!dialog.contains(activeElement)) {
                     event.preventDefault()
-                    first.focus()
+                    last.focus()
                     return
                 }
                 if (activeElement === first) {
@@ -73,6 +73,11 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
                 return
             }
 
+            if (!dialog.contains(activeElement)) {
+                event.preventDefault()
+                first.focus()
+                return
+            }
             if (activeElement === last) {
                 event.preventDefault()
                 first.focus()
