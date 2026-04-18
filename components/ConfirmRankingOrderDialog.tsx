@@ -19,12 +19,20 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
         if (!open) return
 
         shouldRestoreFocusRef.current = false
-        previousFocusedElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        const activeElement = document.activeElement
+        previousFocusedElementRef.current =
+            activeElement instanceof HTMLElement
+                ? activeElement
+                : activeElement instanceof Element
+                    ? activeElement.closest<HTMLElement>(
+                        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
+                    )
+                    : null
         const focusHandle = requestAnimationFrame(() => {
             const dialog = dialogRef.current
             if (!dialog) return
             const firstFocusable = dialog.querySelector<HTMLElement>(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
             )
             firstFocusable?.focus()
         })
@@ -43,7 +51,7 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
             if (!dialog) return
 
             const focusableElements = dialog.querySelectorAll<HTMLElement>(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
             )
 
             if (focusableElements.length === 0) {
