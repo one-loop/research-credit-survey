@@ -7,21 +7,54 @@ import { Button } from "@/components/ui/button"
 const inputClass =
     "w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
+const DOMAIN_FIELDS: Record<string, string[]> = {
+    "Life Sciences": [
+        "Agricultural and Biological Sciences",
+        "Biochemistry, Genetics and Molecular Biology",
+        "Immunology and Microbiology",
+        "Neuroscience",
+        "Pharmacology, Toxicology and Pharmaceutics",
+    ],
+    "Social Sciences": [
+        "Arts and Humanities",
+        "Business, Management and Accounting",
+        "Decision Sciences",
+        "Economics, Econometrics and Finance",
+        "Psychology",
+        "Social Sciences",
+    ],
+    "Physical Sciences": [
+        "Chemical Engineering",
+        "Chemistry",
+        "Computer Science",
+        "Earth and Planetary Sciences",
+        "Energy",
+        "Engineering",
+        "Environmental Science",
+        "Materials Science",
+        "Mathematics",
+        "Physics and Astronomy",
+    ],
+    "Health Sciences": [
+        "Medicine",
+        "Nursing",
+        "Veterinary",
+        "Dentistry",
+        "Health Professions",
+    ],
+}
+
 function PostSurveyContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const responseId = searchParams.get("responseId")
     const authorId = searchParams.get("authorId") ?? undefined
 
-    const [gender, setGender] = useState("")
-    const [genderSelfDescribe, setGenderSelfDescribe] = useState("")
-    const [ageRange, setAgeRange] = useState("")
-    const [careerStage, setCareerStage] = useState("")
-    const [yearsInResearch, setYearsInResearch] = useState("")
+    const [primaryDomain, setPrimaryDomain] = useState("")
     const [primaryField, setPrimaryField] = useState("")
-    const [countryRegion, setCountryRegion] = useState("")
-    const [highestDegree, setHighestDegree] = useState("")
-    const [comments, setComments] = useState("")
+    const [gender, setGender] = useState("")
+    const [race, setRace] = useState("")
+    const [institution, setInstitution] = useState("")
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -31,17 +64,19 @@ function PostSurveyContent() {
         setSubmitting(true)
         setError(null)
 
-        const demographics: Record<string, string> = {}
-        const genderValue =
-            gender === "self_describe" ? (genderSelfDescribe.trim() || "self_describe") : gender
-        if (genderValue) demographics.gender = genderValue
-        if (ageRange) demographics.age_range = ageRange
-        if (careerStage) demographics.career_stage = careerStage
-        if (yearsInResearch) demographics.years_in_research = yearsInResearch
-        if (primaryField.trim()) demographics.primary_field = primaryField.trim()
-        if (countryRegion.trim()) demographics.country_or_region = countryRegion.trim()
-        if (highestDegree) demographics.highest_degree = highestDegree
-        if (comments.trim()) demographics.additional_comments = comments.trim()
+        if (!primaryDomain || !primaryField || !gender || !race) {
+            setError("Please complete all required fields.")
+            setSubmitting(false)
+            return
+        }
+
+        const demographics: Record<string, string> = {
+            primary_domain: primaryDomain,
+            primary_field: primaryField,
+            gender,
+            race,
+        }
+        if (institution.trim()) demographics.institution = institution.trim()
 
         try {
             const res = await fetch("/api/survey/demographics", {
@@ -82,10 +117,54 @@ function PostSurveyContent() {
         <div className="max-w-lg mx-auto p-6">
             <h1 className="text-2xl font-bold mb-2">A few quick questions</h1>
             <p className="text-muted-foreground mb-6 leading-relaxed">
-                These details help us interpret the results. All fields are optional; skip anything you prefer not to answer.
+                These details help us interpret the results.
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                    <label htmlFor="primaryDomain" className="block text-sm font-medium mb-1.5">
+                        Primary domain of research
+                    </label>
+                    <select
+                        id="primaryDomain"
+                        value={primaryDomain}
+                        onChange={(e) => {
+                            setPrimaryDomain(e.target.value)
+                            setPrimaryField("")
+                        }}
+                        className={inputClass}
+                        required
+                    >
+                        <option value="">Select a domain</option>
+                        {Object.keys(DOMAIN_FIELDS).map((domain) => (
+                            <option key={domain} value={domain}>
+                                {domain}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div>
+                    <label htmlFor="primaryField" className="block text-sm font-medium mb-1.5">
+                        Primary field of research
+                    </label>
+                    <select
+                        id="primaryField"
+                        value={primaryField}
+                        onChange={(e) => setPrimaryField(e.target.value)}
+                        className={inputClass}
+                        required
+                        disabled={!primaryDomain}
+                    >
+                        <option value="">{primaryDomain ? "Select a field" : "Select a domain first"}</option>
+                        {(DOMAIN_FIELDS[primaryDomain] ?? []).map((field) => (
+                            <option key={field} value={field}>
+                                {field}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
                 <div>
                     <label htmlFor="gender" className="block text-sm font-medium mb-1.5">
                         Gender
@@ -95,139 +174,49 @@ function PostSurveyContent() {
                         value={gender}
                         onChange={(e) => setGender(e.target.value)}
                         className={inputClass}
+                        required
                     >
-                        <option value="">Prefer not to say</option>
-                        <option value="woman">Woman</option>
-                        <option value="man">Man</option>
-                        <option value="non_binary">Non-binary</option>
-                        <option value="self_describe">Prefer to self-describe</option>
-                    </select>
-                    {gender === "self_describe" ? (
-                        <input
-                            type="text"
-                            value={genderSelfDescribe}
-                            onChange={(e) => setGenderSelfDescribe(e.target.value)}
-                            placeholder="How do you describe your gender?"
-                            className={`${inputClass} mt-2`}
-                            autoComplete="off"
-                        />
-                    ) : null}
-                </div>
-
-                <div>
-                    <label htmlFor="ageRange" className="block text-sm font-medium mb-1.5">
-                        Age range
-                    </label>
-                    <select id="ageRange" value={ageRange} onChange={(e) => setAgeRange(e.target.value)} className={inputClass}>
-                        <option value="">Prefer not to say</option>
-                        <option value="under_25">Under 25</option>
-                        <option value="25_34">25–34</option>
-                        <option value="35_44">35–44</option>
-                        <option value="45_54">45–54</option>
-                        <option value="55_64">55–64</option>
-                        <option value="65_plus">65 or older</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label htmlFor="careerStage" className="block text-sm font-medium mb-1.5">
-                        Career stage
-                    </label>
-                    <select
-                        id="careerStage"
-                        value={careerStage}
-                        onChange={(e) => setCareerStage(e.target.value)}
-                        className={inputClass}
-                    >
-                        <option value="">Prefer not to say</option>
-                        <option value="undergraduate">Undergraduate student</option>
-                        <option value="graduate">Graduate student</option>
-                        <option value="postdoc">Postdoctoral researcher</option>
-                        <option value="faculty">Faculty / research staff</option>
-                        <option value="industry">Industry / other non-academic</option>
-                        <option value="retired">Retired</option>
+                        <option value="">Select one</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
                         <option value="other">Other</option>
+                        <option value="prefer_not_to_say">Prefer Not to Say</option>
                     </select>
                 </div>
 
                 <div>
-                    <label htmlFor="yearsInResearch" className="block text-sm font-medium mb-1.5">
-                        Years involved in research (approximate)
+                    <label htmlFor="race" className="block text-sm font-medium mb-1.5">
+                        Race
                     </label>
                     <select
-                        id="yearsInResearch"
-                        value={yearsInResearch}
-                        onChange={(e) => setYearsInResearch(e.target.value)}
+                        id="race"
+                        value={race}
+                        onChange={(e) => setRace(e.target.value)}
                         className={inputClass}
+                        required
                     >
-                        <option value="">Prefer not to say</option>
-                        <option value="0_2">0–2 years</option>
-                        <option value="3_5">3–5 years</option>
-                        <option value="6_10">6–10 years</option>
-                        <option value="11_20">11–20 years</option>
-                        <option value="21_plus">More than 20 years</option>
+                        <option value="">Select one</option>
+                        <option value="white">White</option>
+                        <option value="black">Black</option>
+                        <option value="hispanic">Hispanic</option>
+                        <option value="asian">Asian</option>
+                        <option value="other">Other</option>
+                        <option value="prefer_not_to_say">Prefer Not to Say</option>
                     </select>
                 </div>
 
                 <div>
-                    <label htmlFor="primaryField" className="block text-sm font-medium mb-1.5">
-                        Primary field or discipline
+                    <label htmlFor="institution" className="block text-sm font-medium mb-1.5">
+                        Institution (optional)
                     </label>
                     <input
-                        id="primaryField"
+                        id="institution"
                         type="text"
-                        value={primaryField}
-                        onChange={(e) => setPrimaryField(e.target.value)}
-                        placeholder="e.g. molecular biology, economics"
+                        value={institution}
+                        onChange={(e) => setInstitution(e.target.value)}
+                        placeholder="e.g. University of Michigan"
                         className={inputClass}
-                        autoComplete="organization-title"
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="countryRegion" className="block text-sm font-medium mb-1.5">
-                        Country or region
-                    </label>
-                    <input
-                        id="countryRegion"
-                        type="text"
-                        value={countryRegion}
-                        onChange={(e) => setCountryRegion(e.target.value)}
-                        placeholder="e.g. United States, Western Europe"
-                        className={inputClass}
-                        autoComplete="country-name"
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="highestDegree" className="block text-sm font-medium mb-1.5">
-                        Highest degree earned
-                    </label>
-                    <select
-                        id="highestDegree"
-                        value={highestDegree}
-                        onChange={(e) => setHighestDegree(e.target.value)}
-                        className={inputClass}
-                    >
-                        <option value="">Prefer not to say</option>
-                        <option value="none_in_progress">None yet / in progress</option>
-                        <option value="bachelors">Bachelor&apos;s or equivalent</option>
-                        <option value="masters">Master&apos;s or equivalent</option>
-                        <option value="doctoral">Doctoral degree (PhD, MD, etc.)</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label htmlFor="comments" className="block text-sm font-medium mb-1.5">
-                        Anything else we should know? (optional)
-                    </label>
-                    <textarea
-                        id="comments"
-                        value={comments}
-                        onChange={(e) => setComments(e.target.value)}
-                        rows={3}
-                        className={inputClass}
+                        autoComplete="organization"
                     />
                 </div>
 

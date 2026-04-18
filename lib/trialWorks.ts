@@ -26,10 +26,10 @@ function normalizeDomain(domain: string | undefined): string {
     return "Social Sciences"
 }
 
-function normalizeJournal(journal: string | undefined): "PLOS ONE" | "Proceedings of the National Academy of Sciences" {
+function normalizeJournal(journal: string | undefined): "PLOS ONE" | "PNAS" {
     const j = (journal ?? "").toLowerCase()
     if (j.includes("proceedings of the national academy of sciences") || j.includes("pnas")) {
-        return "Proceedings of the National Academy of Sciences"
+        return "PNAS"
     }
     return "PLOS ONE"
 }
