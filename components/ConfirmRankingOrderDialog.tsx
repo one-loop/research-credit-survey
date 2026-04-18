@@ -10,6 +10,9 @@ type Props = {
     onCancel: () => void
 }
 
+const FOCUSABLE_SELECTOR =
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
+
 export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) {
     const dialogRef = useRef<HTMLDivElement>(null)
     const previousFocusedElementRef = useRef<HTMLElement | null>(null)
@@ -24,16 +27,12 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
             activeElement instanceof HTMLElement
                 ? activeElement
                 : activeElement instanceof Element
-                    ? activeElement.closest<HTMLElement>(
-                        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
-                    )
+                    ? activeElement.closest<HTMLElement>(FOCUSABLE_SELECTOR)
                     : null
         const focusHandle = requestAnimationFrame(() => {
             const dialog = dialogRef.current
             if (!dialog) return
-            const firstFocusable = dialog.querySelector<HTMLElement>(
-                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
-            )
+            const firstFocusable = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
             firstFocusable?.focus()
         })
 
@@ -50,9 +49,7 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
             const dialog = dialogRef.current
             if (!dialog) return
 
-            const focusableElements = dialog.querySelectorAll<HTMLElement>(
-                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
-            )
+            const focusableElements = dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
 
             if (focusableElements.length === 0) {
                 event.preventDefault()
@@ -64,7 +61,12 @@ export function ConfirmRankingOrderDialog({ open, onConfirm, onCancel }: Props) 
             const activeElement = document.activeElement as HTMLElement | null
 
             if (event.shiftKey) {
-                if (activeElement === first || !dialog.contains(activeElement)) {
+                if (!dialog.contains(activeElement)) {
+                    event.preventDefault()
+                    first.focus()
+                    return
+                }
+                if (activeElement === first) {
                     event.preventDefault()
                     last.focus()
                 }
