@@ -8,22 +8,10 @@ export const creditRoles: CreditRole[] = [
             "Came up with the main research idea and goals.",
     },
     {
-        id: "methodology",
-        name: "Methodology",
+        id: "data-curation",
+        name: "Data curation",
         description:
-            "Designed how the study was done (methods, study design).",
-    },
-    {
-        id: "software",
-        name: "Software",
-        description:
-            "Wrote or maintained the code and software used in the study.",
-    },
-    {
-        id: "validation",
-        name: "Validation",
-        description:
-            "Checked that the methods and results were correct and reproducible.",
+            "Cleaned, organized, and documented the data so it could be used and reused.",
     },
     {
         id: "formal-analysis",
@@ -32,10 +20,28 @@ export const creditRoles: CreditRole[] = [
             "Did the statistical or mathematical analysis of the data.",
     },
     {
+        id: "funding-acquisition",
+        name: "Funding Acquisition",
+        description:
+            "Secured the funding that made the study possible.",
+    },
+    {
         id: "investigation",
         name: "Investigation",
         description:
             "Collected data or ran the experiments.",
+    },
+    {
+        id: "methodology",
+        name: "Methodology",
+        description:
+            "Designed how the study was done (methods, study design).",
+    },
+    {
+        id: "project-administration",
+        name: "Project Administration",
+        description:
+            "Managed the day‑to‑day running and coordination of the project.",
     },
     {
         id: "resources",
@@ -44,10 +50,28 @@ export const creditRoles: CreditRole[] = [
             "Provided key resources such as data, samples, equipment, or participants.",
     },
     {
-        id: "data-curation",
-        name: "Data curation",
+        id: "software",
+        name: "Software",
         description:
-            "Cleaned, organized, and documented the data so it could be used and reused.",
+            "Wrote or maintained the code and software used in the study.",
+    },
+    {
+        id: "supervision",
+        name: "Supervision",
+        description:
+            "Oversaw and guided the research team or project.",
+    },
+    {
+        id: "validation",
+        name: "Validation",
+        description:
+            "Checked that the methods and results were correct and reproducible.",
+    },
+    {
+        id: "visualization",
+        name: "Visualization",
+        description:
+            "Created figures, tables, or other visual displays of the results.",
     },
     {
         id: "writing-original-draft",
@@ -60,30 +84,6 @@ export const creditRoles: CreditRole[] = [
         name: "Writing – Review & Editing",
         description:
             "Revised, edited, or commented on the manuscript after the first draft.",
-    },
-    {
-        id: "visualization",
-        name: "Visualization",
-        description:
-            "Created figures, tables, or other visual displays of the results.",
-    },
-    {
-        id: "supervision",
-        name: "Supervision",
-        description:
-            "Oversaw and guided the research team or project.",
-    },
-    {
-        id: "project-administration",
-        name: "Project Administration",
-        description:
-            "Managed the day‑to‑day running and coordination of the project.",
-    },
-    {
-        id: "funding-acquisition",
-        name: "Funding Acquisition",
-        description:
-            "Secured the funding that made the study possible.",
     },
 ]
 

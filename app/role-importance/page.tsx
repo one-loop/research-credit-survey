@@ -101,7 +101,7 @@ function RoleImportanceContent() {
                 {creditRoles.map((role) => {
                     const current = values[role.id]
                     return (
-                    <div key={role.id} className="space-y-2">
+                    <div key={role.id} className="space-y-1">
                         <label className="font-medium block"> {role.name} </label>
                         <p className="text-sm text-muted-foreground mb-4">
                         {role.description}
@@ -133,7 +133,7 @@ function RoleImportanceContent() {
                             )
                         })}
                         </div>
-                        <div className="text-xs text-muted-foreground mb-[50px]">
+                        <div className="text-xs text-muted-foreground mb-[25px]">
                         {/* Selected: {current} */}
                         </div>
                     </div>

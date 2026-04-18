@@ -6,10 +6,13 @@ import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
 import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
+import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
+import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 
 const roleDetailsMap: Record<string, string> = {
     Conceptualization: "Ideas, formulation or evolution of overarching research goals and aims.",
@@ -64,6 +67,7 @@ function ExperimentAPageContent() {
     const [trialResults, setTrialResults] = useState<string[][]>([])
     const [items, setItems] = useState<Author[]>([])
     const [showIntro, setShowIntro] = useState(true)
+    const [confirmUnchangedOpen, setConfirmUnchangedOpen] = useState(false)
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -109,7 +113,7 @@ function ExperimentAPageContent() {
                     }
                     setWorks(shuffled)
                     if (shuffled.length > 0) {
-                        setItems([...shuffled[0].authors])
+                        setItems(shuffledAuthorsForRanking(shuffled[0].authors))
                     }
                     setError(null)
                     setLoading(false)
@@ -141,7 +145,7 @@ function ExperimentAPageContent() {
 
                 setWorks(shuffled)
                 if (shuffled.length > 0) {
-                    setItems([...shuffled[0].authors])
+                    setItems(shuffledAuthorsForRanking(shuffled[0].authors))
                 }
                 setError(null)
             })
@@ -152,6 +156,19 @@ function ExperimentAPageContent() {
     const totalWorks = works?.length ?? 0
     const isComplete = totalWorks > 0 && currentIndex >= totalWorks
     const currentWork = works && totalWorks > 0 ? works[currentIndex] : null
+
+    const rankingUiActive =
+        trialGate === "ok" &&
+        !loading &&
+        !error &&
+        Boolean(works && totalWorks > 0 && currentWork && !showIntro && !isComplete)
+
+    const { minTimeMet, orderUnchangedFromInitial, flushCurrentWorkSeconds, secondsByWorkIdRef } =
+        useExperimentRankingTiming({
+            workId: currentWork?.work_id,
+            isRankingUiActive: rankingUiActive,
+            items,
+        })
 
     function handleDragEnd(event: { active: { id: unknown }; over: { id: unknown } | null }) {
         const { active, over } = event
@@ -167,15 +184,28 @@ function ExperimentAPageContent() {
         }
     }
 
-    async function handleNext() {
-        if (!works) return
+    function requestAdvance() {
+        if (!works || !currentWork) return
+        if (!minTimeMet) return
+        if (orderUnchangedFromInitial) {
+            setConfirmUnchangedOpen(true)
+            return
+        }
+        void executeAdvance()
+    }
+
+    async function executeAdvance() {
+        if (!works || !currentWork) return
+        flushCurrentWorkSeconds(currentWork.work_id)
+        setConfirmUnchangedOpen(false)
+
         const ranking = items.map((i) => i.id)
         const newResults = [...trialResults, ranking]
 
         if (currentIndex < totalWorks - 1) {
             setTrialResults(newResults)
             setCurrentIndex(currentIndex + 1)
-            setItems([...works[currentIndex + 1].authors])
+            setItems(shuffledAuthorsForRanking(works[currentIndex + 1].authors))
         } else {
             setTrialResults(newResults)
             setCurrentIndex(totalWorks)
@@ -185,6 +215,8 @@ function ExperimentAPageContent() {
             works.forEach((w, i) => {
                 rankings[w.work_id] = newResults[i] ?? []
             })
+
+            const timeSpent = { ...secondsByWorkIdRef.current }
 
             let roleImportance: Record<string, number> | undefined
             if (typeof window !== "undefined" && authorId) {
@@ -209,6 +241,7 @@ function ExperimentAPageContent() {
                         authorId,
                         roleImportance,
                         experimentType: "A",
+                        timeSpent,
                     }),
                 })
                 const data = (await res.json()) as { ok?: boolean; responseId?: string; error?: string }
@@ -299,10 +332,8 @@ function ExperimentAPageContent() {
         )
     }
 
-    // Find the original index of the corresponding author (envelope icon position)
-    const correspondingAuthorIndex = currentWork
-        ? currentWork.authors.findIndex((a) => a.is_corresponding)
-        : -1
+    /** Publication byline index for the corresponding-author slot (envelope stays here). */
+    const envelopeSlotIndex = currentWork ? publicationCorrespondingSlotIndex(currentWork.authors) : -1
 
     return (
         <div className="max-w-3xl mx-auto p-6">
@@ -350,7 +381,7 @@ function ExperimentAPageContent() {
                                                         </span>
                                                     </TooltipTrigger>
                                                     <TooltipContent sideOffset={6} className="max-w-sm leading-relaxed">
-                                                        <p className="font-semibold">{role}</p>
+                                                        {/* <p className="font-semibold">{role}</p> */}
                                                         <p>{roleDetailsMap[role] ?? role}</p>
                                                     </TooltipContent>
                                                 </Tooltip>
@@ -376,7 +407,7 @@ function ExperimentAPageContent() {
                             <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
                                 <div className="flex flex-row flex-wrap gap-3">
                                     {items.map((author, positionIndex) => {
-                                        const showEnvelope = correspondingAuthorIndex >= 0 && positionIndex === correspondingAuthorIndex
+                                        const showEnvelope = envelopeSlotIndex >= 0 && positionIndex === envelopeSlotIndex
                                         return (
                                             <SortableItem key={author.id} id={author.id}>
                                                 <div className="flex items-center gap-1.5 align-center justify-center">
@@ -395,13 +426,21 @@ function ExperimentAPageContent() {
                         </DndContext>
                     </div>
 
-                    <div className="flex justify-end">
-                        <Button onClick={handleNext}>
+                    <div className="flex flex-col items-end gap-2">
+                        {!minTimeMet ? (
+                            <p className="text-xs text-muted-foreground">Wait at least 10 seconds before continuing.</p>
+                        ) : null}
+                        <Button onClick={() => void requestAdvance()} disabled={!minTimeMet}>
                             {currentIndex < totalWorks - 1 ? "Next Work" : "Complete"}
                         </Button>
                     </div>
                 </>
             )}
+            <ConfirmRankingOrderDialog
+                open={confirmUnchangedOpen}
+                onCancel={() => setConfirmUnchangedOpen(false)}
+                onConfirm={() => void executeAdvance()}
+            />
         </div>
     )
 }

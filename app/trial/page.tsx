@@ -16,6 +16,7 @@ import {
     trialFailedKey,
     trialPassedKey,
 } from "@/lib/trialWorks"
+import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
@@ -66,7 +67,7 @@ function TrialPageContent() {
         const context = getRespondentContextFromSession(authorId)
         const w = getTrialWorkForDomain(context.domain, exp, context.journal)
         setWork(w)
-        setItems([...w.authors])
+        setItems(shuffledAuthorsForRanking(w.authors))
     }, [authorId])
 
     function handleDragEnd(event: DragEndEvent) {
@@ -270,7 +271,7 @@ function TrialPageContent() {
     }
 
     // phase === "practice"
-    const fixedCorrSlot = work.authors.findIndex((a) => a.is_corresponding)
+    const fixedCorrSlot = publicationCorrespondingSlotIndex(work.authors)
     const slotPhrase =
         fixedCorrSlot < 0
             ? "—"
@@ -324,7 +325,7 @@ function TrialPageContent() {
                                                 </span>
                                             </TooltipTrigger>
                                             <TooltipContent className="max-w-xs">
-                                                <p className="font-semibold">{role}</p>
+                                                {/* <p className="font-semibold">{role}</p> */}
                                                 <p>{roleDetailsMap[role]?.description ?? role}</p>
                                             </TooltipContent>
                                         </Tooltip>
@@ -355,7 +356,7 @@ function TrialPageContent() {
             <div className="mb-6">
                 <p className="font-medium mb-2">
                     Given the information above, please sort these authors in the way you think they would appear in
-                    the byline of <span className="text-foreground">{work.journal}</span> journal in the{" "}
+                    the byline of the <span className="text-foreground">{work.journal}</span> journal in the{" "}
                     <span className="text-foreground">{work.domain ?? work.field}</span> domain.
                 </p>
                 <div className="mb-4 text-muted-foreground text-sm leading-relaxed grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
