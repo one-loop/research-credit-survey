@@ -51,7 +51,6 @@ function PostSurveyContent() {
     const authorId = searchParams.get("authorId") ?? undefined
 
     const [primaryDomain, setPrimaryDomain] = useState("")
-    const [yearsInResearch, setYearsInResearch] = useState("")
     const [primaryField, setPrimaryField] = useState("")
     const [gender, setGender] = useState("")
     const [race, setRace] = useState("")
