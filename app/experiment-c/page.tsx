@@ -13,6 +13,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
+import { Spinner } from "@/components/ui/spinner"
+
 
 const roleDetailsMap: Record<string, string> = {
     Conceptualization: "Ideas, formulation or evolution of overarching research goals and aims.",
@@ -327,7 +329,8 @@ function ExperimentCPageContent() {
 
     if (isComplete) {
         return (
-            <div className="max-w-3xl mx-auto p-6">
+            <div className="max-w-3xl mx-auto p-6 flex flex-row gap-4 items-center">
+                <Spinner />
                 <p className="text-muted-foreground">Submitting your responses…</p>
             </div>
         )
@@ -356,10 +359,9 @@ function ExperimentCPageContent() {
     return (
         <div className="max-w-3xl mx-auto p-6">
             <div className="mb-6">
-                <h1 className="text-2xl font-bold mb-2">Author Contribution Ranking</h1>
-                <p className="text-muted-foreground">
-                    Work {currentIndex + 1} of {totalWorks}
-                </p>
+                <h1 className="text-2xl font-bold mb-2">
+                    Author Contribution Ranking — Task {currentIndex + 1}
+                </h1>
                 {currentWork && (
                     <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
                         [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | data_source: {dataSource === "supabase" ? "Supabase (papers table)" : "mock data"}.
