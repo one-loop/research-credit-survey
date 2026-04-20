@@ -50,7 +50,10 @@ type Demographics = {
     gender: string
     race: string
     institution?: string
+    institution_id?: string
 }
+
+type InstitutionOption = { id: string; label: string }
 
 function RespondentSurveyContent() {
     const searchParams = useSearchParams()
@@ -61,6 +64,10 @@ function RespondentSurveyContent() {
     const [gender, setGender] = useState("")
     const [race, setRace] = useState("")
     const [institution, setInstitution] = useState("")
+    const [institutionId, setInstitutionId] = useState("")
+    const [institutionOptions, setInstitutionOptions] = useState<InstitutionOption[]>([])
+    const [institutionLoading, setInstitutionLoading] = useState(false)
+    const [showInstitutionOptions, setShowInstitutionOptions] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -76,10 +83,36 @@ function RespondentSurveyContent() {
             if (parsed.gender) setGender(parsed.gender)
             if (parsed.race) setRace(parsed.race)
             if (parsed.institution) setInstitution(parsed.institution)
+            if (parsed.institution_id) setInstitutionId(parsed.institution_id)
         } catch {
             // ignore invalid cached value
         }
     }, [authorId])
+
+    useEffect(() => {
+        if (institution.trim().length < 2) {
+            setInstitutionOptions([])
+            setInstitutionLoading(false)
+            return
+        }
+
+        const q = institution.trim()
+        const handle = window.setTimeout(async () => {
+            setInstitutionLoading(true)
+            try {
+                const res = await fetch(`/api/institutions/search?q=${encodeURIComponent(q)}`)
+                const data = (await res.json()) as { items?: InstitutionOption[] }
+                setInstitutionOptions(data.items ?? [])
+                setShowInstitutionOptions(true)
+            } catch {
+                setInstitutionOptions([])
+            } finally {
+                setInstitutionLoading(false)
+            }
+        }, 300)
+
+        return () => window.clearTimeout(handle)
+    }, [institution])
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -99,6 +132,7 @@ function RespondentSurveyContent() {
             race,
         }
         if (institution.trim()) demographics.institution = institution.trim()
+        if (institutionId) demographics.institution_id = institutionId
 
         if (typeof window !== "undefined") {
             const keyAuthor = authorId ?? "none"
@@ -205,15 +239,53 @@ function RespondentSurveyContent() {
                     <label htmlFor="institution" className="block text-sm font-medium mb-1.5">
                         Institution (optional)
                     </label>
-                    <input
-                        id="institution"
-                        type="text"
-                        value={institution}
-                        onChange={(e) => setInstitution(e.target.value)}
-                        placeholder="e.g. University of Michigan"
-                        className={inputClass}
-                        autoComplete="organization"
-                    />
+                    <div className="relative">
+                        <input
+                            id="institution"
+                            type="text"
+                            value={institution}
+                            onChange={(e) => {
+                                setInstitution(e.target.value)
+                                setInstitutionId("")
+                                setShowInstitutionOptions(true)
+                            }}
+                            onFocus={() => setShowInstitutionOptions(true)}
+                            onBlur={() => {
+                                window.setTimeout(() => setShowInstitutionOptions(false), 120)
+                            }}
+                            placeholder="Start typing your institution name"
+                            className={inputClass}
+                            autoComplete="organization"
+                        />
+                        {showInstitutionOptions && (institutionLoading || institutionOptions.length > 0) ? (
+                            <div className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-md border bg-background shadow-sm">
+                                {institutionLoading ? (
+                                    <p className="px-3 py-2 text-sm text-muted-foreground">Searching institutions…</p>
+                                ) : (
+                                    institutionOptions.map((option) => (
+                                        <button
+                                            key={option.id}
+                                            type="button"
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                                            onMouseDown={(e) => {
+                                                e.preventDefault()
+                                                setInstitution(option.label)
+                                                setInstitutionId(option.id)
+                                                setShowInstitutionOptions(false)
+                                            }}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        ) : null}
+                    </div>
+                    {institutionId ? (
+                        <p className="mt-1 text-xs text-muted-foreground">Selected from institution directory.</p>
+                    ) : (
+                        <p className="mt-1 text-xs text-muted-foreground">No exact match selected; typed value will be saved as entered.</p>
+                    )}
                 </div>
 
                 {error ? <p className="text-sm text-destructive">{error}</p> : null}
