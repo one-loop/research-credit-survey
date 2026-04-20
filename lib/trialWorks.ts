@@ -38,19 +38,19 @@ function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
     const base: Author[] = [
         {
             id: "trial_a1",
-            initials: "J.M.",
+            initials: "A.A.",
             contributions: ["Conceptualization", "Methodology", "Supervision"],
             is_corresponding: false,
         },
         {
             id: "trial_a2",
-            initials: "K.T.",
+            initials: "B.B.",
             contributions: ["Investigation", "Formal analysis", "Visualization"],
             is_corresponding: false,
         },
         {
             id: "trial_a3",
-            initials: "R.L.",
+            initials: "C.C.",
             contributions: [
                 "Data curation",
                 "Writing – original draft",
@@ -61,7 +61,7 @@ function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
         },
         {
             id: "trial_a4",
-            initials: "S.N.",
+            initials: "D.D.",
             contributions: ["Software", "Validation", "Resources"],
             is_corresponding: false,
         },

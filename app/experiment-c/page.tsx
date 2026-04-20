@@ -46,7 +46,7 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
             style={style}
             {...attributes}
             {...listeners}
-            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100px]"
+            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100px] bg-violet-50 border-violet-950 text-violet-950"
         >
             {children}
         </div>
@@ -440,7 +440,7 @@ function ExperimentCPageContent() {
                                                         {author.initials}
                                                     </span>
                                                     {showEnvelope && (
-                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground stroke-violet-950 text-violet-950" />
                                                     )}
                                                 </div>
                                             </SortableItem>

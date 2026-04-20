@@ -136,10 +136,13 @@ function TrialPageContent() {
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <h1 className="text-2xl font-bold mb-4">Practice task</h1>
-                <p className="text-muted-foreground mb-4 leading-relaxed">
+                {/* <p className="text-muted-foreground mb-4 leading-relaxed">
                     Before the main study, you will complete a short practice on a <strong>mock example</strong> from
                     your broad area ({work.domain ?? work.field}). This is not one of the papers that will count toward the study; it
                     only shows what the questions look like and how to use the interface.
+                </p> */}
+                <p className="text-muted-foreground mb-4 leading-relaxed">
+                    Prior to the main study, you will complete a brief practice task to familiarize you with the format of the questions and the interface. 
                 </p>
                 <div className="rounded-lg border bg-card p-4 mb-6 space-y-3 text-sm leading-relaxed">
                     <p className="font-medium text-foreground">Corresponding author slot (envelope)</p>
