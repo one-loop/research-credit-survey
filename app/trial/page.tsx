@@ -65,7 +65,7 @@ function TrialPageContent() {
         const exp = getAssignedExperimentFromSession(authorId)
         setExperiment(exp)
         const context = getRespondentContextFromSession(authorId)
-        const w = getTrialWorkForDomain(context.domain, exp, context.journal)
+        const w = getTrialWorkForDomain(context.domain, exp, context.journal, context.field)
         setWork(w)
         setItems(shuffledAuthorsForRanking(w.authors))
     }, [authorId])
@@ -104,6 +104,9 @@ function TrialPageContent() {
     const experimentHref = authorId
         ? `${experimentPath}?authorId=${encodeURIComponent(authorId)}`
         : experimentPath
+    const experimentAHref = authorId ? `/experiment-a?authorId=${encodeURIComponent(authorId)}` : "/experiment-a"
+    const experimentBHref = authorId ? `/experiment-b?authorId=${encodeURIComponent(authorId)}` : "/experiment-b"
+    const experimentCHref = authorId ? `/experiment-c?authorId=${encodeURIComponent(authorId)}` : "/experiment-c"
 
     if (phase === "failed") {
         return (
@@ -172,9 +175,22 @@ function TrialPageContent() {
             <div className="max-w-3xl mx-auto p-6">
                 <h1 className="text-2xl font-bold mb-4">You&apos;re ready</h1>
                 <p className="text-muted-foreground mb-6 leading-relaxed">
-                    You answered the instruction check correctly. You can now begin the main study with the five
-                    papers selected for you.
+                    You answered both questions correctly. We will now show you five tasks. You may not go back to a previously attempted task once you have submitted it.
                 </p>
+                <div className="mb-6 rounded-md border border-dashed p-4">
+                    <p className="text-sm font-medium mb-3">Debug links</p>
+                    <div className="flex flex-wrap gap-2">
+                        <Button asChild variant="outline" size="sm">
+                            <Link href={experimentAHref}>Go to Experiment A</Link>
+                        </Button>
+                        <Button asChild variant="outline" size="sm">
+                            <Link href={experimentBHref}>Go to Experiment B</Link>
+                        </Button>
+                        <Button asChild variant="outline" size="sm">
+                            <Link href={experimentCHref}>Go to Experiment C</Link>
+                        </Button>
+                    </div>
+                </div>
                 <div className="flex justify-end">
                     <Link href={experimentHref}>
                         <Button>Continue to main study</Button>
@@ -187,23 +203,21 @@ function TrialPageContent() {
     if (phase === "quiz") {
         return (
             <div className="max-w-3xl mx-auto p-6">
-                <h1 className="text-2xl font-bold mb-4">Instruction check</h1>
-                <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
+                <h1 className="text-2xl font-bold mb-10">Instruction check</h1>
+                {/* <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
                     Please answer both questions. You need both correct to continue.
-                </p>
+                </p> */}
 
                 <div className="space-y-8 mb-8">
                     <div>
                         <p className="font-medium mb-3">
-                            1. The envelope marks the corresponding-author <em>slot</em> (list position) from the
-                            publication. What is true in this task?
+                            1. The envelope icon indicates the corresponding author’s position in the publication. Which statement best describes how it functions in this task?
                         </p>
                         <div className="space-y-2 text-sm">
                             <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="follows_person" checked={q1 === "follows_person"} onChange={() => setQ1("follows_person")} />
                                 <span>
-                                    The envelope always stays on the same initials no matter where I move that
-                                    author&apos;s card.
+                                    The envelope always remains attached to the same author, regardless of how I reorder the list.
                                 </span>
                             </label>
                             <label className="flex gap-2 items-center cursor-pointer items-center">
@@ -215,30 +229,28 @@ function TrialPageContent() {
                                     onChange={() => setQ1(Q1_CORRECT)}
                                 />
                                 <span>
-                                    The envelope stays at the same <strong>list position</strong> as on the paper; I
-                                    can reorder everyone, and whoever sits in that slot is shown with the envelope.
+                                    The envelope remains fixed to a specific position in the list; I may reorder authors freely, and whichever author occupies that position will be shown with the envelope.
                                 </span>
                             </label>
                             <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="only_others" checked={q1 === "only_others"} onChange={() => setQ1("only_others")} />
-                                <span>Only authors without the envelope can be dragged; the corresponding person cannot move.</span>
+                                <span>The author marked with the envelope cannot be moved, while all other authors can be reordered.</span>
                             </label>
                             <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q1" value="always_first" checked={q1 === "always_first"} onChange={() => setQ1("always_first")} />
-                                <span>The corresponding slot is always the first position in every paper.</span>
+                                <span>The envelope always appears in the last position, regardless of the original publication.</span>
                             </label>
                         </div>
                     </div>
 
                     <div>
                         <p className="font-medium mb-3">
-                            2. When you order authors (including who sits in the envelope slot), what is the study
-                            asking you to optimize for?
+                            2. What criterion should you follow when ordering the authors?
                         </p>
                         <div className="space-y-2 text-sm">
                             <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q2" value="alpha" checked={q2 === "alpha"} onChange={() => setQ2("alpha")} />
-                                <span>Put them in strict alphabetical order by surname.</span>
+                                <span>Arrange authors in alphabetical order by surname.</span>
                             </label>
                             <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input
@@ -248,11 +260,11 @@ function TrialPageContent() {
                                     checked={q2 === Q2_CORRECT}
                                     onChange={() => setQ2(Q2_CORRECT)}
                                 />
-                                <span>Order them from highest to lowest contribution, using my own judgment.</span>
+                                <span>Arrange authors based on my own judgment and the contributions provided.</span>
                             </label>
                             <label className="flex gap-2 items-center cursor-pointer items-center">
                                 <input type="radio" name="q2" value="random" checked={q2 === "random"} onChange={() => setQ2("random")} />
-                                <span>Order them randomly.</span>
+                                <span>Arrange authors in a random order.</span>
                             </label>
                         </div>
                     </div>
@@ -357,7 +369,7 @@ function TrialPageContent() {
                 <p className="font-medium mb-2">
                     Given the information above, please sort these authors in the way you think they would appear in
                     the byline of the <span className="text-foreground">{work.journal}</span> journal in the{" "}
-                    <span className="text-foreground">{work.domain ?? work.field}</span> domain.
+                    <span className="text-foreground">{work.field}</span> field.
                 </p>
                 <div className="mb-4 text-muted-foreground text-sm leading-relaxed grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
                     <Mail

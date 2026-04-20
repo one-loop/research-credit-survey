@@ -32,7 +32,7 @@ def main() -> None:
             })
 
             # insert into suapbase database in batches of 500 papers
-            if len(batch) == 500:
+            if len(batch) == 1000:
                 print(f"Inserting batch no {batch_no}")
                 supabase.table("papers").upsert(batch).execute()
                 batch = []  # reset batch

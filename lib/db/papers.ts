@@ -6,9 +6,12 @@ type PaperAuthor = {
     id?: string
     author_id: string
     initials?: string
+    initials_anonymized?: string
     contributions?: string[]
     corresponding?: boolean
     name?: string
+    name_anonymized?: string
+    top100_institution?: boolean | number | string
     orcid?: string
     academic_age?: number
     h_index?: number
@@ -37,21 +40,61 @@ export type PaperRow = {
 
 type ExperimentType = "A" | "B" | "C"
 
+function readString(obj: Record<string, unknown>, keys: string[]): string | undefined {
+    for (const key of keys) {
+        const value = obj[key]
+        if (typeof value === "string" && value.trim().length > 0) return value.trim()
+    }
+    return undefined
+}
+
+function readBoolean(obj: Record<string, unknown>, keys: string[]): boolean | undefined {
+    for (const key of keys) {
+        const value = obj[key]
+        if (typeof value === "boolean") return value
+        if (typeof value === "number") return value === 1
+        if (typeof value === "string") {
+            const v = value.trim().toLowerCase()
+            if (v === "true" || v === "1" || v === "yes") return true
+            if (v === "false" || v === "0" || v === "no") return false
+        }
+    }
+    return undefined
+}
+
+function initialsFromName(name: string | undefined): string | undefined {
+    if (!name) return undefined
+    const tokens = name
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+    if (!tokens.length) return undefined
+    return tokens.map((t) => `${t[0]?.toUpperCase() ?? ""}.`).join("")
+}
+
 function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
-    const authors: Author[] = (paper.authors ?? []).map((a, position) => ({
-        id: a.id ?? a.author_id ?? String(position),
-        initials: a.initials ?? "?",
-        contributions: Array.isArray(a.contributions) ? a.contributions : [],
-        is_corresponding: Boolean(a.corresponding),
-        name: typeof a.name === "string" ? a.name : undefined,
-        academic_age: typeof a.academic_age === "number" ? a.academic_age : undefined,
-        h_index: typeof a.h_index === "number" ? a.h_index : undefined,
-        first_institution_name:
-            Array.isArray(a.institutions) &&
-            typeof a.institutions[0]?.institution_name === "string"
-                ? a.institutions[0].institution_name
-                : undefined,
-    }))
+    const authors: Author[] = (paper.authors ?? []).map((a, position) => {
+        const raw = a as Record<string, unknown>
+        const anonymizedInitials = readString(raw, ["initials_anonymized", "initialsAnonymized"])
+        const anonymizedName = readString(raw, ["name_anonymized", "nameAnonymized"])
+        return {
+            id: readString(raw, ["id", "author_id", "authorId"]) ?? String(position),
+            // Never expose true initials in respondent-facing tasks.
+            initials: (anonymizedInitials ?? initialsFromName(anonymizedName) ?? "?").trim(),
+            contributions: Array.isArray(a.contributions) ? a.contributions : [],
+            is_corresponding: readBoolean(raw, ["corresponding", "is_corresponding", "isCorresponding"]) ?? false,
+            name: anonymizedName,
+            academic_age: typeof a.academic_age === "number" ? a.academic_age : undefined,
+            h_index: typeof a.h_index === "number" ? a.h_index : undefined,
+            top100_institution:
+                readBoolean(raw, ["top100_institution", "top_100_institution", "top100Institution"]) ?? false,
+            first_institution_name:
+                Array.isArray(a.institutions) &&
+                typeof a.institutions[0]?.institution_name === "string"
+                    ? a.institutions[0].institution_name
+                    : undefined,
+        }
+    })
     const displayName =
         paper.topic ?? paper.journal ?? paper.work_id
     return {
@@ -116,58 +159,19 @@ function workExposureValue(p: PaperRow): number {
 }
 
 /**
- * For Experiment A (after own paper): only papers with DB work_exposure < 3 and A-session count < 3.
- * Prefer work_exposure > 1, highest first; then exposure ≤ 1, prioritizing any prior A appearances (shuffled within tier).
+ * Prefer previously shown papers (higher work_exposure), while enforcing under-cap.
+ * This supports "4 random from same domain, prioritized by being shown before."
  */
-function orderPapersForExperimentAFillers(
-    rows: PaperRow[],
-    aCountByWorkId: Map<string, number>
-): PaperRow[] {
-    const eligible = rows.filter((p) => {
-        const ex = workExposureValue(p)
-        const ac = aCountByWorkId.get(p.work_id) ?? 0
-        return ex < 3 && ac < 3
-    })
-
+function orderPapersForFillers(rows: PaperRow[]): PaperRow[] {
+    const eligible = rows.filter((p) => workExposureValue(p) < 3)
     const highExposure = eligible
         .filter((p) => workExposureValue(p) > 1)
         .sort((a, b) => workExposureValue(b) - workExposureValue(a))
-
-    const low = eligible.filter((p) => workExposureValue(p) <= 1)
-    const lowWithA = shuffle(low.filter((p) => (aCountByWorkId.get(p.work_id) ?? 0) > 0))
-    const lowNew = shuffle(low.filter((p) => (aCountByWorkId.get(p.work_id) ?? 0) === 0))
-
-    return [...highExposure, ...lowWithA, ...lowNew]
+    const lowExposure = shuffle(eligible.filter((p) => workExposureValue(p) <= 1))
+    return [...highExposure, ...lowExposure]
 }
 
-async function getExperimentAResponseCounts(workIds: string[]): Promise<Map<string, number>> {
-    const counts = new Map<string, number>()
-    if (!isSupabaseConfigured() || workIds.length === 0) return counts
-
-    try {
-        const supabase = getSupabase()
-        const { data, error } = await supabase
-            .from("experiment_responses")
-            .select("work_ids")
-            .eq("experiment_type", "A")
-            .overlaps("work_ids", workIds)
-
-        if (error || !data?.length) return counts
-
-        const workIdSet = new Set(workIds)
-        for (const row of data as Array<{ work_ids: string[] | null }>) {
-            for (const workId of row.work_ids ?? []) {
-                if (!workIdSet.has(workId)) continue
-                counts.set(workId, (counts.get(workId) ?? 0) + 1)
-            }
-        }
-        return counts
-    } catch {
-        return counts
-    }
-}
-
-async function getExperimentAPapersPrioritized(
+async function getExperimentPapersPrioritized(
     authorId: string | undefined,
     worksPer: number
 ): Promise<Work[]> {
@@ -192,9 +196,7 @@ async function getExperimentAPapersPrioritized(
         limit: 500,
     })
 
-    const domainPoolIds = domainPool.map((p) => p.work_id)
-    const domainCounts = await getExperimentAResponseCounts(domainPoolIds)
-    const orderedInDomain = orderPapersForExperimentAFillers(domainPool, domainCounts)
+    const orderedInDomain = orderPapersForFillers(domainPool)
 
     for (const row of orderedInDomain) {
         if (remaining <= 0) break
@@ -210,9 +212,7 @@ async function getExperimentAPapersPrioritized(
         excludeWorkIds: Array.from(selectedIds),
         limit: 800,
     })
-    const globalPoolIds = globalPool.map((p) => p.work_id)
-    const globalCounts = await getExperimentAResponseCounts(globalPoolIds)
-    const orderedGlobal = orderPapersForExperimentAFillers(globalPool, globalCounts)
+    const orderedGlobal = orderPapersForFillers(globalPool)
 
     for (const row of orderedGlobal) {
         if (remaining <= 0) break
@@ -235,17 +235,15 @@ export async function getPaperByAuthorId(authorId: string): Promise<Work | null>
         const supabase = getSupabase()
         const start = Date.now()
         // Support both legacy `author_id` and new `id` author key shapes.
-        const lookups: Array<Array<Record<string, string>>> = [
-            [{ id: authorId }],
-            [{ author_id: authorId }],
-        ]
+        const lookups = [`[{"id":"${authorId}"}]`, `[{"author_id":"${authorId}"}]`]
         let data: unknown = null
         let error: { message?: string } | null = null
         for (const pattern of lookups) {
             const result = await supabase
                 .from("papers")
                 .select(PAPER_COLUMNS)
-                .contains("authors", pattern)
+                .filter("authors", "cs", pattern)
+                .order("publication_date", { ascending: false })
                 .limit(1)
                 .maybeSingle()
             if (result.data) {
@@ -346,43 +344,8 @@ export async function getExperimentPapers(
     experimentType: ExperimentType = "A"
 ): Promise<Work[]> {
     if (!isSupabaseConfigured()) return []
-    if (experimentType === "A") {
-        return getExperimentAPapersPrioritized(authorId, worksPer)
-    }
-    try {
-        const supabase = getSupabase()
-        const start = Date.now()
-        const { data, error } = await supabase.rpc("get_experiment_papers", {
-            author_id: authorId ?? null,
-            works_per: worksPer,
-        })
-        const duration = Date.now() - start
-        console.log(
-            "[papers] getExperimentPapers took",
-            duration,
-            "ms",
-            "| error:",
-            error?.message ?? "none",
-            "| rows:",
-            data?.length ?? 0
-        )
-        if (error || !data?.length) return []
-        return (data as PaperRow[]).map((row) => {
-            const isOwnWork =
-                !!authorId &&
-                Array.isArray((row as any).authors) &&
-                (row as any).authors.some(
-                    (author: PaperAuthor) => author.author_id === authorId || author.id === authorId
-                )
-
-            return mapPaperToWork(row, isOwnWork)
-        })
-    } catch (err) {
-        console.error(
-            "[papers] getExperimentPapers exception:",
-            err instanceof Error ? err.message : String(err)
-        )
-        return []
-    }
+    // Use one consistent selector across experiments A/C:
+    // own paper + same-domain fillers prioritized by prior exposure.
+    return getExperimentPapersPrioritized(authorId, worksPer)
 }
 

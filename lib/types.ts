@@ -13,6 +13,7 @@ export type Author = {
     academic_age?: number
     h_index?: number
     first_institution_name?: string
+    top100_institution?: boolean
 }
 
 export type Work = {

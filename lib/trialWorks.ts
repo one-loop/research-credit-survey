@@ -87,15 +87,17 @@ function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
 export function getTrialWorkForDomain(
     domain: string | undefined,
     experiment: "A" | "C",
-    journal?: string
+    journal?: string,
+    field?: string
 ): Work {
     const domainLabel = normalizeDomain(domain)
     const displayName = TRIAL_TITLES[domainLabel]
+    const fieldLabel = field && field.trim().length > 0 ? field : domainLabel
     const slug = domainLabel.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase() || "general"
     return {
         work_id: `trial_practice_${slug}`,
         display_name: displayName,
-        field: domainLabel,
+        field: fieldLabel,
         domain: domainLabel,
         journal: normalizeJournal(journal),
         publication_date: "2018-01-01",
@@ -105,9 +107,23 @@ export function getTrialWorkForDomain(
 
 export function getRespondentContextFromSession(
     authorId: string | undefined
-): { domain?: string; journal?: string } {
+): { domain?: string; field?: string; journal?: string } {
     if (typeof window === "undefined") return {}
     const keyAuthor = authorId ?? "none"
+    const cachedContext = window.sessionStorage.getItem(`respondentContext_${keyAuthor}`)
+    if (cachedContext) {
+        try {
+            const parsed = JSON.parse(cachedContext) as { field?: string; journal?: string }
+            const field = typeof parsed.field === "string" ? parsed.field : undefined
+            return {
+                domain: field,
+                field,
+                journal: typeof parsed.journal === "string" ? parsed.journal : undefined,
+            }
+        } catch {
+            // fall through to works cache
+        }
+    }
     const raw = window.sessionStorage.getItem(`experimentWorks_${keyAuthor}`)
     if (!raw) return {}
     try {
@@ -120,6 +136,7 @@ export function getRespondentContextFromSession(
         const base = ownWork ?? data.works?.[0]
         return {
             domain: base?.domain ?? base?.field,
+            field: base?.field,
             journal: base?.journal,
         }
     } catch {

@@ -3,7 +3,7 @@
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
@@ -68,6 +68,8 @@ function ExperimentAPageContent() {
     const [items, setItems] = useState<Author[]>([])
     const [showIntro, setShowIntro] = useState(true)
     const [confirmUnchangedOpen, setConfirmUnchangedOpen] = useState(false)
+    const [respondentField, setRespondentField] = useState<string | null>(null)
+    const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -153,9 +155,27 @@ function ExperimentAPageContent() {
             .finally(() => setLoading(false))
     }, [authorId, trialGate])
 
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const keyAuthor = authorId ?? "none"
+        const raw = window.sessionStorage.getItem(`respondentContext_${keyAuthor}`)
+        if (!raw) return
+        try {
+            const parsed = JSON.parse(raw) as { field?: string | null; journal?: string | null }
+            setRespondentField(parsed.field ?? null)
+            setRespondentJournal(parsed.journal ?? null)
+        } catch {
+            // ignore malformed cached context
+        }
+    }, [authorId])
+
     const totalWorks = works?.length ?? 0
     const isComplete = totalWorks > 0 && currentIndex >= totalWorks
     const currentWork = works && totalWorks > 0 ? works[currentIndex] : null
+    const displayAuthors = useMemo(
+        () => (currentWork ? shuffledAuthorsForRanking(currentWork.authors) : []),
+        [currentWork?.work_id]
+    )
 
     const rankingUiActive =
         trialGate === "ok" &&
@@ -219,14 +239,28 @@ function ExperimentAPageContent() {
             const timeSpent = { ...secondsByWorkIdRef.current }
 
             let roleImportance: Record<string, number> | undefined
-            if (typeof window !== "undefined" && authorId) {
-                const storageKey = `roleImportance_${authorId}`
+            if (typeof window !== "undefined") {
+                const keyAuthor = authorId ?? "none"
+                const storageKey = `roleImportance_${keyAuthor}`
                 const stored = window.sessionStorage.getItem(storageKey)
                 if (stored) {
                     try {
                         roleImportance = JSON.parse(stored) as Record<string, number>
                     } catch (err) {
                         console.error("[experiment-a] failed to parse roleImportance from sessionStorage:", err)
+                    }
+                }
+            }
+
+            let respondentDemographics: Record<string, string> | undefined
+            if (typeof window !== "undefined") {
+                const keyAuthor = authorId ?? "none"
+                const storedDemographics = window.sessionStorage.getItem(`respondentDemographics_${keyAuthor}`)
+                if (storedDemographics) {
+                    try {
+                        respondentDemographics = JSON.parse(storedDemographics) as Record<string, string>
+                    } catch (err) {
+                        console.error("[experiment-a] failed to parse respondent demographics from sessionStorage:", err)
                     }
                 }
             }
@@ -242,6 +276,7 @@ function ExperimentAPageContent() {
                         roleImportance,
                         experimentType: "A",
                         timeSpent,
+                        respondentDemographics,
                     }),
                 })
                 const data = (await res.json()) as { ok?: boolean; responseId?: string; error?: string }
@@ -249,9 +284,7 @@ function ExperimentAPageContent() {
                     setError(data.error ?? "Failed to submit rankings")
                     return
                 }
-                const params = new URLSearchParams({ responseId: data.responseId })
-                if (authorId) params.set("authorId", authorId)
-                router.replace(`/post-survey?${params.toString()}`)
+                router.replace("/survey-thanks")
             } catch {
                 setError("Failed to submit rankings")
             }
@@ -306,24 +339,15 @@ function ExperimentAPageContent() {
     }
 
     if (showIntro && !isComplete) {
+        const introField = respondentField ?? currentWork?.field ?? "your field"
+        const introJournal = respondentJournal ?? currentWork?.journal ?? "your journal"
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <h1 className="text-2xl font-bold mb-4">Before You Begin</h1>
-                <p className="text-muted-foreground mb-3 leading-relaxed">
-                    You are about to see a sample of <span className="font-semibold text-black">5 papers</span> from your field within a journal
-                    that we understand you have a history of publishing in.
-                </p>
-                <p className="text-muted-foreground mb-3 leading-relaxed">
-                    The papers are <span className="font-semibold text-black">anonymized</span> and the authors are represented by their <span className="font-semibold text-black">initials</span>.
-                </p>
-                <p className="text-muted-foreground mb-3 leading-relaxed">
-                    For each paper, you will be given a list of anonymized authors and their <span className="font-semibold text-black">individual contributions</span>. 
-                </p>
-                <p className="text-muted-foreground mb-3 leading-relaxed">
-                    You will then be asked to <span className="font-semibold text-black">order the author positions</span> in the paper's byline from highest to lowest according to how you believe the authors contributed to the paper.
-                </p>
                 <p className="text-muted-foreground mb-6 leading-relaxed">
-                    You have already completed the short <span className="font-semibold text-black">practice task and instruction check</span>. When you continue, you will see the five study papers.
+                    You are about to see a sample of <span className="font-semibold text-black">5 papers</span> that belong to the{" "}
+                    <span className="">{introField}</span> field and are published in{" "}
+                    <span className="">{introJournal}</span>. All author names/initials are anonymized.
                 </p>
                 <div className="flex justify-end">
                     <Button onClick={() => setShowIntro(false)}>Begin main study</Button>
@@ -342,14 +366,9 @@ function ExperimentAPageContent() {
                 <p className="text-muted-foreground">
                     Work {currentIndex + 1} of {totalWorks}
                 </p>
-                {currentWork?.isOwnWork && (
-                    <p className="mt-1 text-xs text-amber-600">
-                        [Debug] This work was selected using the provided authorId and is the respondent&apos;s own paper.
-                    </p>
-                )}
-                {dataSource && (
+                {currentWork && (
                     <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
-                        [Debug] Data source: {dataSource === "supabase" ? "Supabase (papers table)" : "mock data"}.
+                        [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | data_source: {dataSource === "supabase" ? "Supabase (papers table)" : "mock data"} 
                     </p>
                 )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">
@@ -368,7 +387,7 @@ function ExperimentAPageContent() {
                             You can hover over a contribution role to see more information about it.
                         </p>
                         <div className="space-y-1 text-sm text-muted-foreground">
-                            {currentWork.authors.map((author) => (
+                            {displayAuthors.map((author) => (
                                 <p key={author.id}>
                                     <span className="font-medium text-foreground">{author.initials}</span>:{" "}
                                     <TooltipProvider>

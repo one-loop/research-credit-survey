@@ -14,7 +14,7 @@ function HomeContent() {
     const authorId = searchParams.get("authorId")
     const [context, setContext] = useState<RespondentContext | null>(null)
     const [loadingContext, setLoadingContext] = useState(Boolean(authorId))
-    const beginHref = authorId ? `/credit-roles?authorId=${encodeURIComponent(authorId)}` : "/credit-roles"
+    const beginHref = authorId ? `/respondent-survey?authorId=${encodeURIComponent(authorId)}` : "/respondent-survey"
 
     useEffect(() => {
         if (!authorId) return
@@ -23,7 +23,13 @@ function HomeContent() {
         fetch(`/api/survey/respondent-context?authorId=${encodeURIComponent(authorId)}`)
             .then((res) => (res.ok ? (res.json() as Promise<RespondentContext>) : Promise.resolve({ journal: null, field: null })))
             .then((data) => {
-                if (!cancelled) setContext(data)
+                if (!cancelled) {
+                    setContext(data)
+                    if (typeof window !== "undefined") {
+                        const keyAuthor = authorId ?? "none"
+                        window.sessionStorage.setItem(`respondentContext_${keyAuthor}`, JSON.stringify(data))
+                    }
+                }
             })
             .catch(() => {
                 if (!cancelled) setContext({ journal: null, field: null })
