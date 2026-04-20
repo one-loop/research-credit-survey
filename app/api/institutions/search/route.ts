@@ -19,25 +19,28 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabase()
     const limit = 12
 
-    // Preferred schema: display_name
-    const trySnakeCase = await supabase
-        .from("institutions")
-        .select("id,display_name")
-        .ilike("display_name", `%${q}%`)
-        .limit(limit)
+    const attempts = [
+        { select: "id,display_name", column: "display_name" },
+        { select: "display_name", column: "display_name" },
+        { select: 'id,"display name"', column: "display name" },
+        { select: '"display name"', column: "display name" },
+    ] as const
 
-    let rows: InstitutionRow[] | null = trySnakeCase.data as InstitutionRow[] | null
-    let error = trySnakeCase.error
+    let rows: InstitutionRow[] | null = null
+    let error: { message?: string } | null = null
 
-    // Backward-compat schema with a spaced column name: "display name"
-    if (error) {
-        const trySpaced = await supabase
+    for (const attempt of attempts) {
+        const result = await supabase
             .from("institutions")
-            .select('id,"display name"')
-            .ilike("display name", `%${q}%`)
+            .select(attempt.select)
+            .ilike(attempt.column, `%${q}%`)
             .limit(limit)
-        rows = trySpaced.data as InstitutionRow[] | null
-        error = trySpaced.error
+        if (!result.error) {
+            rows = result.data as InstitutionRow[] | null
+            error = null
+            break
+        }
+        error = result.error
     }
 
     if (error) {
