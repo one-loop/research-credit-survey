@@ -3,6 +3,7 @@ import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 
 /** Raw author object as stored in papers.authors JSONB (from PNAS/PLOS JSONL) */
 type PaperAuthor = {
+    id?: string
     author_id: string
     initials?: string
     contributions?: string[]
@@ -38,7 +39,7 @@ type ExperimentType = "A" | "B" | "C"
 
 function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
     const authors: Author[] = (paper.authors ?? []).map((a, position) => ({
-        id: a.author_id ?? String(position),
+        id: a.id ?? a.author_id ?? String(position),
         initials: a.initials ?? "?",
         contributions: Array.isArray(a.contributions) ? a.contributions : [],
         is_corresponding: Boolean(a.corresponding),
@@ -233,12 +234,27 @@ export async function getPaperByAuthorId(authorId: string): Promise<Work | null>
     try {
         const supabase = getSupabase()
         const start = Date.now()
-        const { data, error } = await supabase
-            .from("papers")
-            .select(PAPER_COLUMNS)
-            .contains("authors", [{ author_id: authorId }])
-            .limit(1)
-            .maybeSingle()
+        // Support both legacy `author_id` and new `id` author key shapes.
+        const lookups: Array<Array<Record<string, string>>> = [
+            [{ id: authorId }],
+            [{ author_id: authorId }],
+        ]
+        let data: unknown = null
+        let error: { message?: string } | null = null
+        for (const pattern of lookups) {
+            const result = await supabase
+                .from("papers")
+                .select(PAPER_COLUMNS)
+                .contains("authors", pattern)
+                .limit(1)
+                .maybeSingle()
+            if (result.data) {
+                data = result.data
+                error = null
+                break
+            }
+            error = result.error
+        }
 
         console.log("[papers] getPaperByAuthorId took", Date.now() - start, "ms", "| error:", error?.message ?? "none")
         if (error) return null
@@ -356,7 +372,7 @@ export async function getExperimentPapers(
                 !!authorId &&
                 Array.isArray((row as any).authors) &&
                 (row as any).authors.some(
-                    (author: PaperAuthor) => author.author_id === authorId
+                    (author: PaperAuthor) => author.author_id === authorId || author.id === authorId
                 )
 
             return mapPaperToWork(row, isOwnWork)

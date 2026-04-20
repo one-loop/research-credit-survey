@@ -94,7 +94,7 @@ function RoleImportanceContent() {
             </h1>
 
             <p className="mb-6">
-                Please rate each contributor role according to its importance toward the final article.
+                Please rate the importance of each contributor role to the final article on a 1–5 scale (1 = Not important, 5 = Extremely important).
             </p>
 
             <form className="space-y-6">
@@ -133,8 +133,9 @@ function RoleImportanceContent() {
                             )
                         })}
                         </div>
-                        <div className="text-xs text-muted-foreground mb-[25px]">
-                        {/* Selected: {current} */}
+                        <div className="text-xs text-muted-foreground mb-[25px] flex flex-row justify-between">
+                            <span>Not important</span>
+                            <span>Extremely important</span>
                         </div>
                     </div>
                     )
