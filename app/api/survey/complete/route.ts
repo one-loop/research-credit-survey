@@ -16,6 +16,7 @@ async function appendResponse(payload: {
     experimentType?: "A" | "B" | "C"
     completedAt: string
     time_spent?: Record<string, number> | null
+    respondent_demographics?: Record<string, string> | null
 }): Promise<void> {
     let existing: unknown[] = []
     try {
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
         roleImportance?: Record<string, number>
         experimentType?: "A" | "B" | "C"
         timeSpent?: Record<string, number> | null
+        respondentDemographics?: Record<string, string> | null
     }
     try {
         body = await request.json()
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    const { workIds, rankings, authorId, roleImportance, experimentType, timeSpent } = body
+    const { workIds, rankings, authorId, roleImportance, experimentType, timeSpent, respondentDemographics } = body
     if (!Array.isArray(workIds) || !rankings || typeof rankings !== "object") {
         return NextResponse.json(
             { error: "Body must include workIds (array) and rankings (object)" },
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
                 role_importance: roleImportanceWithDefault,
                 experiment_type: experimentType ?? null,
                 time_spent: timeSpent ?? null,
+                respondent_demographics: respondentDemographics ?? null,
             })
             .select("id")
             .single()
@@ -102,6 +105,7 @@ export async function POST(request: NextRequest) {
             experimentType,
             completedAt: new Date().toISOString(),
             time_spent: timeSpent ?? null,
+            respondent_demographics: respondentDemographics ?? null,
         })
     }
 

@@ -1,14 +1,52 @@
+"use client"
+
 import { creditRoles } from "@/lib/mockData"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 
-export default function CreditRolesPage() {
+function CreditRolesContent() {
+    const searchParams = useSearchParams()
+    const router = useRouter()
+    const authorId = searchParams.get("authorId")
+    const [ready, setReady] = useState(false)
+    const roleImportanceHref = authorId ? `/role-importance?authorId=${encodeURIComponent(authorId)}` : "/role-importance"
+
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const keyAuthor = authorId ?? "none"
+        const demographics = window.sessionStorage.getItem(`respondentDemographics_${keyAuthor}`)
+        if (!demographics) {
+            const href = authorId ? `/respondent-survey?authorId=${encodeURIComponent(authorId)}` : "/respondent-survey"
+            router.replace(href)
+            return
+        }
+        setReady(true)
+    }, [authorId, router])
+
+    if (!ready) {
+        return (
+            <div className="max-w-3xl mx-auto p-6">
+                <p className="text-muted-foreground">Loading…</p>
+            </div>
+        )
+    }
+
     return (
         <div className="max-w-3xl mx-auto p-6">
             <h1 className="text-2xl font-bold mb-4">
                 Contributor Role Taxonomy (CRediT)
             </h1>
+
+            <p className="mb-2 text-muted-foreground">
+                CRediT is a community-developed taxonomy of 14 contributor roles that capture the key types of contributions made to research outputs, including journal articles. It was created to complement traditional authorship by providing a clearer, more structured account of how research is produced and who contributed what.
+            </p>
+            <p className="mb-2 text-muted-foreground">
+                Beyond scholarly publishing, contributorship information can support research assessment, expert identification, research integrity, and accountability.
+            </p>
+            <p className="mb-8 text-muted-foreground">Learn more: <a href="https://credit.niso.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">https://credit.niso.org</a></p>
 
             <div className="space-y-4">
             {creditRoles.map(role => (
@@ -24,10 +62,22 @@ export default function CreditRolesPage() {
             </div>
 
             <div className="mt-8 flex justify-end">
-                <Link href="/role-importance">
-                    <Button>Continue</Button>
-                </Link>
+                <Button asChild>
+                    <Link href={roleImportanceHref}>Continue</Link>
+                </Button>
             </div>
         </div>
+    )
+}
+
+export default function CreditRolesPage() {
+    return (
+        <Suspense fallback={
+            <div className="max-w-3xl mx-auto p-6">
+                <p className="text-muted-foreground">Loading…</p>
+            </div>
+        }>
+            <CreditRolesContent />
+        </Suspense>
     )
 }
