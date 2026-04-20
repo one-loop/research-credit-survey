@@ -34,7 +34,7 @@ function normalizeJournal(journal: string | undefined): "PLOS ONE" | "PNAS" {
     return "PLOS ONE"
 }
 
-function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
+function trialAuthorsForExperiment(experiment: "A" | "B" | "C"): Author[] {
     const base: Author[] = [
         {
             id: "trial_a1",
@@ -66,7 +66,7 @@ function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
             is_corresponding: false,
         },
     ]
-    if (experiment === "A") {
+    if (experiment === "A" || experiment === "B") {
         return base
     }
     return base.map((a, i) => ({
@@ -86,7 +86,7 @@ function trialAuthorsForExperiment(experiment: "A" | "C"): Author[] {
  */
 export function getTrialWorkForDomain(
     domain: string | undefined,
-    experiment: "A" | "C",
+    experiment: "A" | "B" | "C",
     journal?: string,
     field?: string
 ): Work {
@@ -152,11 +152,11 @@ export function getRespondentDomainFromSession(authorId: string | undefined): st
 export const getTrialWorkForField = getTrialWorkForDomain
 export const getRespondentFieldFromSession = getRespondentDomainFromSession
 
-export function getAssignedExperimentFromSession(authorId: string | undefined): "A" | "C" {
+export function getAssignedExperimentFromSession(authorId: string | undefined): "A" | "B" | "C" {
     if (typeof window === "undefined") return "A"
     const keyAuthor = authorId ?? "none"
     const v = window.sessionStorage.getItem(`surveyExperiment_${keyAuthor}`)
-    return v === "C" ? "C" : "A"
+    return v === "B" || v === "C" ? v : "A"
 }
 
 export function trialPassedKey(authorId: string | undefined): string {

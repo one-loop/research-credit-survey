@@ -17,7 +17,18 @@ function HomeContent() {
     const beginHref = authorId ? `/respondent-survey?authorId=${encodeURIComponent(authorId)}` : "/respondent-survey"
 
     useEffect(() => {
-        if (!authorId) return
+        if (typeof window === "undefined") return
+        // Treat every landing-page visit as a fresh session.
+        window.sessionStorage.clear()
+        setContext(null)
+        setLoadingContext(Boolean(authorId))
+    }, [authorId])
+
+    useEffect(() => {
+        if (!authorId) {
+            setLoadingContext(false)
+            return
+        }
         let cancelled = false
         setLoadingContext(true)
         fetch(`/api/survey/respondent-context?authorId=${encodeURIComponent(authorId)}`)

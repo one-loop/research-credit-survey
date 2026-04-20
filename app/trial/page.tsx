@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { Author, Work } from "@/lib/types"
 import {
     getAssignedExperimentFromSession,
@@ -20,6 +21,7 @@ import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
+type TutorialStep = "contributions" | "byline" | "envelope" | "done"
 
 const Q1_CORRECT = "fixed_slot"
 const Q2_CORRECT = "by_contribution"
@@ -50,9 +52,12 @@ function TrialPageContent() {
     const authorId = searchParams.get("authorId") ?? undefined
 
     const [phase, setPhase] = useState<Phase>("welcome")
-    const [experiment, setExperiment] = useState<"A" | "C">("A")
+    const [experiment, setExperiment] = useState<"A" | "B" | "C">("A")
     const [work, setWork] = useState<Work | null>(null)
     const [items, setItems] = useState<Author[]>([])
+    const [tutorialStep, setTutorialStep] = useState<TutorialStep>("contributions")
+    const [initialEnvelopeAuthorId, setInitialEnvelopeAuthorId] = useState<string | null>(null)
+    const [envelopeSwapCompleted, setEnvelopeSwapCompleted] = useState(false)
     const [q1, setQ1] = useState<string>("")
     const [q2, setQ2] = useState<string>("")
 
@@ -66,8 +71,14 @@ function TrialPageContent() {
         setExperiment(exp)
         const context = getRespondentContextFromSession(authorId)
         const w = getTrialWorkForDomain(context.domain, exp, context.journal, context.field)
+        const shuffled = shuffledAuthorsForRanking(w.authors)
         setWork(w)
-        setItems(shuffledAuthorsForRanking(w.authors))
+        setItems(shuffled)
+        if (shuffled.length > 0) {
+            setInitialEnvelopeAuthorId(shuffled[shuffled.length - 1]?.id ?? null)
+        }
+        setEnvelopeSwapCompleted(false)
+        setTutorialStep("contributions")
     }, [authorId])
 
     function handleDragEnd(event: DragEndEvent) {
@@ -79,7 +90,18 @@ function TrialPageContent() {
         setItems((prev) => {
             const oldIndex = prev.findIndex((i) => i.id === activeId)
             const newIndex = prev.findIndex((i) => i.id === overId)
-            return arrayMove(prev, oldIndex, newIndex)
+            const next = arrayMove(prev, oldIndex, newIndex)
+            const fixedSlot = next.length - 1
+            const currentEnvelopeAuthorId = next[fixedSlot]?.id
+            if (
+                tutorialStep === "envelope" &&
+                initialEnvelopeAuthorId &&
+                currentEnvelopeAuthorId &&
+                currentEnvelopeAuthorId !== initialEnvelopeAuthorId
+            ) {
+                setEnvelopeSwapCompleted(true)
+            }
+            return next
         })
     }
 
@@ -100,7 +122,7 @@ function TrialPageContent() {
         }
     }
 
-    const experimentPath = experiment === "C" ? "/experiment-c" : "/experiment-a"
+    const experimentPath = experiment === "C" ? "/experiment-c" : experiment === "B" ? "/experiment-b" : "/experiment-a"
     const experimentHref = authorId
         ? `${experimentPath}?authorId=${encodeURIComponent(authorId)}`
         : experimentPath
@@ -144,7 +166,7 @@ function TrialPageContent() {
                 <p className="text-muted-foreground mb-4 leading-relaxed">
                     Prior to the main study, you will complete a brief practice task to familiarize you with the format of the questions and the interface. 
                 </p>
-                <div className="rounded-lg border bg-card p-4 mb-6 space-y-3 text-sm leading-relaxed">
+                {/* <div className="rounded-lg border bg-card p-4 mb-6 space-y-3 text-sm leading-relaxed">
                     <p className="font-medium text-foreground">Corresponding author slot (envelope)</p>
                     <p className="text-muted-foreground">
                         The <strong>envelope icon</strong> marks a specific <strong>position</strong> in the author
@@ -165,7 +187,7 @@ function TrialPageContent() {
                 <p className="text-muted-foreground mb-6 text-sm">
                     After you try the practice ordering, you will answer two short questions. You must answer both
                     correctly to continue. If either is wrong, this survey session will end.
-                </p>
+                </p> */}
                 <div className="flex justify-end">
                     <Button onClick={() => setPhase("practice")}>Start practice</Button>
                 </div>
@@ -180,14 +202,14 @@ function TrialPageContent() {
                 <p className="text-muted-foreground mb-6 leading-relaxed">
                     You answered both questions correctly. We will now show you five tasks. You may not go back to a previously attempted task once you have submitted it.
                 </p>
-                <div className="mb-6 rounded-md border border-dashed p-4">
-                    <p className="text-sm font-medium mb-3">Debug links</p>
+                <div className="mb-6 rounded-md border border-dashed p-4 bg-green-50/50">
+                    <p className="text-sm font-medium mb-3 text-green-600">[Debug links]</p>
                     <div className="flex flex-wrap gap-2">
                         <Button asChild variant="outline" size="sm">
                             <Link href={experimentAHref}>Go to Experiment A</Link>
                         </Button>
-                        <Button asChild variant="outline" size="sm">
-                            <Link href={experimentBHref}>Go to Experiment B</Link>
+                        <Button variant="outline" size="sm" disabled>
+                            Go to Experiment B
                         </Button>
                         <Button asChild variant="outline" size="sm">
                             <Link href={experimentCHref}>Go to Experiment C</Link>
@@ -216,60 +238,48 @@ function TrialPageContent() {
                         <p className="font-medium mb-3">
                             1. The envelope icon indicates the corresponding author’s position in the publication. Which statement best describes how it functions in this task?
                         </p>
-                        <div className="space-y-2 text-sm">
-                            <label className="flex gap-2 items-center cursor-pointer items-center">
-                                <input type="radio" name="q1" value="follows_person" checked={q1 === "follows_person"} onChange={() => setQ1("follows_person")} />
+                        <RadioGroup value={q1} onValueChange={setQ1} className="space-y-2 text-sm">
+                            <label className="flex gap-2 items-start cursor-pointer py-0.5">
+                                <RadioGroupItem value="follows_person" className="mt-0.5" />
                                 <span>
                                     The envelope always remains attached to the same author, regardless of how I reorder the list.
                                 </span>
                             </label>
-                            <label className="flex gap-2 items-center cursor-pointer items-center">
-                                <input
-                                    type="radio"
-                                    name="q1"
-                                    value={Q1_CORRECT}
-                                    checked={q1 === Q1_CORRECT}
-                                    onChange={() => setQ1(Q1_CORRECT)}
-                                />
+                            <label className="flex gap-2 items-start cursor-pointer py-0.5">
+                                <RadioGroupItem value={Q1_CORRECT} className="mt-0.5" />
                                 <span>
                                     The envelope remains fixed to a specific position in the list; I may reorder authors freely, and whichever author occupies that position will be shown with the envelope.
                                 </span>
                             </label>
-                            <label className="flex gap-2 items-center cursor-pointer items-center">
-                                <input type="radio" name="q1" value="only_others" checked={q1 === "only_others"} onChange={() => setQ1("only_others")} />
+                            <label className="flex gap-2 items-start cursor-pointer py-0.5">
+                                <RadioGroupItem value="only_others" className="mt-0.5" />
                                 <span>The author marked with the envelope cannot be moved, while all other authors can be reordered.</span>
                             </label>
-                            <label className="flex gap-2 items-center cursor-pointer items-center">
-                                <input type="radio" name="q1" value="always_first" checked={q1 === "always_first"} onChange={() => setQ1("always_first")} />
+                            <label className="flex gap-2 items-start cursor-pointer py-0.5">
+                                <RadioGroupItem value="always_first" className="mt-0.5" />
                                 <span>The envelope always appears in the last position, regardless of the original publication.</span>
                             </label>
-                        </div>
+                        </RadioGroup>
                     </div>
 
                     <div>
                         <p className="font-medium mb-3">
                             2. What criterion should you follow when ordering the authors?
                         </p>
-                        <div className="space-y-2 text-sm">
-                            <label className="flex gap-2 items-center cursor-pointer items-center">
-                                <input type="radio" name="q2" value="alpha" checked={q2 === "alpha"} onChange={() => setQ2("alpha")} />
+                        <RadioGroup value={q2} onValueChange={setQ2} className="space-y-2 text-sm">
+                            <label className="flex gap-2 items-start cursor-pointer py-0.5">
+                                <RadioGroupItem value="alpha" className="mt-0.5" />
                                 <span>Arrange authors in alphabetical order by surname.</span>
                             </label>
-                            <label className="flex gap-2 items-center cursor-pointer items-center">
-                                <input
-                                    type="radio"
-                                    name="q2"
-                                    value={Q2_CORRECT}
-                                    checked={q2 === Q2_CORRECT}
-                                    onChange={() => setQ2(Q2_CORRECT)}
-                                />
+                            <label className="flex gap-2 items-start cursor-pointer py-0.5">
+                                <RadioGroupItem value={Q2_CORRECT} className="mt-0.5" />
                                 <span>Arrange authors based on my own judgment and the contributions provided.</span>
                             </label>
-                            <label className="flex gap-2 items-center cursor-pointer items-center">
-                                <input type="radio" name="q2" value="random" checked={q2 === "random"} onChange={() => setQ2("random")} />
+                            <label className="flex gap-2 items-start cursor-pointer py-0.5">
+                                <RadioGroupItem value="random" className="mt-0.5" />
                                 <span>Arrange authors in a random order.</span>
                             </label>
-                        </div>
+                        </RadioGroup>
                     </div>
                 </div>
 
@@ -286,7 +296,7 @@ function TrialPageContent() {
     }
 
     // phase === "practice"
-    const fixedCorrSlot = publicationCorrespondingSlotIndex(work.authors)
+    const fixedCorrSlot = Math.max(items.length - 1, 0)
     const slotPhrase =
         fixedCorrSlot < 0
             ? "—"
@@ -315,13 +325,22 @@ function TrialPageContent() {
 
     return (
         <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-2">Practice: author order</h1>
+            <h1 className="text-2xl font-bold mb-2">Practice Task</h1>
             <p className="text-sm text-muted-foreground mb-1">
                 Mock source · Domain: <span className="font-medium text-foreground">{work.domain ?? work.field}</span>
             </p>
             <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p>
 
-            <div className="mb-6 space-y-3">
+            <div
+                className={[
+                    "mb-6 space-y-3 transition-opacity rounded-md",
+                    tutorialStep === "contributions"
+                        ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
+                        : tutorialStep === "done"
+                          ? ""
+                          : "opacity-35",
+                ].join(" ")}
+            >
                 <p className="text-lg font-medium">Author contributions (practice)</p>
                 <p className="text-sm text-muted-foreground mb-2">
                     You can hover over a contribution role to see more information about it.
@@ -354,7 +373,12 @@ function TrialPageContent() {
             </div>
 
             {experiment === "C" && (
-                <div className="mb-6">
+                <div
+                    className={[
+                        "mb-6 transition-opacity rounded-md",
+                        tutorialStep === "done" ? "" : "opacity-35",
+                    ].join(" ")}
+                >
                     <p className="font-medium mb-2">Academic information (practice)</p>
                     <div className="space-y-1 text-sm text-muted-foreground">
                         {work.authors.map((author) => (
@@ -368,11 +392,20 @@ function TrialPageContent() {
                 </div>
             )}
 
-            <div className="mb-6">
+            <div
+                className={[
+                    "mb-6 transition-opacity rounded-md",
+                    tutorialStep === "byline" || tutorialStep === "envelope"
+                        ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
+                        : tutorialStep === "done"
+                          ? ""
+                          : "opacity-35",
+                ].join(" ")}
+            >
                 <p className="font-medium mb-2">
                     Given the information above, please sort these authors in the way you think they would appear in
                     the byline of the <span className="text-foreground">{work.journal}</span> journal in the{" "}
-                    <span className="text-foreground">{work.field}</span> field.
+                    <span className="text-foreground">{work.domain ?? work.field}</span> field.
                 </p>
                 <div className="mb-4 text-muted-foreground text-sm leading-relaxed grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
                     <Mail
@@ -380,7 +413,7 @@ function TrialPageContent() {
                         aria-hidden
                     />
                     <p className="min-w-0 m-0">
-                        The envelope icon refers to the corresponding author position and stays at publication slot{" "}
+                        In this practice task, the envelope icon stays fixed at slot{" "}
                         <span className="font-medium text-foreground">{slotPhrase}</span>
                         ; whoever you place there is shown with the icon.
                     </p>
@@ -406,8 +439,74 @@ function TrialPageContent() {
                 </DndContext>
             </div>
 
+            {tutorialStep !== "done" && (
+                <>
+                    <div className="fixed inset-0 bg-black/55 pointer-events-none z-10" />
+                    <div className="fixed bottom-4 right-4 z-30 w-full max-w-md rounded-lg border bg-background p-4 shadow-lg">
+                        {tutorialStep === "contributions" && (
+                            <>
+                                <p className="font-semibold mb-1">1) Contributions section</p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    This section lists each author&apos;s roles. Example:{" "}
+                                    <span className="text-foreground font-medium">
+                                        A.A: Conceptualization, Funding acquisition
+                                    </span>{" "}
+                                    means A.A performed these tasks for this publication.
+                                </p>
+                                <div className="flex justify-end">
+                                    <Button size="sm" onClick={() => setTutorialStep("byline")}>
+                                        Next
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                        {tutorialStep === "byline" && (
+                            <>
+                                <p className="font-semibold mb-1">2) Author byline</p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    The byline cards are shown in random order. Sort them into the order you think
+                                    matches conventions in{" "}
+                                    <span className="text-foreground">{work.journal}</span> for{" "}
+                                    <span className="text-foreground">{work.domain ?? work.field}</span>, based on the
+                                    contributions section.
+                                </p>
+                                <div className="flex justify-end">
+                                    <Button size="sm" onClick={() => setTutorialStep("envelope")}>
+                                        Next
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                        {tutorialStep === "envelope" && (
+                            <>
+                                <p className="font-semibold mb-1">3) Fixed corresponding-author slot</p>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    The envelope marks the corresponding-author slot. In practice, it is fixed at the
+                                    last author position for this particular example and never moves. The author in that 
+                                    slot can change when you drag cards.
+                                </p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    To continue, drag a non-envelope author into the envelope slot once.
+                                </p>
+                                <div className="flex justify-end">
+                                    <Button
+                                        size="sm"
+                                        onClick={() => setTutorialStep("done")}
+                                        disabled={!envelopeSwapCompleted}
+                                    >
+                                        {envelopeSwapCompleted ? "Finish tutorial" : "Swap first to continue"}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </>
+            )}
+
             <div className="flex justify-end">
-                <Button onClick={() => setPhase("quiz")}>Continue to instruction check</Button>
+                <Button onClick={() => setPhase("quiz")} disabled={tutorialStep !== "done"}>
+                    Continue to instruction check
+                </Button>
             </div>
         </div>
     )
