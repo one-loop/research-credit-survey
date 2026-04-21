@@ -365,7 +365,7 @@ function ExperimentAPageContent() {
         <div className="max-w-3xl mx-auto p-6">
             <div className="mb-6">
                 <h1 className="text-2xl font-bold mb-2">
-                    Author Contribution Ranking — Task {currentIndex + 1}
+                    Author Contribution Ranking: Task {currentIndex + 1}
                 </h1>
                 {currentWork && (
                     <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
@@ -387,7 +387,7 @@ function ExperimentAPageContent() {
                         <p className="text-sm text-muted-foreground">
                             You can hover over a contribution role to see more information about it.
                         </p>
-                        <div className="space-y-1 text-sm text-muted-foreground">
+                        <div className="space-y-1 text-md text-muted-foreground">
                             {displayAuthors.map((author) => (
                                 <p key={author.id}>
                                     <span className="font-medium text-foreground">{author.initials}</span>:{" "}
@@ -415,14 +415,14 @@ function ExperimentAPageContent() {
                     </div>
 
                     <div className="mb-6">
-                        <p className="font-medium mb-6">
+                        <p className="font-medium mb-8">
                             Given the information above, please sort these authors in the way you think they would
                             appear on the byline of the {currentWork.journal} journal in the{" "}
-                            {currentWork.domain ?? currentWork.field ?? "relevant"} domain (left = highest contribution).
+                            {currentWork.domain ?? currentWork.field ?? "relevant"} domain.
                         </p>
-                        <p className="mb-12 text-muted-foreground text-sm">
+                        {/* <p className="mb-12 text-muted-foreground text-sm">
                             <Mail className="h-3.5 w-3.5 inline stroke-violet-950 text-violet-950" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
-                        </p>
+                        </p> */}
                         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                             <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
                                 <div className="flex flex-row flex-wrap gap-3">
