@@ -60,6 +60,7 @@ function TrialPageContent() {
     const [envelopeSwapCompleted, setEnvelopeSwapCompleted] = useState(false)
     const [q1, setQ1] = useState<string>("")
     const [q2, setQ2] = useState<string>("")
+    const [canAccessExperimentB, setCanAccessExperimentB] = useState(false)
 
     useEffect(() => {
         const failed = typeof window !== "undefined" && sessionStorage.getItem(trialFailedKey(authorId)) === "true"
@@ -79,6 +80,38 @@ function TrialPageContent() {
         }
         setEnvelopeSwapCompleted(false)
         setTutorialStep("contributions")
+    }, [authorId])
+
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const keyAuthor = authorId ?? "none"
+        const raw = window.sessionStorage.getItem(`experimentWorks_${keyAuthor}`)
+        if (!raw) {
+            setCanAccessExperimentB(false)
+            return
+        }
+        try {
+            const parsed = JSON.parse(raw) as {
+                works?: Array<{
+                    isOwnWork?: boolean
+                    experiment_eligibility?: string[]
+                    authors?: Array<{ id?: string }>
+                }>
+            }
+            const ownWork = authorId
+                ? parsed.works?.find(
+                      (w) =>
+                          w.isOwnWork ||
+                          (Array.isArray(w.authors) && w.authors.some((a) => a.id === authorId))
+                  )
+                : parsed.works?.[0]
+            const eligible = Array.isArray(ownWork?.experiment_eligibility)
+                ? ownWork.experiment_eligibility.includes("B")
+                : false
+            setCanAccessExperimentB(eligible)
+        } catch {
+            setCanAccessExperimentB(false)
+        }
     }, [authorId])
 
     function handleDragEnd(event: DragEndEvent) {
@@ -208,9 +241,15 @@ function TrialPageContent() {
                         <Button asChild variant="outline" size="sm">
                             <Link href={experimentAHref}>Go to Experiment A</Link>
                         </Button>
-                        <Button variant="outline" size="sm" disabled>
-                            Go to Experiment B
-                        </Button>
+                        {canAccessExperimentB ? (
+                            <Button asChild variant="outline" size="sm">
+                                <Link href={experimentBHref}>Go to Experiment B</Link>
+                            </Button>
+                        ) : (
+                            <Button variant="outline" size="sm" disabled>
+                                Go to Experiment B
+                            </Button>
+                        )}
                         <Button asChild variant="outline" size="sm">
                             <Link href={experimentCHref}>Go to Experiment C</Link>
                         </Button>

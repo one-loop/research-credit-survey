@@ -33,6 +33,7 @@ export type PaperRow = {
     domain: string | null
     corresponding_email: string | null
     authors: PaperAuthor[] | null
+    experiment_eligibility?: string[] | null
     created_at?: string
     /** Total survey exposures (increments on any experiment completion that included this work). */
     work_exposure?: number | null
@@ -84,6 +85,9 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
             contributions: Array.isArray(a.contributions) ? a.contributions : [],
             is_corresponding: readBoolean(raw, ["corresponding", "is_corresponding", "isCorresponding"]) ?? false,
             name: anonymizedName,
+            gender: readString(raw, ["gender", "sex"]),
+            race: readString(raw, ["race", "ethnicity"]),
+            country_of_origin: readString(raw, ["country_of_origin", "country_or_region", "country"]),
             academic_age: typeof a.academic_age === "number" ? a.academic_age : undefined,
             h_index: typeof a.h_index === "number" ? a.h_index : undefined,
             top100_institution:
@@ -105,13 +109,22 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
         journal: paper.journal ?? undefined,
         publication_date: paper.publication_date ?? undefined,
         corresponding_email: paper.corresponding_email ?? undefined,
+        experiment_eligibility: Array.isArray(paper.experiment_eligibility)
+            ? paper.experiment_eligibility.filter((value): value is string => typeof value === "string")
+            : undefined,
         authors,
         ...(isOwnWork && { isOwnWork: true }),
     }
 }
 
 const PAPER_COLUMNS =
-    "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors,work_exposure"
+    "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors,experiment_eligibility,work_exposure"
+
+function isExperimentEligible(paper: PaperRow, experimentType: ExperimentType): boolean {
+    const eligibility = paper.experiment_eligibility
+    if (!Array.isArray(eligibility) || eligibility.length === 0) return experimentType === "A"
+    return eligibility.some((value) => value === experimentType)
+}
 
 function shuffle<T>(array: T[]): T[] {
     const result = [...array]
@@ -173,16 +186,21 @@ function orderPapersForFillers(rows: PaperRow[]): PaperRow[] {
 
 async function getExperimentPapersPrioritized(
     authorId: string | undefined,
-    worksPer: number
+    worksPer: number,
+    experimentType: ExperimentType
 ): Promise<Work[]> {
     const selected: Work[] = []
     const selectedIds = new Set<string>()
 
     if (authorId) {
-        const ownWork = await getPaperByAuthorId(authorId)
-        if (ownWork) {
+        const ownPaper = await getPaperByAuthorIdRow(authorId)
+        if (ownPaper) {
+            if (!isExperimentEligible(ownPaper, experimentType)) {
+                return []
+            }
+            const ownWork = mapPaperToWork(ownPaper, true)
             selected.push(ownWork)
-            selectedIds.add(ownWork.work_id)
+            selectedIds.add(ownPaper.work_id)
         }
     }
 
@@ -201,6 +219,7 @@ async function getExperimentPapersPrioritized(
     for (const row of orderedInDomain) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
+        if (!isExperimentEligible(row, experimentType)) continue
         selected.push(mapPaperToWork(row))
         selectedIds.add(row.work_id)
         remaining -= 1
@@ -217,6 +236,7 @@ async function getExperimentPapersPrioritized(
     for (const row of orderedGlobal) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
+        if (!isExperimentEligible(row, experimentType)) continue
         selected.push(mapPaperToWork(row))
         selectedIds.add(row.work_id)
         remaining -= 1
@@ -230,6 +250,12 @@ async function getExperimentPapersPrioritized(
  * Own paper is always returned regardless of work_exposure (per survey design).
  */
 export async function getPaperByAuthorId(authorId: string): Promise<Work | null> {
+    const row = await getPaperByAuthorIdRow(authorId)
+    if (!row) return null
+    return mapPaperToWork(row, true)
+}
+
+async function getPaperByAuthorIdRow(authorId: string): Promise<PaperRow | null> {
     if (!isSupabaseConfigured()) return null
     try {
         const supabase = getSupabase()
@@ -257,7 +283,7 @@ export async function getPaperByAuthorId(authorId: string): Promise<Work | null>
         console.log("[papers] getPaperByAuthorId took", Date.now() - start, "ms", "| error:", error?.message ?? "none")
         if (error) return null
         if (!data) return null
-        return mapPaperToWork(data as PaperRow, true)
+        return data as PaperRow
     } catch {
         return null
     }
@@ -346,6 +372,6 @@ export async function getExperimentPapers(
     if (!isSupabaseConfigured()) return []
     // Use one consistent selector across experiments A/C:
     // own paper + same-domain fillers prioritized by prior exposure.
-    return getExperimentPapersPrioritized(authorId, worksPer)
+    return getExperimentPapersPrioritized(authorId, worksPer, experimentType)
 }
 
