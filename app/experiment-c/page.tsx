@@ -382,7 +382,7 @@ function ExperimentCPageContent() {
                         <p className="text-sm text-muted-foreground">
                             You can hover over a contribution role to see more information about it.
                         </p>
-                        <div className="space-y-1 text-sm text-muted-foreground">
+                        <div className="space-y-1 text-md text-muted-foreground">
                             {displayAuthors.map((author) => (
                                 <p key={author.id}>
                                     <span className="font-medium text-foreground">{author.initials}</span>:{" "}
@@ -411,7 +411,7 @@ function ExperimentCPageContent() {
 
                     <div className="mb-6">
                         <p className="font-medium mb-2">Academic Information:</p>
-                        <div className="space-y-1 text-sm text-muted-foreground">
+                        <div className="space-y-1 text-md text-muted-foreground">
                             {displayAuthors.map((author) => (
                                 <p key={author.id}>
                                     <span className="font-medium text-foreground">{author.initials}</span>: Top 100 institution:{" "}
