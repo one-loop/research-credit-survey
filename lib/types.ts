@@ -10,6 +10,9 @@ export type Author = {
     contributions: string[]
     is_corresponding?: boolean
     name?: string
+    gender?: string
+    race?: string
+    country_of_origin?: string
     academic_age?: number
     h_index?: number
     first_institution_name?: string
@@ -33,4 +36,5 @@ export type Work = {
      * This is not intended to be shown in production.
      */
     isOwnWork?: boolean
+    experiment_eligibility?: string[]
 }

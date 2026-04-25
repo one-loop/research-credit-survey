@@ -96,32 +96,36 @@ export function Combobox<T>({
             />
 
             {shouldShow ? (
-                <div className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-md border bg-background shadow-sm">
+                <div className="bg-popover text-popover-foreground absolute z-50 mt-1 w-full max-h-64 overflow-auto rounded-md border shadow-md">
                     {loading ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">Searching institutions...</div>
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">Searching institutions...</div>
                     ) : items.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">{emptyText}</div>
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">{emptyText}</div>
                     ) : (
-                        items.map((item, idx) => {
-                            const label = itemToStringValue(item)
-                            const key = itemKey(item)
-                            return (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    className={cn(
-                                        "w-full px-3 py-2 text-left text-sm",
-                                        idx === highlightedIndex ? "bg-accent" : "hover:bg-accent"
-                                    )}
-                                    onMouseDown={(e) => {
-                                        e.preventDefault()
-                                        selectIndex(idx)
-                                    }}
-                                >
-                                    {label}
-                                </button>
-                            )
-                        })
+                        <div className="p-1">
+                            {items.map((item, idx) => {
+                                const label = itemToStringValue(item)
+                                const key = itemKey(item)
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        className={cn(
+                                            "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-left text-sm outline-hidden select-none",
+                                            idx === highlightedIndex
+                                                ? "bg-accent text-accent-foreground"
+                                                : "hover:bg-accent hover:text-accent-foreground"
+                                        )}
+                                        onMouseDown={(e) => {
+                                            e.preventDefault()
+                                            selectIndex(idx)
+                                        }}
+                                    >
+                                        {label}
+                                    </button>
+                                )
+                            })}
+                        </div>
                     )}
                 </div>
             ) : null}

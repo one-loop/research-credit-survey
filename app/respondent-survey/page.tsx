@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -77,6 +77,8 @@ function RespondentSurveyContent() {
     const [institutionLoading, setInstitutionLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const institutionQueryCacheRef = useRef<Map<string, InstitutionOption[]>>(new Map())
+    const institutionRequestAbortRef = useRef<AbortController | null>(null)
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -98,26 +100,50 @@ function RespondentSurveyContent() {
 
     useEffect(() => {
         if (institution.trim().length < 2) {
+            institutionRequestAbortRef.current?.abort()
+            institutionRequestAbortRef.current = null
             setInstitutionOptions([])
             setInstitutionLoading(false)
             return
         }
 
         const q = institution.trim()
+        const cached = institutionQueryCacheRef.current.get(q)
+        if (cached) {
+            setInstitutionOptions(cached)
+            setInstitutionLoading(false)
+            return
+        }
+
         const handle = window.setTimeout(async () => {
+            institutionRequestAbortRef.current?.abort()
+            const controller = new AbortController()
+            institutionRequestAbortRef.current = controller
             setInstitutionLoading(true)
             try {
-                const res = await fetch(`/api/institutions/search?q=${encodeURIComponent(q)}`)
+                const res = await fetch(`/api/institutions/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
                 const data = (await res.json()) as { items?: InstitutionOption[] }
-                setInstitutionOptions(data.items ?? [])
-            } catch {
+                const items = data.items ?? []
+                institutionQueryCacheRef.current.set(q, items)
+                setInstitutionOptions(items)
+            } catch (err) {
+                if (err instanceof DOMException && err.name === "AbortError") {
+                    return
+                }
                 setInstitutionOptions([])
             } finally {
-                setInstitutionLoading(false)
+                if (institutionRequestAbortRef.current === controller) {
+                    institutionRequestAbortRef.current = null
+                    setInstitutionLoading(false)
+                }
             }
         }, 300)
 
-        return () => window.clearTimeout(handle)
+        return () => {
+            window.clearTimeout(handle)
+            institutionRequestAbortRef.current?.abort()
+            institutionRequestAbortRef.current = null
+        }
     }, [institution])
 
     function handleSubmit(e: React.FormEvent) {
@@ -247,7 +273,7 @@ function RespondentSurveyContent() {
 
                 <div>
                     <label id="institution-label" className="block text-sm font-medium mb-1.5">
-                        Institution (optional)
+                        Current institution (optional)
                     </label>
                     <Combobox
                         items={institutionOptions}

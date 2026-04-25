@@ -21,7 +21,7 @@ import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
-type TutorialStep = "contributions" | "byline" | "envelope" | "done"
+type TutorialStep = "contributions" | "byline" | "envelope" | "sort" | "done"
 
 const Q1_CORRECT = "fixed_slot"
 const Q2_CORRECT = "by_contribution"
@@ -60,6 +60,7 @@ function TrialPageContent() {
     const [envelopeSwapCompleted, setEnvelopeSwapCompleted] = useState(false)
     const [q1, setQ1] = useState<string>("")
     const [q2, setQ2] = useState<string>("")
+    const [canAccessExperimentB, setCanAccessExperimentB] = useState(false)
 
     useEffect(() => {
         const failed = typeof window !== "undefined" && sessionStorage.getItem(trialFailedKey(authorId)) === "true"
@@ -79,6 +80,38 @@ function TrialPageContent() {
         }
         setEnvelopeSwapCompleted(false)
         setTutorialStep("contributions")
+    }, [authorId])
+
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const keyAuthor = authorId ?? "none"
+        const raw = window.sessionStorage.getItem(`experimentWorks_${keyAuthor}`)
+        if (!raw) {
+            setCanAccessExperimentB(false)
+            return
+        }
+        try {
+            const parsed = JSON.parse(raw) as {
+                works?: Array<{
+                    isOwnWork?: boolean
+                    experiment_eligibility?: string[]
+                    authors?: Array<{ id?: string }>
+                }>
+            }
+            const ownWork = authorId
+                ? parsed.works?.find(
+                      (w) =>
+                          w.isOwnWork ||
+                          (Array.isArray(w.authors) && w.authors.some((a) => a.id === authorId))
+                  )
+                : parsed.works?.[0]
+            const eligible = Array.isArray(ownWork?.experiment_eligibility)
+                ? ownWork.experiment_eligibility.includes("B")
+                : false
+            setCanAccessExperimentB(eligible)
+        } catch {
+            setCanAccessExperimentB(false)
+        }
     }, [authorId])
 
     function handleDragEnd(event: DragEndEvent) {
@@ -208,9 +241,15 @@ function TrialPageContent() {
                         <Button asChild variant="outline" size="sm">
                             <Link href={experimentAHref}>Go to Experiment A</Link>
                         </Button>
-                        <Button variant="outline" size="sm" disabled>
-                            Go to Experiment B
-                        </Button>
+                        {canAccessExperimentB ? (
+                            <Button asChild variant="outline" size="sm">
+                                <Link href={experimentBHref}>Go to Experiment B</Link>
+                            </Button>
+                        ) : (
+                            <Button variant="outline" size="sm" disabled>
+                                Go to Experiment B
+                            </Button>
+                        )}
                         <Button asChild variant="outline" size="sm">
                             <Link href={experimentCHref}>Go to Experiment C</Link>
                         </Button>
@@ -395,7 +434,7 @@ function TrialPageContent() {
             <div
                 className={[
                     "mb-6 transition-opacity rounded-md",
-                    tutorialStep === "byline" || tutorialStep === "envelope"
+                    tutorialStep === "byline" || tutorialStep === "envelope" || tutorialStep === "sort"
                         ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
                         : tutorialStep === "done"
                           ? ""
@@ -446,12 +485,15 @@ function TrialPageContent() {
                         {tutorialStep === "contributions" && (
                             <>
                                 <p className="font-semibold mb-1">1) Contributions section</p>
-                                <p className="text-sm text-muted-foreground mb-3">
+                                <p className="text-sm text-muted-foreground mb-2">
                                     This section lists each author&apos;s roles. Example:{" "}
                                     <span className="text-foreground font-medium">
                                         A.A: Conceptualization, Funding acquisition
                                     </span>{" "}
                                     means A.A performed these tasks for this publication.
+                                </p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    You can hover over any contribution role to see its definition.
                                 </p>
                                 <div className="flex justify-end">
                                     <Button size="sm" onClick={() => setTutorialStep("byline")}>
@@ -466,8 +508,8 @@ function TrialPageContent() {
                                 <p className="text-sm text-muted-foreground mb-3">
                                     The byline cards are shown in random order. Sort them into the order you think
                                     matches conventions in{" "}
-                                    <span className="text-foreground">{work.journal}</span> for{" "}
-                                    <span className="text-foreground">{work.domain ?? work.field}</span>, based on the
+                                    <span className="text-foreground">{work.journal}</span> for the{" "}
+                                    <span className="text-foreground">{work.domain ?? work.field}</span> field, based on the
                                     contributions section.
                                 </p>
                                 <div className="flex justify-end">
@@ -491,10 +533,25 @@ function TrialPageContent() {
                                 <div className="flex justify-end">
                                     <Button
                                         size="sm"
-                                        onClick={() => setTutorialStep("done")}
+                                        onClick={() => setTutorialStep("sort")}
                                         disabled={!envelopeSwapCompleted}
                                     >
-                                        {envelopeSwapCompleted ? "Finish tutorial" : "Swap first to continue"}
+                                        {envelopeSwapCompleted ? "Next" : "Swap first to continue"}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                        {tutorialStep === "sort" && (
+                            <>
+                                <p className="font-semibold mb-1">4) Sort the byline</p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    Please sort the author byline the way you would expect it to appear in{" "}
+                                    <span className="text-foreground">{work.journal}</span> based on the contributions
+                                    section. Good luck!
+                                </p>
+                                <div className="flex justify-end">
+                                    <Button size="sm" onClick={() => setTutorialStep("done")}>
+                                        Finish
                                     </Button>
                                 </div>
                             </>

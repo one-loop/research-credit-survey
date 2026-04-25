@@ -46,8 +46,8 @@ function CreditRolesContent() {
             <p className="mb-2 text-muted-foreground">
                 Beyond scholarly publishing, contributorship information can support research assessment, expert identification, research integrity, and accountability.
             </p>
-            <p className="mb-8 text-muted-foreground">Learn more: <a href="https://credit.niso.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">https://credit.niso.org</a></p>
-
+            <p className="mb-2 text-muted-foreground">Learn more: <a href="https://credit.niso.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">https://credit.niso.org</a></p>
+            <p className="mb-8 text-muted-foreground">Please familiarize yourself with the 14 CRediT roles and their definitions below. You will be able to see them later so there is no need to memorize them.</p>
             <div className="space-y-4">
             {creditRoles.map(role => (
                 <Card key={role.id}>

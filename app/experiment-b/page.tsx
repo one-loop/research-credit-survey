@@ -15,7 +15,6 @@ import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { Spinner } from "@/components/ui/spinner"
 
-
 const roleDetailsMap: Record<string, string> = {
     Conceptualization: "Ideas, formulation or evolution of overarching research goals and aims.",
     Methodology: "Development or design of methodology; creation of models.",
@@ -55,7 +54,16 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
     )
 }
 
-function ExperimentCPageContent() {
+function anonymizedBylineName(author: Author): string {
+    const withAnonymized = author as Author & { anonymized_name?: string }
+    const fullAnonymizedName = withAnonymized.anonymized_name?.trim()
+    if (fullAnonymizedName) return fullAnonymizedName
+    const source = author.name?.trim()
+    if (source) return source
+    return author.initials
+}
+
+function ExperimentBPageContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const authorId = searchParams.get("authorId") ?? undefined
@@ -100,11 +108,14 @@ function ExperimentCPageContent() {
 
         const keyAuthor = authorId ?? "none"
         const storageKey = `experimentWorks_${keyAuthor}`
+        const legacyStorageKey = `experimentB_works_${keyAuthor}`
 
         let usedPrefetch = false
 
         if (typeof window !== "undefined") {
-            const stored = window.sessionStorage.getItem(storageKey)
+            const stored =
+                window.sessionStorage.getItem(storageKey) ??
+                window.sessionStorage.getItem(legacyStorageKey)
             if (stored) {
                 try {
                     const parsed = JSON.parse(stored) as { works: Work[]; dataSource?: string }
@@ -123,14 +134,14 @@ function ExperimentCPageContent() {
                     setLoading(false)
                     usedPrefetch = true
                 } catch (err) {
-                    console.error("[experiment-c] failed to parse prefetched works from sessionStorage:", err)
+                    console.error("[experiment-b] failed to parse prefetched works from sessionStorage:", err)
                 }
             }
         }
 
         if (usedPrefetch) return
 
-        params.set("experimentType", "C")
+        params.set("experimentType", "B")
         fetch(`/api/survey/works?${params.toString()}`)
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load works")
@@ -139,6 +150,8 @@ function ExperimentCPageContent() {
             .then((data: { works: Work[]; dataSource?: string }) => {
                 const incoming = data.works ?? []
                 if (data.dataSource) setDataSource(data.dataSource)
+                // Randomize order of the 5 selected works so the respondent's
+                // own work is not always shown first.
                 const shuffled = [...incoming]
                 for (let i = shuffled.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1))
@@ -261,7 +274,7 @@ function ExperimentCPageContent() {
                     try {
                         roleImportance = JSON.parse(stored) as Record<string, number>
                     } catch (err) {
-                        console.error("[experiment-c] failed to parse roleImportance from sessionStorage:", err)
+                        console.error("[experiment-b] failed to parse roleImportance from sessionStorage:", err)
                     }
                 }
             }
@@ -274,7 +287,7 @@ function ExperimentCPageContent() {
                     try {
                         respondentDemographics = JSON.parse(storedDemographics) as Record<string, string>
                     } catch (err) {
-                        console.error("[experiment-c] failed to parse respondent demographics from sessionStorage:", err)
+                        console.error("[experiment-b] failed to parse respondent demographics from sessionStorage:", err)
                     }
                 }
             }
@@ -288,7 +301,7 @@ function ExperimentCPageContent() {
                         rankings,
                         authorId,
                         roleImportance,
-                        experimentType: "C",
+                        experimentType: "B",
                         timeSpent,
                         respondentDemographics,
                     }),
@@ -346,7 +359,7 @@ function ExperimentCPageContent() {
     if (error || !works || totalWorks === 0) {
         return (
             <div className="max-w-3xl mx-auto p-6">
-                <h1 className="text-2xl font-bold mb-4">Experiment C</h1>
+                <h1 className="text-2xl font-bold mb-4">Experiment B</h1>
                 <p className="text-destructive">
                     {error ?? "No works available. Try again later."}
                 </p>
@@ -387,6 +400,7 @@ function ExperimentCPageContent() {
         )
     }
 
+    /** Publication byline index for the corresponding-author slot (envelope stays here). */
     const envelopeSlotIndex = currentWork ? publicationCorrespondingSlotIndex(currentWork.authors) : -1
 
     return (
@@ -397,7 +411,7 @@ function ExperimentCPageContent() {
                 </h1>
                 {currentWork && (
                     <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
-                        [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | domain: {currentWork.domain ?? "N/A"} | journal: {currentWork.journal ?? "N/A"} | data_source: {dataSource === "supabase" ? "Supabase" : "mock data"}.
+                        [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | domain: {currentWork.domain ?? "N/A"} | journal: {currentWork.journal ?? "N/A"} | data_source: {dataSource === "supabase" ? "Supabase" : "mock data"}
                     </p>
                 )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">
@@ -411,14 +425,14 @@ function ExperimentCPageContent() {
             {currentWork && (
                 <>
                     <div className="mb-6 space-y-3">
-                        <p className="text-lg font-medium mb-2">Author contributions</p>
+                        <p className="text-lg font-medium mb-0">Author contributions</p>
                         <p className="text-sm text-muted-foreground">
                             You can hover over a contribution role to see more information about it.
                         </p>
                         <div className="space-y-1 text-md text-muted-foreground">
                             {displayAuthors.map((author) => (
                                 <p key={author.id}>
-                                    <span className="font-medium text-foreground">{author.initials}</span>:{" "}
+                                    <span className="font-medium text-foreground">{anonymizedBylineName(author)}</span>:{" "}
                                     <TooltipProvider>
                                         {author.contributions.map((role, idx) => (
                                             <span key={`${author.id}-${role}-${idx}`}>
@@ -441,17 +455,19 @@ function ExperimentCPageContent() {
                             ))}
                         </div>
                     </div>
-                    <div className="mb-6">
-                        <p className="font-medium mb-2">Academic Information:</p>
+
+                    {/* <div className="mb-6">
+                        <p className="font-medium mb-2">Implicit demographic information</p>
                         <div className="space-y-1 text-md text-muted-foreground">
                             {displayAuthors.map((author) => (
-                                <p key={author.id}>
-                                    <span className="font-medium text-foreground">{author.initials}</span>: Top 100 institution:{" "}
-                                    {author.top100_institution ? "Yes" : "No"}; Academic Age: {author.academic_age ?? "N/A"}; h-index: {author.h_index ?? "N/A"}
+                                <p key={`${author.id}-demographics`}>
+                                    <span className="font-medium text-foreground">{anonymizedBylineName(author)}</span>:{" "}
+                                    Gender: {author.gender ?? "Unknown"}; Race: {author.race ?? "Unknown"}; Country of origin:{" "}
+                                    {author.country_of_origin ?? "Unknown"}
                                 </p>
                             ))}
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="mb-6">
                         <p className="font-medium mb-8">
@@ -471,10 +487,10 @@ function ExperimentCPageContent() {
                                             <SortableItem key={author.id} id={author.id}>
                                                 <div className="flex items-center gap-1.5 align-center justify-center">
                                                     <span className="font-medium">
-                                                        {author.initials}
+                                                        {anonymizedBylineName(author)}
                                                     </span>
                                                     {showEnvelope && (
-                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground stroke-violet-950 text-violet-950" />
+                                                        <Mail className="h-3.5 w-3.5 stroke-violet-950 text-violet-950" />
                                                     )}
                                                 </div>
                                             </SortableItem>
@@ -504,15 +520,14 @@ function ExperimentCPageContent() {
     )
 }
 
-export default function ExperimentCPage() {
+export default function ExperimentBPage() {
     return (
         <Suspense fallback={
             <div className="max-w-3xl mx-auto p-6">
                 <p className="text-muted-foreground">Loading…</p>
             </div>
         }>
-            <ExperimentCPageContent />
+            <ExperimentBPageContent />
         </Suspense>
     )
 }
-
