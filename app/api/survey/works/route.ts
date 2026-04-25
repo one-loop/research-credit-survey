@@ -48,12 +48,14 @@ export async function GET(request: NextRequest) {
         let ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
         if (ownWork) selected.push({ ...ownWork, isOwnWork: true })
         const targetDomain = ownWork?.domain
+        const targetJournal = ownWork?.journal
         const candidatePool = worksPool.filter((w) => {
             if (ownWork && w.work_id === ownWork.work_id) return false
             if (targetDomain && w.domain !== targetDomain) return false
+            if (targetJournal && w.journal !== targetJournal) return false
             return true
         })
-        const pool = targetDomain
+        const pool = targetDomain || targetJournal
             ? candidatePool
             : worksPool.filter((w) => !ownWork || w.work_id !== ownWork.work_id)
         const shuffled = shuffle(pool)

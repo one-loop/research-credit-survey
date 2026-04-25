@@ -55,14 +55,12 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
 }
 
 function anonymizedBylineName(author: Author): string {
+    const withAnonymized = author as Author & { anonymized_name?: string }
+    const fullAnonymizedName = withAnonymized.anonymized_name?.trim()
+    if (fullAnonymizedName) return fullAnonymizedName
     const source = author.name?.trim()
-    if (!source) return author.initials
-    const parts = source.split(/\s+/).filter(Boolean)
-    if (parts.length === 1) return parts[0]
-    const firstName = parts[0]
-    const lastInitial = parts[parts.length - 1]?.[0]?.toUpperCase()
-    if (!lastInitial) return firstName
-    return `${firstName} ${lastInitial}.`
+    if (source) return source
+    return author.initials
 }
 
 function ExperimentBPageContent() {
@@ -82,6 +80,9 @@ function ExperimentBPageContent() {
     const [confirmUnchangedOpen, setConfirmUnchangedOpen] = useState(false)
     const [respondentField, setRespondentField] = useState<string | null>(null)
     const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
+    const [showLoadingScreen, setShowLoadingScreen] = useState(true)
+    const [loadingScreenFading, setLoadingScreenFading] = useState(false)
+    const [submittingFadeOut, setSubmittingFadeOut] = useState(false)
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -180,6 +181,20 @@ function ExperimentBPageContent() {
             // ignore malformed cached context
         }
     }, [authorId])
+
+    useEffect(() => {
+        if (loading) {
+            setShowLoadingScreen(true)
+            setLoadingScreenFading(false)
+            return
+        }
+        if (!showLoadingScreen) return
+        setLoadingScreenFading(true)
+        const handle = window.setTimeout(() => {
+            setShowLoadingScreen(false)
+        }, 320)
+        return () => window.clearTimeout(handle)
+    }, [loading, showLoadingScreen])
 
     const totalWorks = works?.length ?? 0
     const isComplete = totalWorks > 0 && currentIndex >= totalWorks
@@ -296,7 +311,10 @@ function ExperimentBPageContent() {
                     setError(data.error ?? "Failed to submit rankings")
                     return
                 }
-                router.replace("/survey-thanks")
+                setSubmittingFadeOut(true)
+                window.setTimeout(() => {
+                    router.replace("/survey-thanks")
+                }, 220)
             } catch {
                 setError("Failed to submit rankings")
             }
@@ -323,10 +341,17 @@ function ExperimentBPageContent() {
         )
     }
 
-    if (loading) {
+    if (showLoadingScreen) {
         return (
-            <div className="max-w-3xl mx-auto p-6">
-                <p className="text-muted-foreground">Loading works…</p>
+            <div
+                className={`min-h-[70vh] w-full flex items-center justify-center transition-opacity duration-300 ${
+                    loadingScreenFading ? "opacity-0" : "opacity-100"
+                }`}
+            >
+                <div className="flex flex-row gap-4 items-center">
+                    <Spinner />
+                    <p className="text-muted-foreground">Loading works…</p>
+                </div>
             </div>
         )
     }
@@ -344,9 +369,15 @@ function ExperimentBPageContent() {
 
     if (isComplete) {
         return (
-            <div className="max-w-3xl mx-auto p-6 flex flex-row gap-4 items-center">
-                <Spinner />
-                <p className="text-muted-foreground">Submitting your responses…</p>
+            <div
+                className={`min-h-[70vh] w-full flex items-center justify-center transition-opacity duration-200 ${
+                    submittingFadeOut ? "opacity-0" : "opacity-100"
+                }`}
+            >
+                <div className="flex flex-row gap-4 items-center">
+                    <Spinner />
+                    <p className="text-muted-foreground">Submitting your responses…</p>
+                </div>
             </div>
         )
     }
@@ -380,7 +411,7 @@ function ExperimentBPageContent() {
                 </h1>
                 {currentWork && (
                     <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
-                        [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | data_source: {dataSource === "supabase" ? "Supabase (papers table)" : "mock data"} 
+                        [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | domain: {currentWork.domain ?? "N/A"} | journal: {currentWork.journal ?? "N/A"} | data_source: {dataSource === "supabase" ? "Supabase" : "mock data"}
                     </p>
                 )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">

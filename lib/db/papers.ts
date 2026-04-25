@@ -138,11 +138,12 @@ function shuffle<T>(array: T[]): T[] {
 async function getPapersPool(
     opts: {
         domain?: string
+        journal?: string
         excludeWorkIds: string[]
         limit: number
     }
 ): Promise<PaperRow[]> {
-    const { domain, excludeWorkIds, limit } = opts
+    const { domain, journal, excludeWorkIds, limit } = opts
     if (!isSupabaseConfigured()) return []
     try {
         const supabase = getSupabase()
@@ -152,6 +153,7 @@ async function getPapersPool(
             .limit(limit)
 
         if (domain) query = query.eq("domain", domain)
+        if (journal) query = query.eq("journal", journal)
         if (excludeWorkIds.length > 0) {
             const escapedIds = excludeWorkIds.map((id) => `"${id.replace(/"/g, '\\"')}"`)
             query = query.not("work_id", "in", `(${escapedIds.join(",")})`)
@@ -173,7 +175,8 @@ function workExposureValue(p: PaperRow): number {
 
 /**
  * Prefer previously shown papers (higher work_exposure), while enforcing under-cap.
- * This supports "4 random from same domain, prioritized by being shown before."
+ * This supports selecting fillers from the same domain and journal, while
+ * preventing over-exposed papers from being shown again.
  */
 function orderPapersForFillers(rows: PaperRow[]): PaperRow[] {
     const eligible = rows.filter((p) => workExposureValue(p) < 3)
@@ -208,32 +211,17 @@ async function getExperimentPapersPrioritized(
     if (remaining <= 0) return selected
 
     const domain = selected[0]?.domain
-    const domainPool = await getPapersPool({
+    const journal = selected[0]?.journal
+    const strictPool = await getPapersPool({
         domain,
+        journal,
         excludeWorkIds: Array.from(selectedIds),
         limit: 500,
     })
 
-    const orderedInDomain = orderPapersForFillers(domainPool)
+    const orderedStrict = orderPapersForFillers(strictPool)
 
-    for (const row of orderedInDomain) {
-        if (remaining <= 0) break
-        if (selectedIds.has(row.work_id)) continue
-        if (!isExperimentEligible(row, experimentType)) continue
-        selected.push(mapPaperToWork(row))
-        selectedIds.add(row.work_id)
-        remaining -= 1
-    }
-
-    if (remaining <= 0) return selected
-
-    const globalPool = await getPapersPool({
-        excludeWorkIds: Array.from(selectedIds),
-        limit: 800,
-    })
-    const orderedGlobal = orderPapersForFillers(globalPool)
-
-    for (const row of orderedGlobal) {
+    for (const row of orderedStrict) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
         if (!isExperimentEligible(row, experimentType)) continue
@@ -370,8 +358,8 @@ export async function getExperimentPapers(
     experimentType: ExperimentType = "A"
 ): Promise<Work[]> {
     if (!isSupabaseConfigured()) return []
-    // Use one consistent selector across experiments A/C:
-    // own paper + same-domain fillers prioritized by prior exposure.
+    // Use one consistent selector across experiments:
+    // own paper + same-domain-and-journal fillers prioritized by prior exposure.
     return getExperimentPapersPrioritized(authorId, worksPer, experimentType)
 }
 

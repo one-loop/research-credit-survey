@@ -14,6 +14,8 @@ function HomeContent() {
     const authorId = searchParams.get("authorId")
     const [context, setContext] = useState<RespondentContext | null>(null)
     const [loadingContext, setLoadingContext] = useState(Boolean(authorId))
+    const [showLoadingScreen, setShowLoadingScreen] = useState(Boolean(authorId))
+    const [loadingScreenFading, setLoadingScreenFading] = useState(false)
     const beginHref = authorId ? `/respondent-survey?authorId=${encodeURIComponent(authorId)}` : "/respondent-survey"
 
     useEffect(() => {
@@ -22,6 +24,8 @@ function HomeContent() {
         window.sessionStorage.clear()
         setContext(null)
         setLoadingContext(Boolean(authorId))
+        setShowLoadingScreen(Boolean(authorId))
+        setLoadingScreenFading(false)
     }, [authorId])
 
     useEffect(() => {
@@ -53,11 +57,31 @@ function HomeContent() {
         }
     }, [authorId])
 
-    if (authorId && loadingContext) {
+    useEffect(() => {
+        if (loadingContext) {
+            setShowLoadingScreen(true)
+            setLoadingScreenFading(false)
+            return
+        }
+        if (!showLoadingScreen) return
+        setLoadingScreenFading(true)
+        const handle = window.setTimeout(() => {
+            setShowLoadingScreen(false)
+        }, 320)
+        return () => window.clearTimeout(handle)
+    }, [loadingContext, showLoadingScreen])
+
+    if (authorId && showLoadingScreen) {
         return (
-            <div className="max-w-3xl mx-auto p-6 flex flex-row gap-4 items-center">
-                <Spinner />
-                <p className="text-muted-foreground">Loading Experiment... Just a moment</p>
+            <div
+                className={`min-h-[70vh] w-full flex items-center justify-center transition-opacity duration-300 ${
+                    loadingScreenFading ? "opacity-0" : "opacity-100"
+                }`}
+            >
+                <div className="flex flex-row gap-4 items-center">
+                    <Spinner />
+                    <p className="text-muted-foreground">Loading Experiment... Just a moment</p>
+                </div>
             </div>
         )
     }
