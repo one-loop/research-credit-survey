@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabase()
     const limit = 12
+    const qLower = q.toLocaleLowerCase()
 
     const attempts = [
         { select: "id,display_name", column: "display_name" },
@@ -48,12 +49,29 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ items: [] as Array<{ id: string; label: string }> })
     }
 
-    const items = (rows ?? [])
-        .map((r) => ({
-            id: String(r.id ?? r.display_name ?? r["display name"] ?? ""),
-            label: r.display_name ?? r["display name"] ?? "",
-        }))
-        .filter((x) => x.id.length > 0 && x.label.length > 0)
+    const dedupedByLabel = new Map<string, { id: string; label: string }>()
+    for (const row of rows ?? []) {
+        const label = row.display_name ?? row["display name"] ?? ""
+        const id = String(row.id ?? label)
+        if (!label || !id) continue
+        if (!dedupedByLabel.has(label)) {
+            dedupedByLabel.set(label, { id, label })
+        }
+    }
+
+    const items = Array.from(dedupedByLabel.values())
+        .sort((a, b) => {
+            const aLower = a.label.toLocaleLowerCase()
+            const bLower = b.label.toLocaleLowerCase()
+            const aStarts = aLower.startsWith(qLower)
+            const bStarts = bLower.startsWith(qLower)
+            if (aStarts !== bStarts) return aStarts ? -1 : 1
+            const aPos = aLower.indexOf(qLower)
+            const bPos = bLower.indexOf(qLower)
+            if (aPos !== bPos) return aPos - bPos
+            return aLower.localeCompare(bLower)
+        })
+        .slice(0, limit)
 
     return NextResponse.json({ items })
 }
