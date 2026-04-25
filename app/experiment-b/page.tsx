@@ -352,14 +352,14 @@ function ExperimentBPageContent() {
     }
 
     if (showIntro && !isComplete) {
-        const introField = respondentField ?? currentWork?.field ?? "your field"
+        const introDomain = currentWork?.domain ?? respondentField ?? currentWork?.field ?? "your domain"
         const introJournal = respondentJournal ?? currentWork?.journal ?? "your journal"
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <h1 className="text-2xl font-bold mb-4">Before You Begin</h1>
                 <p className="text-muted-foreground mb-6 leading-relaxed">
                     You are about to see a sample of <span className="font-semibold text-black">5 papers</span> that belong to the{" "}
-                    <span className="">{introField}</span> field and are published in{" "}
+                    <span className="">{introDomain}</span> domain and are published in{" "}
                     <span className="">{introJournal}</span>. All author names/initials are anonymized.
                 </p>
                 <div className="flex justify-end">

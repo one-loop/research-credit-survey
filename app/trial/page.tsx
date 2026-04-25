@@ -21,7 +21,7 @@ import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
-type TutorialStep = "contributions" | "byline" | "envelope" | "done"
+type TutorialStep = "contributions" | "byline" | "envelope" | "sort" | "done"
 
 const Q1_CORRECT = "fixed_slot"
 const Q2_CORRECT = "by_contribution"
@@ -434,7 +434,7 @@ function TrialPageContent() {
             <div
                 className={[
                     "mb-6 transition-opacity rounded-md",
-                    tutorialStep === "byline" || tutorialStep === "envelope"
+                    tutorialStep === "byline" || tutorialStep === "envelope" || tutorialStep === "sort"
                         ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
                         : tutorialStep === "done"
                           ? ""
@@ -485,12 +485,15 @@ function TrialPageContent() {
                         {tutorialStep === "contributions" && (
                             <>
                                 <p className="font-semibold mb-1">1) Contributions section</p>
-                                <p className="text-sm text-muted-foreground mb-3">
+                                <p className="text-sm text-muted-foreground mb-2">
                                     This section lists each author&apos;s roles. Example:{" "}
                                     <span className="text-foreground font-medium">
                                         A.A: Conceptualization, Funding acquisition
                                     </span>{" "}
                                     means A.A performed these tasks for this publication.
+                                </p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    You can hover over any contribution role to see its definition.
                                 </p>
                                 <div className="flex justify-end">
                                     <Button size="sm" onClick={() => setTutorialStep("byline")}>
@@ -505,8 +508,8 @@ function TrialPageContent() {
                                 <p className="text-sm text-muted-foreground mb-3">
                                     The byline cards are shown in random order. Sort them into the order you think
                                     matches conventions in{" "}
-                                    <span className="text-foreground">{work.journal}</span> for{" "}
-                                    <span className="text-foreground">{work.domain ?? work.field}</span>, based on the
+                                    <span className="text-foreground">{work.journal}</span> for the{" "}
+                                    <span className="text-foreground">{work.domain ?? work.field}</span> field, based on the
                                     contributions section.
                                 </p>
                                 <div className="flex justify-end">
@@ -530,10 +533,25 @@ function TrialPageContent() {
                                 <div className="flex justify-end">
                                     <Button
                                         size="sm"
-                                        onClick={() => setTutorialStep("done")}
+                                        onClick={() => setTutorialStep("sort")}
                                         disabled={!envelopeSwapCompleted}
                                     >
-                                        {envelopeSwapCompleted ? "Finish tutorial" : "Swap first to continue"}
+                                        {envelopeSwapCompleted ? "Next" : "Swap first to continue"}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                        {tutorialStep === "sort" && (
+                            <>
+                                <p className="font-semibold mb-1">4) Sort the byline</p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    Please sort the author byline the way you would expect it to appear in{" "}
+                                    <span className="text-foreground">{work.journal}</span> based on the contributions
+                                    section. Good luck!
+                                </p>
+                                <div className="flex justify-end">
+                                    <Button size="sm" onClick={() => setTutorialStep("done")}>
+                                        Finish
                                     </Button>
                                 </div>
                             </>
