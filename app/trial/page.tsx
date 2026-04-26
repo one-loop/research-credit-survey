@@ -21,10 +21,18 @@ import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
-type TutorialStep = "contributions" | "byline" | "envelope" | "sort" | "done"
+type TutorialStep = "contributions" | "academic_info" | "byline" | "envelope" | "sort" | "done"
 
 const Q1_CORRECT = "fixed_slot"
 const Q2_CORRECT = "by_contribution"
+
+function trialDisplayName(author: Author, experiment: "A" | "B" | "C"): string {
+    if (experiment === "B") {
+        const fullName = author.name?.trim()
+        if (fullName) return fullName
+    }
+    return author.initials
+}
 
 function TrialSortableItem({ id, children }: { id: string; children: ReactNode }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
@@ -387,7 +395,7 @@ function TrialPageContent() {
                 <div className="space-y-1 text-md text-muted-foreground">
                     {work.authors.map((author) => (
                         <p key={author.id}>
-                            <span className="font-medium text-foreground">{author.initials}</span>:{" "}
+                            <span className="font-medium text-foreground">{trialDisplayName(author, experiment)}</span>:{" "}
                             <TooltipProvider>
                                 {author.contributions.map((role, idx) => (
                                     <span key={`${author.id}-${role}-${idx}`}>
@@ -415,14 +423,18 @@ function TrialPageContent() {
                 <div
                     className={[
                         "mb-6 transition-opacity rounded-md",
-                        tutorialStep === "done" ? "" : "opacity-35",
+                        tutorialStep === "academic_info"
+                            ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
+                            : tutorialStep === "done"
+                              ? ""
+                              : "opacity-35",
                     ].join(" ")}
                 >
                     <p className="font-medium mb-2">Academic information (practice)</p>
                     <div className="space-y-1 text-sm text-muted-foreground">
                         {work.authors.map((author) => (
                             <p key={author.id}>
-                                <span className="font-medium text-foreground">{author.initials}</span>: Institution:{" "}
+                                <span className="font-medium text-foreground">{trialDisplayName(author, experiment)}</span>: Top 100 Institution:{" "}
                                 {author.first_institution_name ?? "N/A"}; Academic age: {author.academic_age ?? "N/A"};
                                 h-index: {author.h_index ?? "N/A"}
                             </p>
@@ -465,7 +477,7 @@ function TrialPageContent() {
                                 return (
                                     <TrialSortableItem key={author.id} id={author.id}>
                                         <div className="flex items-center gap-1.5 justify-center">
-                                            <span className="font-medium">{author.initials}</span>
+                                                    <span className="font-medium">{trialDisplayName(author, experiment)}</span>
                                             {showEnvelope && (
                                                 <Mail className="h-3.5 w-3.5 stroke-violet-950 text-violet-950" />
                                             )}
@@ -488,12 +500,35 @@ function TrialPageContent() {
                                 <p className="text-sm text-muted-foreground mb-2">
                                     This section lists each author&apos;s roles. Example:{" "}
                                     <span className="text-foreground font-medium">
-                                        A.A: Conceptualization, Funding acquisition
+                                        {experiment === "A" || experiment === "C" ? "A.A: Conceptualization, Funding acquisition" : "Alex Avery: Conceptualization, Funding acquisition"}
                                     </span>{" "}
-                                    means A.A performed these tasks for this publication.
+                                    means {experiment === "A" || experiment === "C" ? "A.A" : "Alex Avery"} performed these tasks for this publication.
                                 </p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     You can hover over any contribution role to see its definition.
+                                </p>
+                                <div className="flex justify-end">
+                                    <Button
+                                        size="sm"
+                                        onClick={() =>
+                                            setTutorialStep(experiment === "C" ? "academic_info" : "byline")
+                                        }
+                                    >
+                                        Next
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                        {tutorialStep === "academic_info" && experiment === "C" && (
+                            <>
+                                <p className="font-semibold mb-1">2) Academic information</p>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    This section provides additional author details: institution status (top/non-top 100),
+                                    academic age, and h-index.
+                                </p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    Use this information together with the contributions section when judging likely
+                                    byline order.
                                 </p>
                                 <div className="flex justify-end">
                                     <Button size="sm" onClick={() => setTutorialStep("byline")}>
@@ -504,7 +539,7 @@ function TrialPageContent() {
                         )}
                         {tutorialStep === "byline" && (
                             <>
-                                <p className="font-semibold mb-1">2) Author byline</p>
+                                <p className="font-semibold mb-1">{experiment === "C" ? "3) Author byline" : "2) Author byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     The byline cards are shown in random order. Sort them into the order you think
                                     matches conventions in{" "}
@@ -521,7 +556,9 @@ function TrialPageContent() {
                         )}
                         {tutorialStep === "envelope" && (
                             <>
-                                <p className="font-semibold mb-1">3) Fixed corresponding-author slot</p>
+                                <p className="font-semibold mb-1">
+                                    {experiment === "C" ? "4) Fixed corresponding-author slot" : "3) Fixed corresponding-author slot"}
+                                </p>
                                 <p className="text-sm text-muted-foreground mb-2">
                                     The envelope marks the corresponding-author slot. In practice, it is fixed at the
                                     last author position for this particular example and never moves. The author in that 
@@ -543,11 +580,11 @@ function TrialPageContent() {
                         )}
                         {tutorialStep === "sort" && (
                             <>
-                                <p className="font-semibold mb-1">4) Sort the byline</p>
+                                <p className="font-semibold mb-1">{experiment === "C" ? "5) Sort the byline" : "4) Sort the byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Please sort the author byline the way you would expect it to appear in{" "}
                                     <span className="text-foreground">{work.journal}</span> based on the contributions
-                                    section. Good luck!
+                                    section and all other author information shown above. Good luck!
                                 </p>
                                 <div className="flex justify-end">
                                     <Button size="sm" onClick={() => setTutorialStep("done")}>

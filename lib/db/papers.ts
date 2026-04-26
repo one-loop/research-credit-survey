@@ -187,6 +187,80 @@ function orderPapersForFillers(rows: PaperRow[]): PaperRow[] {
     return [...highExposure, ...lowExposure]
 }
 
+type SeenWorkStats = {
+    seenByRespondent: boolean
+    uniqueRespondents: Set<string>
+    experimentsSeenIn: Set<ExperimentType>
+}
+
+async function getSeenWorkStatsForPool(
+    workIds: string[],
+    authorId: string | undefined
+): Promise<Map<string, SeenWorkStats>> {
+    const byWork = new Map<string, SeenWorkStats>()
+    if (!isSupabaseConfigured() || workIds.length === 0) return byWork
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("author_id,work_ids,experiment_type")
+            .overlaps("work_ids", workIds)
+
+        if (error || !data?.length) return byWork
+
+        for (const row of data as Array<{
+            author_id: string | null
+            work_ids: string[] | null
+            experiment_type: ExperimentType | null
+        }>) {
+            const responseWorkIds = Array.isArray(row.work_ids) ? row.work_ids : []
+            for (const workId of responseWorkIds) {
+                if (!workIds.includes(workId)) continue
+                let stats = byWork.get(workId)
+                if (!stats) {
+                    stats = {
+                        seenByRespondent: false,
+                        uniqueRespondents: new Set<string>(),
+                        experimentsSeenIn: new Set<ExperimentType>(),
+                    }
+                    byWork.set(workId, stats)
+                }
+                if (authorId && row.author_id === authorId) {
+                    stats.seenByRespondent = true
+                }
+                if (typeof row.author_id === "string" && row.author_id.length > 0) {
+                    stats.uniqueRespondents.add(row.author_id)
+                }
+                if (row.experiment_type === "A" || row.experiment_type === "B" || row.experiment_type === "C") {
+                    stats.experimentsSeenIn.add(row.experiment_type)
+                }
+            }
+        }
+        return byWork
+    } catch {
+        return byWork
+    }
+}
+
+function shouldExcludeBySeenRules(
+    row: PaperRow,
+    stats: SeenWorkStats | undefined,
+    opts: {
+        authorId: string | undefined
+        ownWorkId: string | undefined
+        experimentType: ExperimentType
+    }
+): boolean {
+    if (!stats) return false
+    if (stats.seenByRespondent) return true
+    if (stats.uniqueRespondents.size >= 3) return true
+    if (stats.uniqueRespondents.size >= 2 && row.work_id !== opts.ownWorkId) return true
+    for (const seenExp of stats.experimentsSeenIn) {
+        if (seenExp !== opts.experimentType) return true
+    }
+    return false
+}
+
 async function getExperimentPapersPrioritized(
     authorId: string | undefined,
     worksPer: number,
@@ -219,12 +293,26 @@ async function getExperimentPapersPrioritized(
         limit: 500,
     })
 
+    const seenStatsByWork = await getSeenWorkStatsForPool(
+        strictPool.map((row) => row.work_id),
+        authorId
+    )
     const orderedStrict = orderPapersForFillers(strictPool)
+    const ownWorkId = selected.find((w) => w.isOwnWork)?.work_id
 
     for (const row of orderedStrict) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
         if (!isExperimentEligible(row, experimentType)) continue
+        if (
+            shouldExcludeBySeenRules(row, seenStatsByWork.get(row.work_id), {
+                authorId,
+                ownWorkId,
+                experimentType,
+            })
+        ) {
+            continue
+        }
         selected.push(mapPaperToWork(row))
         selectedIds.add(row.work_id)
         remaining -= 1
