@@ -2,14 +2,11 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import { getParticipantAuthorId } from "@/lib/survey/participant"
-
-type ExperimentType = "A" | "B" | "C"
-
-function randomExperiment(opts?: { allowB?: boolean }): ExperimentType {
-    const allowB = opts?.allowB ?? true
-    const experiments: ExperimentType[] = allowB ? ["A", "B", "C"] : ["A", "C"]
-    return experiments[Math.floor(Math.random() * experiments.length)] ?? "A"
-}
+import {
+    experimentFromOrderedResponses,
+    resolveExperimentAssignment,
+    type ExperimentType,
+} from "@/lib/survey/experimentAssignment"
 
 async function isRespondentEligibleForExperimentB(authorId: string): Promise<boolean> {
     if (!isSupabaseConfigured()) return true
@@ -69,8 +66,9 @@ async function getMostRecentSeenExperimentForRespondent(
 
         if (responsesError || !responses?.length) return null
 
-        const experiment = responses[0]?.experiment_type
-        return experiment === "A" || experiment === "B" || experiment === "C" ? experiment : null
+        return experimentFromOrderedResponses(
+            responses as Array<{ experiment_type: unknown; created_at: string }>
+        )
     } catch {
         return null
     }
@@ -85,7 +83,10 @@ export async function GET(request: NextRequest) {
     const authorId = getParticipantAuthorId(request)?.trim()
 
     if (!isSupabaseConfigured()) {
-        const experiment = randomExperiment()
+        const { experiment } = resolveExperimentAssignment({
+            seenExperiment: null,
+            allowB: true,
+        })
         return NextResponse.json({
             experiment,
             lockedBySeenWork: false,
@@ -98,22 +99,15 @@ export async function GET(request: NextRequest) {
         allowB = await isRespondentEligibleForExperimentB(authorId)
     }
 
-    if (authorId) {
-        const seenExperiment = await getMostRecentSeenExperimentForRespondent(authorId)
-        if (seenExperiment && (seenExperiment !== "B" || allowB)) {
-            return NextResponse.json({
-                experiment: seenExperiment,
-                lockedBySeenWork: true,
-                dataSource: "supabase" as const,
-            })
-        }
-    }
-
-    const experiment = randomExperiment({ allowB })
+    const seenExperiment = authorId ? await getMostRecentSeenExperimentForRespondent(authorId) : null
+    const { experiment, lockedBySeenWork } = resolveExperimentAssignment({
+        seenExperiment,
+        allowB,
+    })
 
     return NextResponse.json({
         experiment,
-        lockedBySeenWork: false,
+        lockedBySeenWork,
         dataSource: "supabase" as const,
     })
 }

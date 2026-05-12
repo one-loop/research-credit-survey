@@ -1,5 +1,7 @@
 import type { Work, Author } from "@/lib/types"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
+import type { ExperimentType } from "@/lib/survey/experimentAssignment"
+import { shouldExcludeBySeenRules, type SeenWorkStats } from "@/lib/survey/poolEligibility"
 
 /** Raw author object as stored in papers.authors JSONB (from PNAS/PLOS JSONL) */
 type PaperAuthor = {
@@ -38,8 +40,6 @@ export type PaperRow = {
     /** Total survey exposures (increments on any experiment completion that included this work). */
     work_exposure?: number | null
 }
-
-type ExperimentType = "A" | "B" | "C"
 
 function readString(obj: Record<string, unknown>, keys: string[]): string | undefined {
     for (const key of keys) {
@@ -187,12 +187,6 @@ function orderPapersForFillers(rows: PaperRow[]): PaperRow[] {
     return [...highExposure, ...lowExposure]
 }
 
-type SeenWorkStats = {
-    seenByRespondent: boolean
-    uniqueRespondents: Set<string>
-    experimentsSeenIn: Set<ExperimentType>
-}
-
 async function getSeenWorkStatsForPool(
     workIds: string[],
     authorId: string | undefined
@@ -242,25 +236,6 @@ async function getSeenWorkStatsForPool(
     }
 }
 
-function shouldExcludeBySeenRules(
-    row: PaperRow,
-    stats: SeenWorkStats | undefined,
-    opts: {
-        authorId: string | undefined
-        ownWorkId: string | undefined
-        experimentType: ExperimentType
-    }
-): boolean {
-    if (!stats) return false
-    if (stats.seenByRespondent) return true
-    if (stats.uniqueRespondents.size >= 3) return true
-    if (stats.uniqueRespondents.size >= 2 && row.work_id !== opts.ownWorkId) return true
-    for (const seenExp of stats.experimentsSeenIn) {
-        if (seenExp !== opts.experimentType) return true
-    }
-    return false
-}
-
 async function getExperimentPapersPrioritized(
     authorId: string | undefined,
     worksPer: number,
@@ -306,7 +281,6 @@ async function getExperimentPapersPrioritized(
         if (!isExperimentEligible(row, experimentType)) continue
         if (
             shouldExcludeBySeenRules(row, seenStatsByWork.get(row.work_id), {
-                authorId,
                 ownWorkId,
                 experimentType,
             })
