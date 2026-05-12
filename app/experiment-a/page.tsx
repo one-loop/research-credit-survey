@@ -4,7 +4,8 @@ import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense, useMemo } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
 import { Mail } from "lucide-react"
@@ -55,9 +56,8 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
 }
 
 function ExperimentAPageContent() {
-    const searchParams = useSearchParams()
     const router = useRouter()
-    const authorId = searchParams.get("authorId") ?? undefined
+    const { authorId, ready: participantReady } = useSurveyParticipant()
 
     const [trialGate, setTrialGate] = useState<"pending" | "failed" | "ok">("pending")
     const [works, setWorks] = useState<Work[] | null>(null)
@@ -76,23 +76,23 @@ function ExperimentAPageContent() {
     const [submittingFadeOut, setSubmittingFadeOut] = useState(false)
 
     useEffect(() => {
+        if (!participantReady) return
         if (typeof window === "undefined") return
         if (sessionStorage.getItem(trialFailedKey(authorId)) === "true") {
             setTrialGate("failed")
             return
         }
         if (sessionStorage.getItem(trialPassedKey(authorId)) !== "true") {
-            router.replace(`/trial?authorId=${encodeURIComponent(authorId ?? "")}`)
+            router.replace("/trial")
             return
         }
         setTrialGate("ok")
-    }, [authorId, router])
+    }, [participantReady, authorId, router])
 
     useEffect(() => {
-        if (trialGate !== "ok") return
+        if (!participantReady || trialGate !== "ok") return
 
         const params = new URLSearchParams()
-        if (authorId) params.set("authorId", authorId)
 
         setLoading(true)
         setError(null)
@@ -133,7 +133,7 @@ function ExperimentAPageContent() {
         if (usedPrefetch) return
 
         params.set("experimentType", "A")
-        fetch(`/api/survey/works?${params.toString()}`)
+        fetch(`/api/survey/works?${params.toString()}`, { credentials: "same-origin" })
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load works")
                 return res.json()
@@ -157,7 +157,7 @@ function ExperimentAPageContent() {
             })
             .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false))
-    }, [authorId, trialGate])
+    }, [participantReady, authorId, trialGate])
 
     useEffect(() => {
         if (typeof window === "undefined") return

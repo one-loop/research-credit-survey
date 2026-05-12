@@ -1,18 +1,13 @@
 "use client"
 
 import { Suspense, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 function PostSurveyContent() {
-    const searchParams = useSearchParams()
     const router = useRouter()
-    const authorId = searchParams.get("authorId") ?? undefined
     useEffect(() => {
-        const href = authorId
-            ? `/respondent-survey?authorId=${encodeURIComponent(authorId)}`
-            : "/respondent-survey"
-        router.replace(href)
-    }, [authorId, router])
+        router.replace("/respondent-survey")
+    }, [router])
 
     return (
         <div className="max-w-lg mx-auto p-6">

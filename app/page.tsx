@@ -2,40 +2,46 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
 import { Spinner } from "@/components/ui/spinner"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
+import { SURVEY_PARTICIPANT_STORAGE_KEY } from "@/lib/survey/participant"
 
 
 type RespondentContext = { journal: string | null; field: string | null }
 
 function HomeContent() {
-    const searchParams = useSearchParams()
-    const authorId = searchParams.get("authorId")
+    const { authorId, ready: participantReady } = useSurveyParticipant()
     const [context, setContext] = useState<RespondentContext | null>(null)
-    const [loadingContext, setLoadingContext] = useState(Boolean(authorId))
-    const [showLoadingScreen, setShowLoadingScreen] = useState(Boolean(authorId))
+    const [loadingContext, setLoadingContext] = useState(false)
+    const [showLoadingScreen, setShowLoadingScreen] = useState(false)
     const [loadingScreenFading, setLoadingScreenFading] = useState(false)
-    const beginHref = authorId ? `/respondent-survey?authorId=${encodeURIComponent(authorId)}` : "/respondent-survey"
+    const beginHref = "/respondent-survey"
 
     useEffect(() => {
+        if (!participantReady) return
         if (typeof window === "undefined") return
-        // Treat every landing-page visit as a fresh session.
+        // Treat every landing-page visit as a fresh session, but keep cookie-backed participant id for links.
+        const preservedParticipant = sessionStorage.getItem(SURVEY_PARTICIPANT_STORAGE_KEY)
         window.sessionStorage.clear()
+        if (preservedParticipant) {
+            sessionStorage.setItem(SURVEY_PARTICIPANT_STORAGE_KEY, preservedParticipant)
+        }
         setContext(null)
         setLoadingContext(Boolean(authorId))
         setShowLoadingScreen(Boolean(authorId))
         setLoadingScreenFading(false)
-    }, [authorId])
+    }, [participantReady, authorId])
 
     useEffect(() => {
+        if (!participantReady) return
         if (!authorId) {
             setLoadingContext(false)
             return
         }
         let cancelled = false
         setLoadingContext(true)
-        fetch(`/api/survey/respondent-context?authorId=${encodeURIComponent(authorId)}`)
+        fetch(`/api/survey/respondent-context`, { credentials: "same-origin" })
             .then((res) => (res.ok ? (res.json() as Promise<RespondentContext>) : Promise.resolve({ journal: null, field: null })))
             .then((data) => {
                 if (!cancelled) {
@@ -55,7 +61,7 @@ function HomeContent() {
         return () => {
             cancelled = true
         }
-    }, [authorId])
+    }, [participantReady, authorId])
 
     useEffect(() => {
         if (loadingContext) {
@@ -70,6 +76,14 @@ function HomeContent() {
         }, 320)
         return () => window.clearTimeout(handle)
     }, [loadingContext, showLoadingScreen])
+
+    if (!participantReady) {
+        return (
+            <div className="max-w-3xl mx-auto p-6">
+                <p className="text-muted-foreground">Loading…</p>
+            </div>
+        )
+    }
 
     if (authorId && showLoadingScreen) {
         return (

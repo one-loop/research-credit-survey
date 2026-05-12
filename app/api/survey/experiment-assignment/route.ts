@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
+import { getParticipantAuthorId } from "@/lib/survey/participant"
 
 type ExperimentType = "A" | "B" | "C"
 
@@ -79,9 +81,8 @@ async function getMostRecentSeenExperimentForRespondent(
  * If respondent has any seen work, assignment is the experiment of the most recent seen work.
  * Otherwise assignment is randomized across A/B/C.
  */
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url)
-    const authorId = searchParams.get("authorId")?.trim()
+export async function GET(request: NextRequest) {
+    const authorId = getParticipantAuthorId(request)?.trim()
 
     if (!isSupabaseConfigured()) {
         const experiment = randomExperiment()

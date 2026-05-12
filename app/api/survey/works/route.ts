@@ -3,6 +3,7 @@ import { worksPool as mockWorksPool } from "@/lib/mockData"
 import { getExperimentPapers } from "@/lib/db/papers"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
 import type { Work } from "@/lib/types"
+import { getParticipantAuthorId } from "@/lib/survey/participant"
 
 const WORKS_PER_RESPONDENT = 5
 
@@ -16,7 +17,7 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 export async function GET(request: NextRequest) {
-    const authorId = request.nextUrl.searchParams.get("authorId") ?? undefined
+    const authorId = getParticipantAuthorId(request)
     const requestedExperiment = request.nextUrl.searchParams.get("experimentType")
     const experimentType = requestedExperiment === "B" || requestedExperiment === "C" ? requestedExperiment : "A"
     const useSupabase = isSupabaseConfigured()

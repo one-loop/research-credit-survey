@@ -4,7 +4,7 @@ import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -56,8 +56,7 @@ function TrialSortableItem({ id, children }: { id: string; children: ReactNode }
 }
 
 function TrialPageContent() {
-    const searchParams = useSearchParams()
-    const authorId = searchParams.get("authorId") ?? undefined
+    const { authorId } = useSurveyParticipant()
 
     const [phase, setPhase] = useState<Phase>("welcome")
     const [experiment, setExperiment] = useState<"A" | "B" | "C">("A")
@@ -164,12 +163,10 @@ function TrialPageContent() {
     }
 
     const experimentPath = experiment === "C" ? "/experiment-c" : experiment === "B" ? "/experiment-b" : "/experiment-a"
-    const experimentHref = authorId
-        ? `${experimentPath}?authorId=${encodeURIComponent(authorId)}`
-        : experimentPath
-    const experimentAHref = authorId ? `/experiment-a?authorId=${encodeURIComponent(authorId)}` : "/experiment-a"
-    const experimentBHref = authorId ? `/experiment-b?authorId=${encodeURIComponent(authorId)}` : "/experiment-b"
-    const experimentCHref = authorId ? `/experiment-c?authorId=${encodeURIComponent(authorId)}` : "/experiment-c"
+    const experimentHref = experimentPath
+    const experimentAHref = "/experiment-a"
+    const experimentBHref = "/experiment-b"
+    const experimentCHref = "/experiment-c"
 
     if (phase === "failed") {
         return (

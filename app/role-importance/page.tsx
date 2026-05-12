@@ -4,14 +4,13 @@ import { creditRoles } from "@/lib/mockData"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 
 function RoleImportanceContent() {
-    const searchParams = useSearchParams()
-    const authorId = searchParams.get("authorId")
+    const { authorId } = useSurveyParticipant()
     const [assignedExperiment, setAssignedExperiment] = useState<"A" | "B" | "C" | null>(null)
-    const trialHref = authorId ? `/trial?authorId=${encodeURIComponent(authorId)}` : "/trial"
+    const trialHref = "/trial"
     const [values, setValues] = useState<Record<string, number>>({})
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)
@@ -20,14 +19,13 @@ function RoleImportanceContent() {
 
     const prefetchWorks = useCallback(async (experiment: "A" | "B" | "C") => {
         const params = new URLSearchParams()
-        if (authorId) params.set("authorId", authorId)
 
         setWorksReady(false)
         setWorksError(null)
         setIsPrefetching(true)
 
         params.set("experimentType", experiment)
-        fetch(`/api/survey/works?${params.toString()}`)
+        fetch(`/api/survey/works?${params.toString()}`, { credentials: "same-origin" })
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to prepare next step")
                 return res.json()
@@ -52,12 +50,7 @@ function RoleImportanceContent() {
 
     useEffect(() => {
         let cancelled = false
-        const params = new URLSearchParams()
-        if (authorId) params.set("authorId", authorId)
-        const assignmentUrl = params.toString()
-            ? `/api/survey/experiment-assignment?${params.toString()}`
-            : "/api/survey/experiment-assignment"
-        fetch(assignmentUrl)
+        fetch("/api/survey/experiment-assignment", { credentials: "same-origin" })
             .then((res) => {
                 if (!res.ok) throw new Error("assignment failed")
                 return res.json() as Promise<{ experiment: "A" | "B" | "C" }>

@@ -1,7 +1,8 @@
 "use client"
 
 import { Suspense, useEffect, useRef, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import {
@@ -64,9 +65,8 @@ type Demographics = {
 type InstitutionOption = { id: string; label: string }
 
 function RespondentSurveyContent() {
-    const searchParams = useSearchParams()
     const router = useRouter()
-    const authorId = searchParams.get("authorId") ?? undefined
+    const { authorId } = useSurveyParticipant()
     const [primaryDomain, setPrimaryDomain] = useState("")
     const [primaryField, setPrimaryField] = useState("")
     const [gender, setGender] = useState("")
@@ -171,8 +171,7 @@ function RespondentSurveyContent() {
             window.sessionStorage.setItem(`respondentDemographics_${keyAuthor}`, JSON.stringify(demographics))
         }
 
-        const nextHref = authorId ? `/credit-roles?authorId=${encodeURIComponent(authorId)}` : "/credit-roles"
-        router.replace(nextHref)
+        router.replace("/credit-roles")
     }
 
     return (
