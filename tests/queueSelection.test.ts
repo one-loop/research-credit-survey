@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
     recalculateEligibilityPoolForNextQueue,
+    selectNextOwnWorkId,
     selectQueueFromEligibilityPool,
     type QueueCandidate,
 } from "@/lib/survey/queueSelection"
@@ -55,6 +56,16 @@ describe("Queue selection", () => {
 })
 
 describe("Queue progression across rounds", () => {
+    it("selects next own paper by recency as queues progress", () => {
+        const ownByRecency = ["own_latest", "own_older", "own_oldest"]
+        const shown = new Set<string>(["own_latest"])
+        expect(selectNextOwnWorkId(ownByRecency, shown)).toBe("own_older")
+        shown.add("own_older")
+        expect(selectNextOwnWorkId(ownByRecency, shown)).toBe("own_oldest")
+        shown.add("own_oldest")
+        expect(selectNextOwnWorkId(ownByRecency, shown)).toBeUndefined()
+    })
+
     it("recalculates next eligibility pool after queue completion", () => {
         const pool = makePool()
         const q0 = selectQueueFromEligibilityPool(pool)

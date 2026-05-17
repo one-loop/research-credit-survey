@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { randomUUID } from "crypto"
 import { promises as fs } from "fs"
 import path from "path"
-import { incrementWorkExposure } from "@/lib/db/papers"
+import { getNextQueueIndexForSave, incrementWorkExposure } from "@/lib/db/papers"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
@@ -12,6 +12,8 @@ async function appendResponse(payload: {
     workIds: string[]
     rankings: Record<string, string[]>
     authorId: string | null
+    own_work: string | null
+    queue_index: number
     role_importance: Record<string, number>
     experimentType?: "A" | "B" | "C"
     completedAt: string
@@ -39,6 +41,8 @@ export async function POST(request: NextRequest) {
         experimentType?: "A" | "B" | "C"
         timeSpent?: Record<string, number> | null
         respondentDemographics?: Record<string, string> | null
+        /** papers.work_id of respondent's own paper in this queue submission, if any */
+        ownWorkId?: string | null
     }
     try {
         body = await request.json()
@@ -49,7 +53,20 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    const { workIds, rankings, authorId, roleImportance, experimentType, timeSpent, respondentDemographics } = body
+    const {
+        workIds,
+        rankings,
+        authorId,
+        roleImportance,
+        experimentType,
+        timeSpent,
+        respondentDemographics,
+        ownWorkId,
+    } = body
+
+    const ownWork =
+        typeof ownWorkId === "string" && ownWorkId.trim().length > 0 ? ownWorkId.trim() : null
+    const queueIndex = await getNextQueueIndexForSave(authorId, experimentType ?? null)
     if (!Array.isArray(workIds) || !rankings || typeof rankings !== "object") {
         return NextResponse.json(
             { error: "Body must include workIds (array) and rankings (object)" },
@@ -77,6 +94,8 @@ export async function POST(request: NextRequest) {
                 experiment_type: experimentType ?? null,
                 time_spent: timeSpent ?? null,
                 respondent_demographics: respondentDemographics ?? null,
+                own_work: ownWork,
+                queue_index: queueIndex,
             })
             .select("id")
             .single()
@@ -101,6 +120,8 @@ export async function POST(request: NextRequest) {
             workIds,
             rankings,
             authorId: authorId ?? null,
+            own_work: ownWork,
+            queue_index: queueIndex,
             role_importance: roleImportanceWithDefault,
             experimentType,
             completedAt: new Date().toISOString(),
@@ -113,5 +134,5 @@ export async function POST(request: NextRequest) {
         await incrementWorkExposure(workIds)
     }
 
-    return NextResponse.json({ ok: true, responseId })
+    return NextResponse.json({ ok: true, responseId, queueIndex })
 }

@@ -8,6 +8,17 @@ export type QueueCandidate = {
     seenCount?: number
 }
 
+/** Pick next own paper (newest-first list) not shown in prior queues. */
+export function selectNextOwnWorkId(
+    ownWorkIdsNewestFirst: string[],
+    shownOwnWorkIds: Set<string>
+): string | undefined {
+    for (const id of ownWorkIdsNewestFirst) {
+        if (!shownOwnWorkIds.has(id)) return id
+    }
+    return undefined
+}
+
 type QueueSelectionOptions = {
     queueSize?: number
     maxSeenPerQueue?: number

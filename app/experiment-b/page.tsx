@@ -4,7 +4,7 @@ import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
@@ -66,7 +66,10 @@ function anonymizedBylineName(author: Author): string {
 
 function ExperimentBPageContent() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { authorId, ready: participantReady } = useSurveyParticipant()
+    const queueIndexRaw = Number(searchParams.get("queue") ?? "0")
+    const queueIndex = Number.isFinite(queueIndexRaw) && queueIndexRaw >= 0 ? Math.floor(queueIndexRaw) : 0
 
     const [trialGate, setTrialGate] = useState<"pending" | "failed" | "ok">("pending")
     const [works, setWorks] = useState<Work[] | null>(null)
@@ -112,7 +115,7 @@ function ExperimentBPageContent() {
 
         let usedPrefetch = false
 
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && queueIndex === 0) {
             const stored =
                 window.sessionStorage.getItem(storageKey) ??
                 window.sessionStorage.getItem(legacyStorageKey)
@@ -142,6 +145,7 @@ function ExperimentBPageContent() {
         if (usedPrefetch) return
 
         params.set("experimentType", "B")
+        params.set("queueIndex", String(queueIndex))
         fetch(`/api/survey/works?${params.toString()}`, { credentials: "same-origin" })
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load works")
@@ -166,7 +170,7 @@ function ExperimentBPageContent() {
             })
             .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false))
-    }, [participantReady, authorId, trialGate])
+    }, [participantReady, authorId, trialGate, queueIndex])
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -258,6 +262,7 @@ function ExperimentBPageContent() {
             setCurrentIndex(totalWorks)
 
             const workIds = works.map((w) => w.work_id)
+            const ownWorkId = works.find((w) => w.isOwnWork)?.work_id ?? null
             const rankings: Record<string, string[]> = {}
             works.forEach((w, i) => {
                 rankings[w.work_id] = newResults[i] ?? []
@@ -300,20 +305,30 @@ function ExperimentBPageContent() {
                         workIds,
                         rankings,
                         authorId,
+                        ownWorkId,
                         roleImportance,
                         experimentType: "B",
                         timeSpent,
                         respondentDemographics,
                     }),
                 })
-                const data = (await res.json()) as { ok?: boolean; responseId?: string; error?: string }
+                const data = (await res.json()) as {
+                    ok?: boolean
+                    responseId?: string
+                    queueIndex?: number
+                    error?: string
+                }
                 if (!res.ok || !data.ok || !data.responseId) {
                     setError(data.error ?? "Failed to submit rankings")
                     return
                 }
+                const savedQueue =
+                    typeof data.queueIndex === "number" && data.queueIndex >= 0
+                        ? data.queueIndex
+                        : queueIndex
                 setSubmittingFadeOut(true)
                 window.setTimeout(() => {
-                    router.replace("/survey-thanks")
+                    router.replace(`/survey-thanks?experimentType=B&queue=${savedQueue}`)
                 }, 220)
             } catch {
                 setError("Failed to submit rankings")

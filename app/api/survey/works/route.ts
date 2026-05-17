@@ -19,6 +19,8 @@ function shuffle<T>(array: T[]): T[] {
 export async function GET(request: NextRequest) {
     const authorId = getParticipantAuthorId(request)
     const requestedExperiment = request.nextUrl.searchParams.get("experimentType")
+    const queueIndexRaw = Number(request.nextUrl.searchParams.get("queueIndex") ?? "0")
+    const queueIndex = Number.isFinite(queueIndexRaw) && queueIndexRaw >= 0 ? Math.floor(queueIndexRaw) : 0
     const experimentType = requestedExperiment === "B" || requestedExperiment === "C" ? requestedExperiment : "A"
     const useSupabase = isSupabaseConfigured()
 
@@ -27,9 +29,9 @@ export async function GET(request: NextRequest) {
 
     if (useSupabase) {
         const start = Date.now()
-        selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT, experimentType)
+        selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT, experimentType, queueIndex)
         const duration = Date.now() - start
-        console.log("[survey/works] Supabase experiment papers took", duration, "ms")
+        console.log("[survey/works] Supabase experiment papers took", duration, "ms", "| queue:", queueIndex)
         if (experimentType === "B" && authorId && selected.length === 0) {
             return NextResponse.json(
                 { error: "Experiment B is not eligible for this author." },
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
         const worksPool = mockWorksPool
         const findWorkByAuthorId = (id: string) =>
             worksPool.find((w) => w.authors.some((a) => a.id === id))
-        let ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
+        const ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
         if (ownWork) selected.push({ ...ownWork, isOwnWork: true })
         const targetDomain = ownWork?.domain
         const targetJournal = ownWork?.journal

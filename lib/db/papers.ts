@@ -2,6 +2,7 @@ import type { Work, Author } from "@/lib/types"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import { shouldExcludeBySeenRules, type SeenWorkStats } from "@/lib/survey/poolEligibility"
+import { selectNextOwnWorkId } from "@/lib/survey/queueSelection"
 
 /** Raw author object as stored in papers.authors JSONB (from PNAS/PLOS JSONL) */
 type PaperAuthor = {
@@ -236,35 +237,149 @@ async function getSeenWorkStatsForPool(
     }
 }
 
+/**
+ * Queue index to store on the next completion: most recent response's queue_index + 1,
+ * or 0 if the respondent has no prior responses in this experiment.
+ */
+export async function getNextQueueIndexForSave(
+    authorId: string | undefined,
+    experimentType: ExperimentType | null | undefined
+): Promise<number> {
+    if (!authorId || !experimentType || !isSupabaseConfigured()) return 0
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        if (error || !data?.length) return 0
+
+        const latest = (data[0] as { queue_index?: number | null }).queue_index
+        if (typeof latest === "number" && Number.isFinite(latest) && latest >= 0) {
+            return Math.floor(latest) + 1
+        }
+        return 0
+    } catch {
+        return 0
+    }
+}
+
+/** Journal/domain from the respondent's first completed batch in this experiment. */
+async function getInitialSubmissionScope(
+    authorId: string,
+    experimentType: ExperimentType
+): Promise<{ domain?: string; journal?: string }> {
+    if (!isSupabaseConfigured()) return {}
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("own_work,created_at,queue_index")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("queue_index", { ascending: true })
+            .order("created_at", { ascending: true })
+            .limit(1)
+
+        if (error || !data?.length) return {}
+
+        const first = data[0] as { own_work?: string | null }
+        const ownWorkId =
+            typeof first.own_work === "string" && first.own_work.trim().length > 0
+                ? first.own_work.trim()
+                : undefined
+        if (!ownWorkId) return {}
+
+        const paper = await getPaperRowByWorkId(ownWorkId)
+        if (!paper) return {}
+        return {
+            domain: paper.domain ?? undefined,
+            journal: paper.journal ?? undefined,
+        }
+    } catch {
+        return {}
+    }
+}
+
+async function getPaperRowByWorkId(workId: string): Promise<PaperRow | null> {
+    if (!isSupabaseConfigured()) return null
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("papers")
+            .select(PAPER_COLUMNS)
+            .eq("work_id", workId)
+            .maybeSingle()
+        if (error || !data) return null
+        return data as PaperRow
+    } catch {
+        return null
+    }
+}
+
 async function getExperimentPapersPrioritized(
     authorId: string | undefined,
     worksPer: number,
-    experimentType: ExperimentType
+    experimentType: ExperimentType,
+    queueIndex: number
 ): Promise<Work[]> {
     const selected: Work[] = []
     const selectedIds = new Set<string>()
 
+    let scopeDomain: string | undefined
+    let scopeJournal: string | undefined
+    const ownWorkIds = new Set<string>()
+
     if (authorId) {
-        const ownPaper = await getPaperByAuthorIdRow(authorId)
-        if (ownPaper) {
-            if (!isExperimentEligible(ownPaper, experimentType)) {
-                return []
+        const ownPapers = await getCorrespondingOwnPapersByAuthorIdRows(authorId)
+        for (const row of ownPapers) ownWorkIds.add(row.work_id)
+
+        if (queueIndex === 0) {
+            if (ownPapers.length > 0) {
+                scopeDomain = ownPapers[0]?.domain ?? undefined
+                scopeJournal = ownPapers[0]?.journal ?? undefined
             }
-            const ownWork = mapPaperToWork(ownPaper, true)
-            selected.push(ownWork)
-            selectedIds.add(ownPaper.work_id)
+        } else {
+            const initialScope = await getInitialSubmissionScope(authorId, experimentType)
+            scopeDomain = initialScope.domain
+            scopeJournal = initialScope.journal
+            if (!scopeDomain && !scopeJournal && ownPapers.length > 0) {
+                scopeDomain = ownPapers[0]?.domain ?? undefined
+                scopeJournal = ownPapers[0]?.journal ?? undefined
+            }
+        }
+
+        const shownOwnWorkIds = await getShownOwnWorkIdsForExperiment(authorId, experimentType, ownWorkIds)
+        const nextOwnWorkId = selectNextOwnWorkId(
+            ownPapers.map((p) => p.work_id),
+            shownOwnWorkIds
+        )
+        if (nextOwnWorkId) {
+            const ownPaper = ownPapers.find((p) => p.work_id === nextOwnWorkId)
+            if (ownPaper) {
+                if (!isExperimentEligible(ownPaper, experimentType)) {
+                    return []
+                }
+                const ownWork = mapPaperToWork(ownPaper, true)
+                selected.push(ownWork)
+                selectedIds.add(ownPaper.work_id)
+            }
         }
     }
 
     let remaining = worksPer - selected.length
     if (remaining <= 0) return selected
 
-    const domain = selected[0]?.domain
-    const journal = selected[0]?.journal
+    const domain = selected[0]?.domain ?? scopeDomain
+    const journal = selected[0]?.journal ?? scopeJournal
     const strictPool = await getPapersPool({
         domain,
         journal,
-        excludeWorkIds: Array.from(selectedIds),
+        excludeWorkIds: Array.from(new Set([...Array.from(selectedIds), ...Array.from(ownWorkIds)])),
         limit: 500,
     })
 
@@ -336,6 +451,75 @@ async function getPaperByAuthorIdRow(authorId: string): Promise<PaperRow | null>
         return data as PaperRow
     } catch {
         return null
+    }
+}
+
+async function getCorrespondingOwnPapersByAuthorIdRows(authorId: string): Promise<PaperRow[]> {
+    if (!isSupabaseConfigured()) return []
+    try {
+        const supabase = getSupabase()
+        const escapedAuthorId = authorId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+        const lookups = [`[{"id":"${escapedAuthorId}"}]`, `[{"author_id":"${escapedAuthorId}"}]`]
+        const all: PaperRow[] = []
+        const seenIds = new Set<string>()
+        for (const pattern of lookups) {
+            const result = await supabase
+                .from("papers")
+                .select(PAPER_COLUMNS)
+                .filter("authors", "cs", pattern)
+                .order("publication_date", { ascending: false })
+            const rows = (result.data as PaperRow[] | null) ?? []
+            for (const row of rows) {
+                if (seenIds.has(row.work_id)) continue
+                const authors = Array.isArray(row.authors) ? row.authors : []
+                const isCorresponding = authors.some((a) => {
+                    const raw = a as Record<string, unknown>
+                    const id = readString(raw, ["id", "author_id", "authorId"])
+                    if (id !== authorId) return false
+                    return readBoolean(raw, ["corresponding", "is_corresponding", "isCorresponding"]) === true
+                })
+                if (!isCorresponding) continue
+                seenIds.add(row.work_id)
+                all.push(row)
+            }
+        }
+        all.sort((a, b) => {
+            const ad = a.publication_date ?? ""
+            const bd = b.publication_date ?? ""
+            return bd.localeCompare(ad)
+        })
+        return all
+    } catch {
+        return []
+    }
+}
+
+async function getShownOwnWorkIdsForExperiment(
+    authorId: string,
+    experimentType: ExperimentType,
+    ownWorkIds: Set<string>
+): Promise<Set<string>> {
+    const shown = new Set<string>()
+    if (!isSupabaseConfigured() || ownWorkIds.size === 0) return shown
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("work_ids,own_work")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+        if (error || !data?.length) return shown
+        for (const row of data as Array<{ work_ids: string[] | null; own_work: string | null }>) {
+            if (typeof row.own_work === "string" && ownWorkIds.has(row.own_work)) {
+                shown.add(row.own_work)
+            }
+            for (const workId of row.work_ids ?? []) {
+                if (ownWorkIds.has(workId)) shown.add(workId)
+            }
+        }
+        return shown
+    } catch {
+        return shown
     }
 }
 
@@ -417,11 +601,12 @@ export async function incrementWorkExposure(workIds: string[]): Promise<boolean>
 export async function getExperimentPapers(
     authorId: string | undefined,
     worksPer: number,
-    experimentType: ExperimentType = "A"
+    experimentType: ExperimentType = "A",
+    queueIndex = 0
 ): Promise<Work[]> {
     if (!isSupabaseConfigured()) return []
     // Use one consistent selector across experiments:
     // own paper + same-domain-and-journal fillers prioritized by prior exposure.
-    return getExperimentPapersPrioritized(authorId, worksPer, experimentType)
+    return getExperimentPapersPrioritized(authorId, worksPer, experimentType, queueIndex)
 }
 
