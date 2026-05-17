@@ -30,17 +30,20 @@ export function buildAccuracyHistogram(scores: number[], binCount = BIN_COUNT): 
         }))
     }
 
-    const bins: AccuracyHistogramBin[] = []
-    for (let i = 0; i < binCount; i++) {
-        const binStart = i / binCount
-        const binEnd = (i + 1) / binCount
-        const count = scores.filter((s) => {
-            if (i === binCount - 1) return s >= binStart && s <= binEnd
-            return s >= binStart && s < binEnd
-        }).length
-        bins.push({ binStart, binEnd, count })
+    const counts = new Array<number>(binCount).fill(0)
+    for (const s of scores) {
+        if (!Number.isFinite(s)) continue
+        const clamped = Math.min(1, Math.max(0, s))
+        const idx =
+            clamped >= 1 ? binCount - 1 : Math.min(binCount - 1, Math.floor(clamped * binCount))
+        counts[idx]! += 1
     }
-    return bins
+
+    return Array.from({ length: binCount }, (_, i) => ({
+        binStart: i / binCount,
+        binEnd: (i + 1) / binCount,
+        count: counts[i]!,
+    }))
 }
 
 /**

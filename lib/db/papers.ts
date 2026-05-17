@@ -9,7 +9,6 @@ import {
 } from "@/lib/survey/accuracyDistribution"
 import {
     buildInstitutionLeaderboard,
-    institutionKeyFromDemographics,
     type InstitutionLeaderboardResult,
 } from "@/lib/survey/institutionLeaderboard"
 import {
@@ -440,7 +439,7 @@ export async function getRespondentAccuracySummary(
         const supabase = getSupabase()
         const { data, error } = await supabase
             .from("experiment_responses")
-            .select("queue_index,average_accuracy,work_ids,rankings")
+            .select("queue_index,average_accuracy")
             .eq("author_id", authorId)
             .eq("experiment_type", experimentType)
             .order("queue_index", { ascending: true })
@@ -455,26 +454,16 @@ export async function getRespondentAccuracySummary(
             const row = raw as {
                 queue_index?: number | null
                 average_accuracy?: number | null
-                work_ids?: string[] | null
-                rankings?: Record<string, string[]> | null
             }
             const rowQueue =
                 typeof row.queue_index === "number" && Number.isFinite(row.queue_index)
                     ? Math.floor(row.queue_index)
                     : 0
 
-            let accuracy =
+            const accuracy =
                 typeof row.average_accuracy === "number" && Number.isFinite(row.average_accuracy)
                     ? row.average_accuracy
                     : null
-
-            if (accuracy === null && row.work_ids?.length && row.rankings) {
-                const computed = await computeQueueAccuracyFromRankings(
-                    row.work_ids,
-                    row.rankings
-                )
-                accuracy = computed.averageAccuracy
-            }
 
             if (typeof accuracy === "number" && Number.isFinite(accuracy)) {
                 queueScores.push(accuracy)
@@ -507,25 +496,10 @@ export async function getAccuracyDistributionForExperiment(
     experimentType: ExperimentType,
     comparisonScore: number | null
 ): Promise<AccuracyDistributionStats> {
-    if (!isSupabaseConfigured()) {
-        return buildAccuracyDistributionStats([], comparisonScore)
-    }
+    const { getCachedExperimentAnalyticsRows } = await import("@/lib/db/experimentAnalytics")
     try {
-        const supabase = getSupabase()
-        const { data, error } = await supabase
-            .from("experiment_responses")
-            .select("average_accuracy")
-            .eq("experiment_type", experimentType)
-            .not("average_accuracy", "is", null)
-
-        if (error) {
-            return buildAccuracyDistributionStats([], comparisonScore)
-        }
-
-        const scores = (data ?? [])
-            .map((row) => (row as { average_accuracy?: number | null }).average_accuracy)
-            .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
-
+        const rows = await getCachedExperimentAnalyticsRows(experimentType)
+        const scores = rows.map((r) => r.averageAccuracy)
         return buildAccuracyDistributionStats(scores, comparisonScore)
     } catch {
         return buildAccuracyDistributionStats([], comparisonScore)
@@ -542,53 +516,18 @@ export async function getInstitutionLeaderboardForExperiment(
         respondent: null,
         respondentInstitutionKey: null,
     }
-    if (!isSupabaseConfigured()) return empty
+    const {
+        getCachedExperimentAnalyticsRows,
+        getRespondentInstitutionKeyForExperiment,
+    } = await import("@/lib/db/experimentAnalytics")
 
     try {
-        const supabase = getSupabase()
-
-        let respondentInstitutionKey: string | null = null
-        if (authorId) {
-            const { data: authorRows } = await supabase
-                .from("experiment_responses")
-                .select("respondent_demographics")
-                .eq("author_id", authorId)
-                .eq("experiment_type", experimentType)
-                .not("respondent_demographics", "is", null)
-                .order("created_at", { ascending: false })
-                .limit(1)
-
-            const demo = (authorRows?.[0] as { respondent_demographics?: Record<string, unknown> })
-                ?.respondent_demographics
-            respondentInstitutionKey = institutionKeyFromDemographics(demo ?? null)
-        }
-
-        const { data, error } = await supabase
-            .from("experiment_responses")
-            .select("average_accuracy, respondent_demographics")
-            .eq("experiment_type", experimentType)
-            .not("average_accuracy", "is", null)
-
-        if (error || !data?.length) return empty
-
-        const responses = data
-            .map((row) => {
-                const r = row as {
-                    average_accuracy?: number | null
-                    respondent_demographics?: Record<string, unknown> | null
-                }
-                const averageAccuracy = r.average_accuracy
-                if (typeof averageAccuracy !== "number" || !Number.isFinite(averageAccuracy)) {
-                    return null
-                }
-                return {
-                    averageAccuracy,
-                    demographics: r.respondent_demographics ?? null,
-                }
-            })
-            .filter((r): r is NonNullable<typeof r> => r !== null)
-
-        return buildInstitutionLeaderboard(responses, respondentInstitutionKey)
+        const [rows, respondentInstitutionKey] = await Promise.all([
+            getCachedExperimentAnalyticsRows(experimentType),
+            getRespondentInstitutionKeyForExperiment(authorId, experimentType),
+        ])
+        if (!rows.length) return empty
+        return buildInstitutionLeaderboard(rows, respondentInstitutionKey)
     } catch {
         return empty
     }
