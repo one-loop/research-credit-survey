@@ -66,15 +66,31 @@ function trialAuthorsForExperiment(experiment: "A" | "B" | "C"): Author[] {
             is_corresponding: false,
         },
     ]
-    if (experiment === "A" || experiment === "B") {
+    if (experiment === "A") {
         return base
+    }
+    if (experiment === "B") {
+        return base.map((a) => ({
+            ...a,
+            // Mirror Experiment B behavior where some authors are shown as full anonymized names.
+            name:
+                a.id === "trial_a1"
+                    ? "Alex Avery"
+                    : a.id === "trial_a2"
+                      ? "Bailey Brooks"
+                      : a.id === "trial_a3"
+                        ? "Casey Cole"
+                        : a.id === "trial_a4"
+                          ? "Diana Davis"
+                          : undefined,
+        }))
     }
     return base.map((a, i) => ({
         ...a,
         first_institution_name:
             a.id === "trial_a3"
-                ? "Example University"
-                : ["North Institute", "East Laboratory", "Example University", "South Analytics Lab"][i],
+                ? "yes"
+                : ["yes", "yes", "no", "no"][i],
         academic_age: [8, 5, 12, 3][i],
         h_index: [14, 9, 22, 6][i],
     }))

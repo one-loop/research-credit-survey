@@ -31,9 +31,8 @@ export type Work = {
     corresponding_email?: string
     /**
      * Debug-only flag used in the Experiment A flow
-     * to identify the respondent's own work when an
-     * authorId query parameter is supplied.
-     * This is not intended to be shown in production.
+     * to identify the respondent's own work when the participant
+     * is resolved (cookie / session). Not intended for respondent-facing UI.
      */
     isOwnWork?: boolean
     experiment_eligibility?: string[]

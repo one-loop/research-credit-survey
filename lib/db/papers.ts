@@ -1,5 +1,22 @@
 import type { Work, Author } from "@/lib/types"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
+import type { ExperimentType } from "@/lib/survey/experimentAssignment"
+import { shouldExcludeBySeenRules, type SeenWorkStats } from "@/lib/survey/poolEligibility"
+import { selectNextOwnWorkId } from "@/lib/survey/queueSelection"
+import {
+    buildAccuracyDistributionStats,
+    type AccuracyDistributionStats,
+} from "@/lib/survey/accuracyDistribution"
+import {
+    buildInstitutionLeaderboard,
+    institutionKeyFromDemographics,
+    type InstitutionLeaderboardResult,
+} from "@/lib/survey/institutionLeaderboard"
+import {
+    averageRankingAccuracy,
+    rankingAccuracyForWork,
+    type AuthorForRankingAccuracy,
+} from "@/lib/survey/rankingAccuracy"
 
 /** Raw author object as stored in papers.authors JSONB (from PNAS/PLOS JSONL) */
 type PaperAuthor = {
@@ -38,8 +55,6 @@ export type PaperRow = {
     /** Total survey exposures (increments on any experiment completion that included this work). */
     work_exposure?: number | null
 }
-
-type ExperimentType = "A" | "B" | "C"
 
 function readString(obj: Record<string, unknown>, keys: string[]): string | undefined {
     for (const key of keys) {
@@ -187,44 +202,532 @@ function orderPapersForFillers(rows: PaperRow[]): PaperRow[] {
     return [...highExposure, ...lowExposure]
 }
 
+async function getSeenWorkStatsForPool(
+    workIds: string[],
+    authorId: string | undefined
+): Promise<Map<string, SeenWorkStats>> {
+    const byWork = new Map<string, SeenWorkStats>()
+    if (!isSupabaseConfigured() || workIds.length === 0) return byWork
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("author_id,work_ids,experiment_type")
+            .overlaps("work_ids", workIds)
+
+        if (error || !data?.length) return byWork
+
+        for (const row of data as Array<{
+            author_id: string | null
+            work_ids: string[] | null
+            experiment_type: ExperimentType | null
+        }>) {
+            const responseWorkIds = Array.isArray(row.work_ids) ? row.work_ids : []
+            for (const workId of responseWorkIds) {
+                if (!workIds.includes(workId)) continue
+                let stats = byWork.get(workId)
+                if (!stats) {
+                    stats = {
+                        seenByRespondent: false,
+                        uniqueRespondents: new Set<string>(),
+                        experimentsSeenIn: new Set<ExperimentType>(),
+                    }
+                    byWork.set(workId, stats)
+                }
+                if (authorId && row.author_id === authorId) {
+                    stats.seenByRespondent = true
+                }
+                if (typeof row.author_id === "string" && row.author_id.length > 0) {
+                    stats.uniqueRespondents.add(row.author_id)
+                }
+                if (row.experiment_type === "A" || row.experiment_type === "B" || row.experiment_type === "C") {
+                    stats.experimentsSeenIn.add(row.experiment_type)
+                }
+            }
+        }
+        return byWork
+    } catch {
+        return byWork
+    }
+}
+
+/**
+ * Queue index to store on the next completion: most recent response's queue_index + 1,
+ * or 0 if the respondent has no prior responses in this experiment.
+ */
+export async function getNextQueueIndexForSave(
+    authorId: string | undefined,
+    experimentType: ExperimentType | null | undefined
+): Promise<number> {
+    if (!authorId || !experimentType || !isSupabaseConfigured()) return 0
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        if (error || !data?.length) return 0
+
+        const latest = (data[0] as { queue_index?: number | null }).queue_index
+        if (typeof latest === "number" && Number.isFinite(latest) && latest >= 0) {
+            return Math.floor(latest) + 1
+        }
+        return 0
+    } catch {
+        return 0
+    }
+}
+
+/** Whether this respondent has completed at least one batch in this experiment. */
+export async function getExperimentCompletionStatus(
+    authorId: string | undefined,
+    experimentType: ExperimentType
+): Promise<{ hasCompleted: boolean; latestQueueIndex: number | null }> {
+    if (!authorId || !isSupabaseConfigured()) {
+        return { hasCompleted: false, latestQueueIndex: null }
+    }
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        if (error || !data?.length) {
+            return { hasCompleted: false, latestQueueIndex: null }
+        }
+
+        const latest = (data[0] as { queue_index?: number | null }).queue_index
+        if (typeof latest === "number" && Number.isFinite(latest) && latest >= 0) {
+            return { hasCompleted: true, latestQueueIndex: Math.floor(latest) }
+        }
+        return { hasCompleted: true, latestQueueIndex: 0 }
+    } catch {
+        return { hasCompleted: false, latestQueueIndex: null }
+    }
+}
+
+/** Most recent completion for this respondent across any experiment (for participant entry links). */
+export async function getRespondentLatestCompletion(
+    authorId: string | undefined
+): Promise<{
+    hasCompleted: boolean
+    experimentType: ExperimentType | null
+    latestQueueIndex: number | null
+}> {
+    if (!authorId || !isSupabaseConfigured()) {
+        return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
+    }
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index,experiment_type")
+            .eq("author_id", authorId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        if (error || !data?.length) {
+            return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
+        }
+
+        const row = data[0] as {
+            queue_index?: number | null
+            experiment_type?: string | null
+        }
+        const experimentType =
+            row.experiment_type === "A" || row.experiment_type === "B" || row.experiment_type === "C"
+                ? row.experiment_type
+                : null
+        const latest = row.queue_index
+        const latestQueueIndex =
+            typeof latest === "number" && Number.isFinite(latest) && latest >= 0
+                ? Math.floor(latest)
+                : 0
+        return {
+            hasCompleted: true,
+            experimentType,
+            latestQueueIndex,
+        }
+    } catch {
+        return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
+    }
+}
+
+function authorsForRankingAccuracy(paper: PaperRow): AuthorForRankingAccuracy[] {
+    return (paper.authors ?? []).map((a, position) => {
+        const raw = a as Record<string, unknown>
+        return {
+            id: readString(raw, ["id", "author_id", "authorId"]) ?? String(position),
+            equal_contrib:
+                readBoolean(raw, ["equal_contrib", "equalContrib", "equal_contribution"]) ?? false,
+        }
+    })
+}
+
+export type QueueAccuracyResult = {
+    averageAccuracy: number | null
+    workAccuracies: Record<string, number>
+}
+
+/** Compute queue accuracy from rankings and canonical paper author order. */
+export async function computeQueueAccuracyFromRankings(
+    workIds: string[],
+    rankings: Record<string, string[]>
+): Promise<QueueAccuracyResult> {
+    const workAccuracies: Record<string, number> = {}
+    const perWork: Array<number | null> = []
+
+    for (const workId of workIds) {
+        const respondentRanking = rankings[workId]
+        if (!Array.isArray(respondentRanking) || respondentRanking.length === 0) {
+            perWork.push(null)
+            continue
+        }
+        const paper = await getPaperRowByWorkId(workId)
+        if (!paper) {
+            perWork.push(null)
+            continue
+        }
+        const accuracy = rankingAccuracyForWork(
+            authorsForRankingAccuracy(paper),
+            respondentRanking
+        )
+        if (typeof accuracy === "number" && Number.isFinite(accuracy)) {
+            workAccuracies[workId] = accuracy
+        }
+        perWork.push(accuracy)
+    }
+
+    return {
+        averageAccuracy: averageRankingAccuracy(perWork),
+        workAccuracies,
+    }
+}
+
+export type RespondentAccuracySummary = {
+    /** Accuracy for the requested queue (this block of 5). */
+    queueAccuracy: number | null
+    /** Mean of stored queue accuracies across all completed queues in this experiment. */
+    respondentAverageAccuracy: number | null
+    queuesCompleted: number
+}
+
+/**
+ * Read stored accuracies for the thank-you screen. Recomputes only when a row
+ * predates the accuracy columns (legacy responses).
+ */
+export async function getRespondentAccuracySummary(
+    authorId: string | undefined,
+    experimentType: ExperimentType,
+    queueIndex: number
+): Promise<RespondentAccuracySummary> {
+    const empty: RespondentAccuracySummary = {
+        queueAccuracy: null,
+        respondentAverageAccuracy: null,
+        queuesCompleted: 0,
+    }
+    if (!authorId || !isSupabaseConfigured()) return empty
+
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index,average_accuracy,work_ids,rankings")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("queue_index", { ascending: true })
+            .order("created_at", { ascending: true })
+
+        if (error || !data?.length) return empty
+
+        const queueScores: number[] = []
+        let queueAccuracy: number | null = null
+
+        for (const raw of data) {
+            const row = raw as {
+                queue_index?: number | null
+                average_accuracy?: number | null
+                work_ids?: string[] | null
+                rankings?: Record<string, string[]> | null
+            }
+            const rowQueue =
+                typeof row.queue_index === "number" && Number.isFinite(row.queue_index)
+                    ? Math.floor(row.queue_index)
+                    : 0
+
+            let accuracy =
+                typeof row.average_accuracy === "number" && Number.isFinite(row.average_accuracy)
+                    ? row.average_accuracy
+                    : null
+
+            if (accuracy === null && row.work_ids?.length && row.rankings) {
+                const computed = await computeQueueAccuracyFromRankings(
+                    row.work_ids,
+                    row.rankings
+                )
+                accuracy = computed.averageAccuracy
+            }
+
+            if (typeof accuracy === "number" && Number.isFinite(accuracy)) {
+                queueScores.push(accuracy)
+                if (rowQueue === queueIndex) {
+                    queueAccuracy = accuracy
+                }
+            }
+        }
+
+        const respondentAverageAccuracy =
+            queueScores.length > 0
+                ? queueScores.reduce((sum, v) => sum + v, 0) / queueScores.length
+                : null
+
+        return {
+            queueAccuracy,
+            respondentAverageAccuracy,
+            queuesCompleted: queueScores.length,
+        }
+    } catch {
+        return empty
+    }
+}
+
+/**
+ * Distribution of stored queue-level accuracies for an experiment (one point per
+ * completed block). Shown once at least one response exists in the experiment.
+ */
+export async function getAccuracyDistributionForExperiment(
+    experimentType: ExperimentType,
+    comparisonScore: number | null
+): Promise<AccuracyDistributionStats> {
+    if (!isSupabaseConfigured()) {
+        return buildAccuracyDistributionStats([], comparisonScore)
+    }
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("average_accuracy")
+            .eq("experiment_type", experimentType)
+            .not("average_accuracy", "is", null)
+
+        if (error) {
+            return buildAccuracyDistributionStats([], comparisonScore)
+        }
+
+        const scores = (data ?? [])
+            .map((row) => (row as { average_accuracy?: number | null }).average_accuracy)
+            .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+
+        return buildAccuracyDistributionStats(scores, comparisonScore)
+    } catch {
+        return buildAccuracyDistributionStats([], comparisonScore)
+    }
+}
+
+/** Top institutions by mean block accuracy for this experiment. */
+export async function getInstitutionLeaderboardForExperiment(
+    authorId: string | undefined,
+    experimentType: ExperimentType
+): Promise<InstitutionLeaderboardResult> {
+    const empty: InstitutionLeaderboardResult = {
+        top10: [],
+        respondent: null,
+        respondentInstitutionKey: null,
+    }
+    if (!isSupabaseConfigured()) return empty
+
+    try {
+        const supabase = getSupabase()
+
+        let respondentInstitutionKey: string | null = null
+        if (authorId) {
+            const { data: authorRows } = await supabase
+                .from("experiment_responses")
+                .select("respondent_demographics")
+                .eq("author_id", authorId)
+                .eq("experiment_type", experimentType)
+                .not("respondent_demographics", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(1)
+
+            const demo = (authorRows?.[0] as { respondent_demographics?: Record<string, unknown> })
+                ?.respondent_demographics
+            respondentInstitutionKey = institutionKeyFromDemographics(demo ?? null)
+        }
+
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("average_accuracy, respondent_demographics")
+            .eq("experiment_type", experimentType)
+            .not("average_accuracy", "is", null)
+
+        if (error || !data?.length) return empty
+
+        const responses = data
+            .map((row) => {
+                const r = row as {
+                    average_accuracy?: number | null
+                    respondent_demographics?: Record<string, unknown> | null
+                }
+                const averageAccuracy = r.average_accuracy
+                if (typeof averageAccuracy !== "number" || !Number.isFinite(averageAccuracy)) {
+                    return null
+                }
+                return {
+                    averageAccuracy,
+                    demographics: r.respondent_demographics ?? null,
+                }
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null)
+
+        return buildInstitutionLeaderboard(responses, respondentInstitutionKey)
+    } catch {
+        return empty
+    }
+}
+
+/** Journal/domain from the respondent's first completed batch in this experiment. */
+async function getInitialSubmissionScope(
+    authorId: string,
+    experimentType: ExperimentType
+): Promise<{ domain?: string; journal?: string }> {
+    if (!isSupabaseConfigured()) return {}
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("own_work,created_at,queue_index")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("queue_index", { ascending: true })
+            .order("created_at", { ascending: true })
+            .limit(1)
+
+        if (error || !data?.length) return {}
+
+        const first = data[0] as { own_work?: string | null }
+        const ownWorkId =
+            typeof first.own_work === "string" && first.own_work.trim().length > 0
+                ? first.own_work.trim()
+                : undefined
+        if (!ownWorkId) return {}
+
+        const paper = await getPaperRowByWorkId(ownWorkId)
+        if (!paper) return {}
+        return {
+            domain: paper.domain ?? undefined,
+            journal: paper.journal ?? undefined,
+        }
+    } catch {
+        return {}
+    }
+}
+
+async function getPaperRowByWorkId(workId: string): Promise<PaperRow | null> {
+    if (!isSupabaseConfigured()) return null
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("papers")
+            .select(PAPER_COLUMNS)
+            .eq("work_id", workId)
+            .maybeSingle()
+        if (error || !data) return null
+        return data as PaperRow
+    } catch {
+        return null
+    }
+}
+
 async function getExperimentPapersPrioritized(
     authorId: string | undefined,
     worksPer: number,
-    experimentType: ExperimentType
+    experimentType: ExperimentType,
+    queueIndex: number
 ): Promise<Work[]> {
     const selected: Work[] = []
     const selectedIds = new Set<string>()
 
+    let scopeDomain: string | undefined
+    let scopeJournal: string | undefined
+    const ownWorkIds = new Set<string>()
+
     if (authorId) {
-        const ownPaper = await getPaperByAuthorIdRow(authorId)
-        if (ownPaper) {
-            if (!isExperimentEligible(ownPaper, experimentType)) {
-                return []
+        const ownPapers = await getCorrespondingOwnPapersByAuthorIdRows(authorId)
+        for (const row of ownPapers) ownWorkIds.add(row.work_id)
+
+        if (queueIndex === 0) {
+            if (ownPapers.length > 0) {
+                scopeDomain = ownPapers[0]?.domain ?? undefined
+                scopeJournal = ownPapers[0]?.journal ?? undefined
             }
-            const ownWork = mapPaperToWork(ownPaper, true)
-            selected.push(ownWork)
-            selectedIds.add(ownPaper.work_id)
+        } else {
+            const initialScope = await getInitialSubmissionScope(authorId, experimentType)
+            scopeDomain = initialScope.domain
+            scopeJournal = initialScope.journal
+            if (!scopeDomain && !scopeJournal && ownPapers.length > 0) {
+                scopeDomain = ownPapers[0]?.domain ?? undefined
+                scopeJournal = ownPapers[0]?.journal ?? undefined
+            }
+        }
+
+        const shownOwnWorkIds = await getShownOwnWorkIdsForExperiment(authorId, experimentType, ownWorkIds)
+        const nextOwnWorkId = selectNextOwnWorkId(
+            ownPapers.map((p) => p.work_id),
+            shownOwnWorkIds
+        )
+        if (nextOwnWorkId) {
+            const ownPaper = ownPapers.find((p) => p.work_id === nextOwnWorkId)
+            if (ownPaper) {
+                if (!isExperimentEligible(ownPaper, experimentType)) {
+                    return []
+                }
+                const ownWork = mapPaperToWork(ownPaper, true)
+                selected.push(ownWork)
+                selectedIds.add(ownPaper.work_id)
+            }
         }
     }
 
     let remaining = worksPer - selected.length
     if (remaining <= 0) return selected
 
-    const domain = selected[0]?.domain
-    const journal = selected[0]?.journal
+    const domain = selected[0]?.domain ?? scopeDomain
+    const journal = selected[0]?.journal ?? scopeJournal
     const strictPool = await getPapersPool({
         domain,
         journal,
-        excludeWorkIds: Array.from(selectedIds),
+        excludeWorkIds: Array.from(new Set([...Array.from(selectedIds), ...Array.from(ownWorkIds)])),
         limit: 500,
     })
 
+    const seenStatsByWork = await getSeenWorkStatsForPool(
+        strictPool.map((row) => row.work_id),
+        authorId
+    )
     const orderedStrict = orderPapersForFillers(strictPool)
+    const ownWorkId = selected.find((w) => w.isOwnWork)?.work_id
 
     for (const row of orderedStrict) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
         if (!isExperimentEligible(row, experimentType)) continue
+        if (
+            shouldExcludeBySeenRules(row, seenStatsByWork.get(row.work_id), {
+                ownWorkId,
+                experimentType,
+            })
+        ) {
+            continue
+        }
         selected.push(mapPaperToWork(row))
         selectedIds.add(row.work_id)
         remaining -= 1
@@ -274,6 +777,75 @@ async function getPaperByAuthorIdRow(authorId: string): Promise<PaperRow | null>
         return data as PaperRow
     } catch {
         return null
+    }
+}
+
+async function getCorrespondingOwnPapersByAuthorIdRows(authorId: string): Promise<PaperRow[]> {
+    if (!isSupabaseConfigured()) return []
+    try {
+        const supabase = getSupabase()
+        const escapedAuthorId = authorId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+        const lookups = [`[{"id":"${escapedAuthorId}"}]`, `[{"author_id":"${escapedAuthorId}"}]`]
+        const all: PaperRow[] = []
+        const seenIds = new Set<string>()
+        for (const pattern of lookups) {
+            const result = await supabase
+                .from("papers")
+                .select(PAPER_COLUMNS)
+                .filter("authors", "cs", pattern)
+                .order("publication_date", { ascending: false })
+            const rows = (result.data as PaperRow[] | null) ?? []
+            for (const row of rows) {
+                if (seenIds.has(row.work_id)) continue
+                const authors = Array.isArray(row.authors) ? row.authors : []
+                const isCorresponding = authors.some((a) => {
+                    const raw = a as Record<string, unknown>
+                    const id = readString(raw, ["id", "author_id", "authorId"])
+                    if (id !== authorId) return false
+                    return readBoolean(raw, ["corresponding", "is_corresponding", "isCorresponding"]) === true
+                })
+                if (!isCorresponding) continue
+                seenIds.add(row.work_id)
+                all.push(row)
+            }
+        }
+        all.sort((a, b) => {
+            const ad = a.publication_date ?? ""
+            const bd = b.publication_date ?? ""
+            return bd.localeCompare(ad)
+        })
+        return all
+    } catch {
+        return []
+    }
+}
+
+async function getShownOwnWorkIdsForExperiment(
+    authorId: string,
+    experimentType: ExperimentType,
+    ownWorkIds: Set<string>
+): Promise<Set<string>> {
+    const shown = new Set<string>()
+    if (!isSupabaseConfigured() || ownWorkIds.size === 0) return shown
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("work_ids,own_work")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+        if (error || !data?.length) return shown
+        for (const row of data as Array<{ work_ids: string[] | null; own_work: string | null }>) {
+            if (typeof row.own_work === "string" && ownWorkIds.has(row.own_work)) {
+                shown.add(row.own_work)
+            }
+            for (const workId of row.work_ids ?? []) {
+                if (ownWorkIds.has(workId)) shown.add(workId)
+            }
+        }
+        return shown
+    } catch {
+        return shown
     }
 }
 
@@ -355,11 +927,12 @@ export async function incrementWorkExposure(workIds: string[]): Promise<boolean>
 export async function getExperimentPapers(
     authorId: string | undefined,
     worksPer: number,
-    experimentType: ExperimentType = "A"
+    experimentType: ExperimentType = "A",
+    queueIndex = 0
 ): Promise<Work[]> {
     if (!isSupabaseConfigured()) return []
     // Use one consistent selector across experiments:
     // own paper + same-domain-and-journal fillers prioritized by prior exposure.
-    return getExperimentPapersPrioritized(authorId, worksPer, experimentType)
+    return getExperimentPapersPrioritized(authorId, worksPer, experimentType, queueIndex)
 }
 

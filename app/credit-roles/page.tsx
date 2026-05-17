@@ -5,28 +5,28 @@ import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Suspense, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 
 function CreditRolesContent() {
-    const searchParams = useSearchParams()
     const router = useRouter()
-    const authorId = searchParams.get("authorId")
+    const { authorId, ready: participantReady } = useSurveyParticipant()
     const [ready, setReady] = useState(false)
-    const roleImportanceHref = authorId ? `/role-importance?authorId=${encodeURIComponent(authorId)}` : "/role-importance"
+    const roleImportanceHref = "/role-importance"
 
     useEffect(() => {
+        if (!participantReady) return
         if (typeof window === "undefined") return
         const keyAuthor = authorId ?? "none"
         const demographics = window.sessionStorage.getItem(`respondentDemographics_${keyAuthor}`)
         if (!demographics) {
-            const href = authorId ? `/respondent-survey?authorId=${encodeURIComponent(authorId)}` : "/respondent-survey"
-            router.replace(href)
+            router.replace("/respondent-survey")
             return
         }
         setReady(true)
-    }, [authorId, router])
+    }, [participantReady, authorId, router])
 
-    if (!ready) {
+    if (!participantReady || !ready) {
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <p className="text-muted-foreground">Loading…</p>

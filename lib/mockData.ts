@@ -200,7 +200,7 @@ export const experimentATrials: Author[][] = [
 ]
 
 // Pool of Works for Experiment A (queue: max 3 respondents per Work)
-// Author IDs can be UUIDs (or numbers) for respondent links: /experiment-a?authorId=<uuid>
+// Participant links may include ?authorId=<uuid> once; middleware stores it in a cookie and strips the URL.
 // The work containing that author is included as one of the 5 works.
 const baseWorksPool: Work[] = [
     {

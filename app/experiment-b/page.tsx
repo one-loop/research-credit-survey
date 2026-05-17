@@ -4,7 +4,10 @@ import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense, useMemo } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
+import { useExperimentReturnCheck } from "@/lib/useExperimentReturnCheck"
+import { SurveyThanksPanel } from "@/components/SurveyThanksPanel"
 import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
 import { Mail } from "lucide-react"
@@ -64,9 +67,12 @@ function anonymizedBylineName(author: Author): string {
 }
 
 function ExperimentBPageContent() {
-    const searchParams = useSearchParams()
     const router = useRouter()
-    const authorId = searchParams.get("authorId") ?? undefined
+    const searchParams = useSearchParams()
+    const { authorId, ready: participantReady } = useSurveyParticipant()
+    const queueIndexRaw = Number(searchParams.get("queue") ?? "0")
+    const queueIndex = Number.isFinite(queueIndexRaw) && queueIndexRaw >= 0 ? Math.floor(queueIndexRaw) : 0
+    const returnCheck = useExperimentReturnCheck("B", queueIndex)
 
     const [trialGate, setTrialGate] = useState<"pending" | "failed" | "ok">("pending")
     const [works, setWorks] = useState<Work[] | null>(null)
@@ -85,23 +91,27 @@ function ExperimentBPageContent() {
     const [submittingFadeOut, setSubmittingFadeOut] = useState(false)
 
     useEffect(() => {
+        if (!participantReady || !returnCheck.ready) return
         if (typeof window === "undefined") return
+        if (returnCheck.hasPriorResponses) {
+            setTrialGate("ok")
+            return
+        }
         if (sessionStorage.getItem(trialFailedKey(authorId)) === "true") {
             setTrialGate("failed")
             return
         }
         if (sessionStorage.getItem(trialPassedKey(authorId)) !== "true") {
-            router.replace(`/trial?authorId=${encodeURIComponent(authorId ?? "")}`)
+            router.replace("/trial")
             return
         }
         setTrialGate("ok")
-    }, [authorId, router])
+    }, [participantReady, returnCheck.ready, returnCheck.hasPriorResponses, authorId, router])
 
     useEffect(() => {
-        if (trialGate !== "ok") return
+        if (!participantReady || trialGate !== "ok" || returnCheck.showThanks) return
 
         const params = new URLSearchParams()
-        if (authorId) params.set("authorId", authorId)
 
         setLoading(true)
         setError(null)
@@ -112,7 +122,7 @@ function ExperimentBPageContent() {
 
         let usedPrefetch = false
 
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && queueIndex === 0) {
             const stored =
                 window.sessionStorage.getItem(storageKey) ??
                 window.sessionStorage.getItem(legacyStorageKey)
@@ -142,7 +152,8 @@ function ExperimentBPageContent() {
         if (usedPrefetch) return
 
         params.set("experimentType", "B")
-        fetch(`/api/survey/works?${params.toString()}`)
+        params.set("queueIndex", String(queueIndex))
+        fetch(`/api/survey/works?${params.toString()}`, { credentials: "same-origin" })
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to load works")
                 return res.json()
@@ -166,7 +177,7 @@ function ExperimentBPageContent() {
             })
             .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false))
-    }, [authorId, trialGate])
+    }, [participantReady, authorId, trialGate, queueIndex, returnCheck.showThanks])
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -258,6 +269,7 @@ function ExperimentBPageContent() {
             setCurrentIndex(totalWorks)
 
             const workIds = works.map((w) => w.work_id)
+            const ownWorkId = works.find((w) => w.isOwnWork)?.work_id ?? null
             const rankings: Record<string, string[]> = {}
             works.forEach((w, i) => {
                 rankings[w.work_id] = newResults[i] ?? []
@@ -300,20 +312,34 @@ function ExperimentBPageContent() {
                         workIds,
                         rankings,
                         authorId,
+                        ownWorkId,
                         roleImportance,
                         experimentType: "B",
                         timeSpent,
                         respondentDemographics,
                     }),
                 })
-                const data = (await res.json()) as { ok?: boolean; responseId?: string; error?: string }
+                const data = (await res.json()) as {
+                    ok?: boolean
+                    responseId?: string
+                    queueIndex?: number
+                    queueAccuracy?: number | null
+                    respondentAverageAccuracy?: number | null
+                    queuesCompleted?: number
+                    averageAccuracy?: number | null
+                    error?: string
+                }
                 if (!res.ok || !data.ok || !data.responseId) {
                     setError(data.error ?? "Failed to submit rankings")
                     return
                 }
+                const savedQueue =
+                    typeof data.queueIndex === "number" && data.queueIndex >= 0
+                        ? data.queueIndex
+                        : queueIndex
                 setSubmittingFadeOut(true)
                 window.setTimeout(() => {
-                    router.replace("/survey-thanks")
+                    router.replace(`/survey-thanks?experimentType=B&queue=${savedQueue}`)
                 }, 220)
             } catch {
                 setError("Failed to submit rankings")
@@ -321,12 +347,16 @@ function ExperimentBPageContent() {
         }
     }
 
-    if (trialGate === "pending") {
+    if (!returnCheck.ready || trialGate === "pending") {
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <p className="text-muted-foreground">Checking session…</p>
             </div>
         )
+    }
+
+    if (returnCheck.showThanks) {
+        return <SurveyThanksPanel experimentType="B" queue={returnCheck.latestQueueIndex} />
     }
 
     if (trialGate === "failed") {

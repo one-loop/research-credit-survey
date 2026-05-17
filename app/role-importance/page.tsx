@@ -3,63 +3,29 @@
 import { creditRoles } from "@/lib/mockData"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
 import { Suspense } from "react"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 
 function RoleImportanceContent() {
-    const searchParams = useSearchParams()
-    const authorId = searchParams.get("authorId")
-    const [assignedExperiment, setAssignedExperiment] = useState<"A" | "C" | null>(null)
-    const trialHref = authorId ? `/trial?authorId=${encodeURIComponent(authorId)}` : "/trial"
+    const { authorId } = useSurveyParticipant()
+    const [assignedExperiment, setAssignedExperiment] = useState<"A" | "B" | "C" | null>(null)
+    const trialHref = "/trial"
     const [values, setValues] = useState<Record<string, number>>({})
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)
     const [isPrefetching, setIsPrefetching] = useState(false)
     const allRolesScored = creditRoles.every((role) => values[role.id] !== undefined)
 
-    useEffect(() => {
-        let cancelled = false
-        fetch("/api/survey/experiment-assignment")
-            .then((res) => {
-                if (!res.ok) throw new Error("assignment failed")
-                return res.json() as Promise<{ experiment: "A" | "C" }>
-            })
-            .then((data) => {
-                if (!cancelled) setAssignedExperiment(data.experiment)
-            })
-            .catch(() => {
-                if (!cancelled) setAssignedExperiment("A")
-            })
-        return () => {
-            cancelled = true
-        }
-    }, [authorId])
-
-    useEffect(() => {
-        if (typeof window === "undefined" || !assignedExperiment) return
-        const keyAuthor = authorId ?? "none"
-        window.sessionStorage.setItem(`surveyExperiment_${keyAuthor}`, assignedExperiment)
-    }, [authorId, assignedExperiment])
-
-    // Persist partial role-importance answers as user progresses.
-    useEffect(() => {
-        if (typeof window === "undefined") return
-        const keyAuthor = authorId ?? "none"
-        const storageKey = `roleImportance_${keyAuthor}`
-        window.sessionStorage.setItem(storageKey, JSON.stringify(values))
-    }, [authorId, values])
-
-    async function prefetchWorks(experiment: "A" | "C") {
+    const prefetchWorks = useCallback(async (experiment: "A" | "B" | "C") => {
         const params = new URLSearchParams()
-        if (authorId) params.set("authorId", authorId)
 
         setWorksReady(false)
         setWorksError(null)
         setIsPrefetching(true)
 
         params.set("experimentType", experiment)
-        fetch(`/api/survey/works?${params.toString()}`)
+        fetch(`/api/survey/works?${params.toString()}`, { credentials: "same-origin" })
             .then((res) => {
                 if (!res.ok) throw new Error("Failed to prepare next step")
                 return res.json()
@@ -80,12 +46,43 @@ function RoleImportanceContent() {
             .finally(() => {
                 setIsPrefetching(false)
             })
-    }
+    }, [authorId])
 
     useEffect(() => {
-        if (!assignedExperiment) return
-        void prefetchWorks(assignedExperiment)
+        let cancelled = false
+        fetch("/api/survey/experiment-assignment", { credentials: "same-origin" })
+            .then((res) => {
+                if (!res.ok) throw new Error("assignment failed")
+                return res.json() as Promise<{ experiment: "A" | "B" | "C" }>
+            })
+            .then((data) => {
+                if (cancelled) return
+                setAssignedExperiment(data.experiment)
+                void prefetchWorks(data.experiment)
+            })
+            .catch(() => {
+                if (cancelled) return
+                setAssignedExperiment("A")
+                void prefetchWorks("A")
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [authorId, prefetchWorks])
+
+    useEffect(() => {
+        if (typeof window === "undefined" || !assignedExperiment) return
+        const keyAuthor = authorId ?? "none"
+        window.sessionStorage.setItem(`surveyExperiment_${keyAuthor}`, assignedExperiment)
     }, [authorId, assignedExperiment])
+
+    // Persist partial role-importance answers as user progresses.
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const keyAuthor = authorId ?? "none"
+        const storageKey = `roleImportance_${keyAuthor}`
+        window.sessionStorage.setItem(storageKey, JSON.stringify(values))
+    }, [authorId, values])
 
     return (
         <div className="max-w-3xl mx-auto p-6">

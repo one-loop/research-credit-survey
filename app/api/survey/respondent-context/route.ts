@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import { worksPool } from "@/lib/mockData"
+import { getParticipantAuthorId } from "@/lib/survey/participant"
 
 export async function GET(request: NextRequest) {
-    const authorId = request.nextUrl.searchParams.get("authorId")
+    const authorId = getParticipantAuthorId(request)
     if (!authorId) {
-        return NextResponse.json({ error: "authorId is required" }, { status: 400 })
+        return NextResponse.json({ journal: null, field: null })
     }
 
     if (isSupabaseConfigured()) {
