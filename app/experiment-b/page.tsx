@@ -6,6 +6,8 @@ import { CSS } from "@dnd-kit/utilities"
 import { useState, useEffect, Suspense, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
+import { useExperimentReturnCheck } from "@/lib/useExperimentReturnCheck"
+import { SurveyThanksPanel } from "@/components/SurveyThanksPanel"
 import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
 import { Mail } from "lucide-react"
@@ -70,6 +72,7 @@ function ExperimentBPageContent() {
     const { authorId, ready: participantReady } = useSurveyParticipant()
     const queueIndexRaw = Number(searchParams.get("queue") ?? "0")
     const queueIndex = Number.isFinite(queueIndexRaw) && queueIndexRaw >= 0 ? Math.floor(queueIndexRaw) : 0
+    const returnCheck = useExperimentReturnCheck("B", queueIndex)
 
     const [trialGate, setTrialGate] = useState<"pending" | "failed" | "ok">("pending")
     const [works, setWorks] = useState<Work[] | null>(null)
@@ -88,8 +91,12 @@ function ExperimentBPageContent() {
     const [submittingFadeOut, setSubmittingFadeOut] = useState(false)
 
     useEffect(() => {
-        if (!participantReady) return
+        if (!participantReady || !returnCheck.ready) return
         if (typeof window === "undefined") return
+        if (returnCheck.hasPriorResponses) {
+            setTrialGate("ok")
+            return
+        }
         if (sessionStorage.getItem(trialFailedKey(authorId)) === "true") {
             setTrialGate("failed")
             return
@@ -99,10 +106,10 @@ function ExperimentBPageContent() {
             return
         }
         setTrialGate("ok")
-    }, [participantReady, authorId, router])
+    }, [participantReady, returnCheck.ready, returnCheck.hasPriorResponses, authorId, router])
 
     useEffect(() => {
-        if (!participantReady || trialGate !== "ok") return
+        if (!participantReady || trialGate !== "ok" || returnCheck.showThanks) return
 
         const params = new URLSearchParams()
 
@@ -170,7 +177,7 @@ function ExperimentBPageContent() {
             })
             .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false))
-    }, [participantReady, authorId, trialGate, queueIndex])
+    }, [participantReady, authorId, trialGate, queueIndex, returnCheck.showThanks])
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -316,6 +323,10 @@ function ExperimentBPageContent() {
                     ok?: boolean
                     responseId?: string
                     queueIndex?: number
+                    queueAccuracy?: number | null
+                    respondentAverageAccuracy?: number | null
+                    queuesCompleted?: number
+                    averageAccuracy?: number | null
                     error?: string
                 }
                 if (!res.ok || !data.ok || !data.responseId) {
@@ -336,12 +347,16 @@ function ExperimentBPageContent() {
         }
     }
 
-    if (trialGate === "pending") {
+    if (!returnCheck.ready || trialGate === "pending") {
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <p className="text-muted-foreground">Checking session…</p>
             </div>
         )
+    }
+
+    if (returnCheck.showThanks) {
+        return <SurveyThanksPanel experimentType="B" queue={returnCheck.latestQueueIndex} />
     }
 
     if (trialGate === "failed") {

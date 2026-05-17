@@ -3,6 +3,20 @@ import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import { shouldExcludeBySeenRules, type SeenWorkStats } from "@/lib/survey/poolEligibility"
 import { selectNextOwnWorkId } from "@/lib/survey/queueSelection"
+import {
+    buildAccuracyDistributionStats,
+    type AccuracyDistributionStats,
+} from "@/lib/survey/accuracyDistribution"
+import {
+    buildInstitutionLeaderboard,
+    institutionKeyFromDemographics,
+    type InstitutionLeaderboardResult,
+} from "@/lib/survey/institutionLeaderboard"
+import {
+    averageRankingAccuracy,
+    rankingAccuracyForWork,
+    type AuthorForRankingAccuracy,
+} from "@/lib/survey/rankingAccuracy"
 
 /** Raw author object as stored in papers.authors JSONB (from PNAS/PLOS JSONL) */
 type PaperAuthor = {
@@ -265,6 +279,318 @@ export async function getNextQueueIndexForSave(
         return 0
     } catch {
         return 0
+    }
+}
+
+/** Whether this respondent has completed at least one batch in this experiment. */
+export async function getExperimentCompletionStatus(
+    authorId: string | undefined,
+    experimentType: ExperimentType
+): Promise<{ hasCompleted: boolean; latestQueueIndex: number | null }> {
+    if (!authorId || !isSupabaseConfigured()) {
+        return { hasCompleted: false, latestQueueIndex: null }
+    }
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        if (error || !data?.length) {
+            return { hasCompleted: false, latestQueueIndex: null }
+        }
+
+        const latest = (data[0] as { queue_index?: number | null }).queue_index
+        if (typeof latest === "number" && Number.isFinite(latest) && latest >= 0) {
+            return { hasCompleted: true, latestQueueIndex: Math.floor(latest) }
+        }
+        return { hasCompleted: true, latestQueueIndex: 0 }
+    } catch {
+        return { hasCompleted: false, latestQueueIndex: null }
+    }
+}
+
+/** Most recent completion for this respondent across any experiment (for participant entry links). */
+export async function getRespondentLatestCompletion(
+    authorId: string | undefined
+): Promise<{
+    hasCompleted: boolean
+    experimentType: ExperimentType | null
+    latestQueueIndex: number | null
+}> {
+    if (!authorId || !isSupabaseConfigured()) {
+        return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
+    }
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index,experiment_type")
+            .eq("author_id", authorId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        if (error || !data?.length) {
+            return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
+        }
+
+        const row = data[0] as {
+            queue_index?: number | null
+            experiment_type?: string | null
+        }
+        const experimentType =
+            row.experiment_type === "A" || row.experiment_type === "B" || row.experiment_type === "C"
+                ? row.experiment_type
+                : null
+        const latest = row.queue_index
+        const latestQueueIndex =
+            typeof latest === "number" && Number.isFinite(latest) && latest >= 0
+                ? Math.floor(latest)
+                : 0
+        return {
+            hasCompleted: true,
+            experimentType,
+            latestQueueIndex,
+        }
+    } catch {
+        return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
+    }
+}
+
+function authorsForRankingAccuracy(paper: PaperRow): AuthorForRankingAccuracy[] {
+    return (paper.authors ?? []).map((a, position) => {
+        const raw = a as Record<string, unknown>
+        return {
+            id: readString(raw, ["id", "author_id", "authorId"]) ?? String(position),
+            equal_contrib:
+                readBoolean(raw, ["equal_contrib", "equalContrib", "equal_contribution"]) ?? false,
+        }
+    })
+}
+
+export type QueueAccuracyResult = {
+    averageAccuracy: number | null
+    workAccuracies: Record<string, number>
+}
+
+/** Compute queue accuracy from rankings and canonical paper author order. */
+export async function computeQueueAccuracyFromRankings(
+    workIds: string[],
+    rankings: Record<string, string[]>
+): Promise<QueueAccuracyResult> {
+    const workAccuracies: Record<string, number> = {}
+    const perWork: Array<number | null> = []
+
+    for (const workId of workIds) {
+        const respondentRanking = rankings[workId]
+        if (!Array.isArray(respondentRanking) || respondentRanking.length === 0) {
+            perWork.push(null)
+            continue
+        }
+        const paper = await getPaperRowByWorkId(workId)
+        if (!paper) {
+            perWork.push(null)
+            continue
+        }
+        const accuracy = rankingAccuracyForWork(
+            authorsForRankingAccuracy(paper),
+            respondentRanking
+        )
+        if (typeof accuracy === "number" && Number.isFinite(accuracy)) {
+            workAccuracies[workId] = accuracy
+        }
+        perWork.push(accuracy)
+    }
+
+    return {
+        averageAccuracy: averageRankingAccuracy(perWork),
+        workAccuracies,
+    }
+}
+
+export type RespondentAccuracySummary = {
+    /** Accuracy for the requested queue (this block of 5). */
+    queueAccuracy: number | null
+    /** Mean of stored queue accuracies across all completed queues in this experiment. */
+    respondentAverageAccuracy: number | null
+    queuesCompleted: number
+}
+
+/**
+ * Read stored accuracies for the thank-you screen. Recomputes only when a row
+ * predates the accuracy columns (legacy responses).
+ */
+export async function getRespondentAccuracySummary(
+    authorId: string | undefined,
+    experimentType: ExperimentType,
+    queueIndex: number
+): Promise<RespondentAccuracySummary> {
+    const empty: RespondentAccuracySummary = {
+        queueAccuracy: null,
+        respondentAverageAccuracy: null,
+        queuesCompleted: 0,
+    }
+    if (!authorId || !isSupabaseConfigured()) return empty
+
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("queue_index,average_accuracy,work_ids,rankings")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .order("queue_index", { ascending: true })
+            .order("created_at", { ascending: true })
+
+        if (error || !data?.length) return empty
+
+        const queueScores: number[] = []
+        let queueAccuracy: number | null = null
+
+        for (const raw of data) {
+            const row = raw as {
+                queue_index?: number | null
+                average_accuracy?: number | null
+                work_ids?: string[] | null
+                rankings?: Record<string, string[]> | null
+            }
+            const rowQueue =
+                typeof row.queue_index === "number" && Number.isFinite(row.queue_index)
+                    ? Math.floor(row.queue_index)
+                    : 0
+
+            let accuracy =
+                typeof row.average_accuracy === "number" && Number.isFinite(row.average_accuracy)
+                    ? row.average_accuracy
+                    : null
+
+            if (accuracy === null && row.work_ids?.length && row.rankings) {
+                const computed = await computeQueueAccuracyFromRankings(
+                    row.work_ids,
+                    row.rankings
+                )
+                accuracy = computed.averageAccuracy
+            }
+
+            if (typeof accuracy === "number" && Number.isFinite(accuracy)) {
+                queueScores.push(accuracy)
+                if (rowQueue === queueIndex) {
+                    queueAccuracy = accuracy
+                }
+            }
+        }
+
+        const respondentAverageAccuracy =
+            queueScores.length > 0
+                ? queueScores.reduce((sum, v) => sum + v, 0) / queueScores.length
+                : null
+
+        return {
+            queueAccuracy,
+            respondentAverageAccuracy,
+            queuesCompleted: queueScores.length,
+        }
+    } catch {
+        return empty
+    }
+}
+
+/**
+ * Distribution of stored queue-level accuracies for an experiment (one point per
+ * completed block). Shown once at least one response exists in the experiment.
+ */
+export async function getAccuracyDistributionForExperiment(
+    experimentType: ExperimentType,
+    comparisonScore: number | null
+): Promise<AccuracyDistributionStats> {
+    if (!isSupabaseConfigured()) {
+        return buildAccuracyDistributionStats([], comparisonScore)
+    }
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("average_accuracy")
+            .eq("experiment_type", experimentType)
+            .not("average_accuracy", "is", null)
+
+        if (error) {
+            return buildAccuracyDistributionStats([], comparisonScore)
+        }
+
+        const scores = (data ?? [])
+            .map((row) => (row as { average_accuracy?: number | null }).average_accuracy)
+            .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+
+        return buildAccuracyDistributionStats(scores, comparisonScore)
+    } catch {
+        return buildAccuracyDistributionStats([], comparisonScore)
+    }
+}
+
+/** Top institutions by mean block accuracy for this experiment. */
+export async function getInstitutionLeaderboardForExperiment(
+    authorId: string | undefined,
+    experimentType: ExperimentType
+): Promise<InstitutionLeaderboardResult> {
+    const empty: InstitutionLeaderboardResult = {
+        top10: [],
+        respondent: null,
+        respondentInstitutionKey: null,
+    }
+    if (!isSupabaseConfigured()) return empty
+
+    try {
+        const supabase = getSupabase()
+
+        let respondentInstitutionKey: string | null = null
+        if (authorId) {
+            const { data: authorRows } = await supabase
+                .from("experiment_responses")
+                .select("respondent_demographics")
+                .eq("author_id", authorId)
+                .eq("experiment_type", experimentType)
+                .not("respondent_demographics", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(1)
+
+            const demo = (authorRows?.[0] as { respondent_demographics?: Record<string, unknown> })
+                ?.respondent_demographics
+            respondentInstitutionKey = institutionKeyFromDemographics(demo ?? null)
+        }
+
+        const { data, error } = await supabase
+            .from("experiment_responses")
+            .select("average_accuracy, respondent_demographics")
+            .eq("experiment_type", experimentType)
+            .not("average_accuracy", "is", null)
+
+        if (error || !data?.length) return empty
+
+        const responses = data
+            .map((row) => {
+                const r = row as {
+                    average_accuracy?: number | null
+                    respondent_demographics?: Record<string, unknown> | null
+                }
+                const averageAccuracy = r.average_accuracy
+                if (typeof averageAccuracy !== "number" || !Number.isFinite(averageAccuracy)) {
+                    return null
+                }
+                return {
+                    averageAccuracy,
+                    demographics: r.respondent_demographics ?? null,
+                }
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null)
+
+        return buildInstitutionLeaderboard(responses, respondentInstitutionKey)
+    } catch {
+        return empty
     }
 }
 

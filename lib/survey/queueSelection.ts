@@ -72,18 +72,127 @@ export function selectQueueFromEligibilityPool(
 }
 
 /**
- * Recalculate pool for the next queue after respondent finishes one queue.
- * Own work is preserved so each queue can continue including own paper.
+ * Recalculate pool after a queue is completed: remove works shown in that queue.
+ * When `preserveWorkId` is set, that work stays in the pool even if it was shown
+ * (used when the same own paper must remain eligible across rounds).
  */
 export function recalculateEligibilityPoolForNextQueue(
     currentPool: QueueCandidate[],
     shownWorkIds: string[],
-    ownWorkId: string | undefined
+    preserveWorkId: string | undefined
 ): QueueCandidate[] {
     const shown = new Set(shownWorkIds)
     return currentPool.filter((w) => {
-        if (ownWorkId && w.work_id === ownWorkId) return true
+        if (preserveWorkId && w.work_id === preserveWorkId) return true
         return !shown.has(w.work_id)
     })
+}
+
+/** Mark exactly one work as the respondent's own paper for this queue. */
+export function setRespondentOwnWorkInPool(
+    pool: QueueCandidate[],
+    ownWorkId: string
+): QueueCandidate[] {
+    const withoutOwnFlag = pool
+        .filter((w) => w.work_id !== ownWorkId)
+        .map((w) => ({ ...w, isOwnWork: false as const }))
+    const existing = pool.find((w) => w.work_id === ownWorkId)
+    const own: QueueCandidate = existing
+        ? { ...existing, isOwnWork: true }
+        : { work_id: ownWorkId, isOwnWork: true, seenCount: 0 }
+    return [own, ...withoutOwnFlag]
+}
+
+export type BuildQueueForRoundInput = {
+    /** Full eligibility pool (fillers; own work is injected per round). */
+    pool: QueueCandidate[]
+    /** Respondent's corresponding-author works, newest publication first. */
+    ownWorkIdsNewestFirst: string[]
+    /** Own work_ids already shown in prior queues for this experiment. */
+    shownOwnWorkIds: Set<string>
+    /** All work_ids shown in prior queues (including fillers and prior own papers). */
+    worksShownInPriorQueues: string[]
+    queueSize?: number
+    maxSeenPerQueue?: number
+}
+
+/**
+ * Build one numbered queue (0, 1, 2, …): pick next own work, recalculate pool, select 5 works.
+ * Returns null when the respondent has no remaining corresponding-author works.
+ */
+export function buildQueueForRound(
+    input: BuildQueueForRoundInput
+): { queue: QueueCandidate[]; ownWorkId: string } | null {
+    const ownWorkId = selectNextOwnWorkId(
+        input.ownWorkIdsNewestFirst,
+        input.shownOwnWorkIds
+    )
+    if (!ownWorkId) return null
+
+    const filtered = recalculateEligibilityPoolForNextQueue(
+        input.pool,
+        input.worksShownInPriorQueues,
+        undefined
+    )
+    const poolForRound = setRespondentOwnWorkInPool(filtered, ownWorkId)
+    const queue = selectQueueFromEligibilityPool(poolForRound, {
+        queueSize: input.queueSize,
+        maxSeenPerQueue: input.maxSeenPerQueue,
+    })
+    return { queue, ownWorkId }
+}
+
+export type SimulateQueuesInput = {
+    pool: QueueCandidate[]
+    ownWorkIdsNewestFirst: string[]
+    /** Stop after this many queues (optional). */
+    maxQueues?: number
+    queueSize?: number
+    maxSeenPerQueue?: number
+}
+
+export type SimulatedQueue = {
+    queueIndex: number
+    queue: QueueCandidate[]
+    ownWorkId: string
+}
+
+/**
+ * Simulate a respondent completing as many queues as they choose (until own works run out
+ * or the pool cannot fill another queue).
+ */
+export function simulateRespondentQueues(input: SimulateQueuesInput): SimulatedQueue[] {
+    const results: SimulatedQueue[] = []
+    const shownOwnWorkIds = new Set<string>()
+    let worksShownInPriorQueues: string[] = []
+    let queueIndex = 0
+
+    while (input.maxQueues === undefined || queueIndex < input.maxQueues) {
+        let built: { queue: QueueCandidate[]; ownWorkId: string } | null
+        try {
+            built = buildQueueForRound({
+                pool: input.pool,
+                ownWorkIdsNewestFirst: input.ownWorkIdsNewestFirst,
+                shownOwnWorkIds,
+                worksShownInPriorQueues,
+                queueSize: input.queueSize,
+                maxSeenPerQueue: input.maxSeenPerQueue,
+            })
+        } catch {
+            break
+        }
+        if (!built) break
+
+        results.push({ queueIndex, queue: built.queue, ownWorkId: built.ownWorkId })
+
+        shownOwnWorkIds.add(built.ownWorkId)
+        worksShownInPriorQueues = [
+            ...worksShownInPriorQueues,
+            ...built.queue.map((w) => w.work_id),
+        ]
+        queueIndex += 1
+    }
+
+    return results
 }
 

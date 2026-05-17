@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { randomUUID } from "crypto"
 import { promises as fs } from "fs"
 import path from "path"
-import { getNextQueueIndexForSave, incrementWorkExposure } from "@/lib/db/papers"
+import {
+    computeQueueAccuracyFromRankings,
+    getNextQueueIndexForSave,
+    getRespondentAccuracySummary,
+    incrementWorkExposure,
+} from "@/lib/db/papers"
+import { getParticipantAuthorId } from "@/lib/survey/participant"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
+import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
 
@@ -14,8 +21,10 @@ async function appendResponse(payload: {
     authorId: string | null
     own_work: string | null
     queue_index: number
+    average_accuracy?: number | null
+    work_accuracies?: Record<string, number>
     role_importance: Record<string, number>
-    experimentType?: "A" | "B" | "C"
+    experimentType?: ExperimentType
     completedAt: string
     time_spent?: Record<string, number> | null
     respondent_demographics?: Record<string, string> | null
@@ -38,10 +47,9 @@ export async function POST(request: NextRequest) {
         rankings: Record<string, string[]>
         authorId?: string
         roleImportance?: Record<string, number>
-        experimentType?: "A" | "B" | "C"
+        experimentType?: ExperimentType
         timeSpent?: Record<string, number> | null
         respondentDemographics?: Record<string, string> | null
-        /** papers.work_id of respondent's own paper in this queue submission, if any */
         ownWorkId?: string | null
     }
     try {
@@ -53,10 +61,15 @@ export async function POST(request: NextRequest) {
         )
     }
 
+    const participantId = getParticipantAuthorId(request)
+    const authorId =
+        (typeof body.authorId === "string" && body.authorId.trim().length > 0
+            ? body.authorId.trim()
+            : undefined) ?? participantId
+
     const {
         workIds,
         rankings,
-        authorId,
         roleImportance,
         experimentType,
         timeSpent,
@@ -80,6 +93,11 @@ export async function POST(request: NextRequest) {
         roleImportance ??
         (Object.fromEntries(creditRoles.map((r) => [r.id, 5])) as Record<string, number>)
 
+    const { averageAccuracy, workAccuracies } = await computeQueueAccuracyFromRankings(
+        workIds,
+        rankings
+    )
+
     let responseId: string
 
     if (isSupabaseConfigured()) {
@@ -89,13 +107,15 @@ export async function POST(request: NextRequest) {
             .insert({
                 author_id: authorId ?? null,
                 work_ids: workIds,
-                rankings, // stored as JSONB
+                rankings,
                 role_importance: roleImportanceWithDefault,
                 experiment_type: experimentType ?? null,
                 time_spent: timeSpent ?? null,
                 respondent_demographics: respondentDemographics ?? null,
                 own_work: ownWork,
                 queue_index: queueIndex,
+                average_accuracy: averageAccuracy,
+                work_accuracies: workAccuracies,
             })
             .select("id")
             .single()
@@ -112,8 +132,6 @@ export async function POST(request: NextRequest) {
         responseId = randomUUID()
     }
 
-    // Local JSON is only for offline/dev: serverless deploys have a read-only filesystem,
-    // so writing here would throw after a successful Supabase insert and break the client flow.
     if (!isSupabaseConfigured()) {
         await appendResponse({
             responseId,
@@ -122,6 +140,8 @@ export async function POST(request: NextRequest) {
             authorId: authorId ?? null,
             own_work: ownWork,
             queue_index: queueIndex,
+            average_accuracy: averageAccuracy,
+            work_accuracies: workAccuracies,
             role_importance: roleImportanceWithDefault,
             experimentType,
             completedAt: new Date().toISOString(),
@@ -134,5 +154,23 @@ export async function POST(request: NextRequest) {
         await incrementWorkExposure(workIds)
     }
 
-    return NextResponse.json({ ok: true, responseId, queueIndex })
+    const accuracySummary =
+        isSupabaseConfigured() && authorId && experimentType
+            ? await getRespondentAccuracySummary(authorId, experimentType, queueIndex)
+            : {
+                  queueAccuracy: averageAccuracy,
+                  respondentAverageAccuracy: averageAccuracy,
+                  queuesCompleted: averageAccuracy !== null ? 1 : 0,
+              }
+
+    return NextResponse.json({
+        ok: true,
+        responseId,
+        queueIndex,
+        queueAccuracy: accuracySummary.queueAccuracy,
+        respondentAverageAccuracy: accuracySummary.respondentAverageAccuracy,
+        queuesCompleted: accuracySummary.queuesCompleted,
+        /** @deprecated Use queueAccuracy */
+        averageAccuracy: accuracySummary.queueAccuracy,
+    })
 }

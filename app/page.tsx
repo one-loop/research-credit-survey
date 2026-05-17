@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Suspense, useEffect, useState } from "react"
 import { Spinner } from "@/components/ui/spinner"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
+import { useRespondentLandingReturn } from "@/lib/useRespondentLandingReturn"
+import { SurveyThanksPanel } from "@/components/SurveyThanksPanel"
 import { SURVEY_PARTICIPANT_STORAGE_KEY } from "@/lib/survey/participant"
 
 
@@ -12,6 +14,7 @@ type RespondentContext = { journal: string | null; field: string | null }
 
 function HomeContent() {
     const { authorId, ready: participantReady } = useSurveyParticipant()
+    const landingReturn = useRespondentLandingReturn()
     const [context, setContext] = useState<RespondentContext | null>(null)
     const [loadingContext, setLoadingContext] = useState(false)
     const [showLoadingScreen, setShowLoadingScreen] = useState(false)
@@ -77,11 +80,20 @@ function HomeContent() {
         return () => window.clearTimeout(handle)
     }, [loadingContext, showLoadingScreen])
 
-    if (!participantReady) {
+    if (!participantReady || !landingReturn.ready) {
         return (
             <div className="max-w-3xl mx-auto p-6">
                 <p className="text-muted-foreground">Loading…</p>
             </div>
+        )
+    }
+
+    if (landingReturn.showThanks) {
+        return (
+            <SurveyThanksPanel
+                experimentType={landingReturn.experimentType}
+                queue={landingReturn.latestQueueIndex}
+            />
         )
     }
 
