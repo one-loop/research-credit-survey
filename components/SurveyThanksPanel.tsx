@@ -22,6 +22,15 @@ function formatAccuracyPercent(accuracy: number): string {
     return `${Math.round(accuracy * 100)}%`
 }
 
+function queueAccuracyQuery(experimentType: ExperimentType, queue: number, scope: string) {
+    const params = new URLSearchParams({
+        experimentType,
+        queueIndex: String(queue),
+        scope,
+    })
+    return `/api/survey/queue-accuracy?${params.toString()}`
+}
+
 export function SurveyThanksPanel({ experimentType, queue }: Props) {
     const nextQueue = queue + 1
     const continueHref =
@@ -31,7 +40,8 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
               ? `/experiment-c?queue=${nextQueue}`
               : `/experiment-a?queue=${nextQueue}`
 
-    const [insightsLoading, setInsightsLoading] = useState(true)
+    const [summaryLoading, setSummaryLoading] = useState(true)
+    const [analyticsLoading, setAnalyticsLoading] = useState(true)
     const [queueAccuracy, setQueueAccuracy] = useState<number | null>(null)
     const [respondentAverageAccuracy, setRespondentAverageAccuracy] = useState<number | null>(
         null
@@ -52,13 +62,9 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
 
     useEffect(() => {
         let cancelled = false
-        setInsightsLoading(true)
+        setSummaryLoading(true)
 
-        const params = new URLSearchParams({
-            experimentType,
-            queueIndex: String(queue),
-        })
-        fetch(`/api/survey/queue-accuracy?${params.toString()}`, { credentials: "same-origin" })
+        fetch(queueAccuracyQuery(experimentType, queue, "summary"), { credentials: "same-origin" })
             .then((res) => (res.ok ? res.json() : Promise.resolve({})))
             .then(
                 (data: {
@@ -66,21 +72,8 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                     respondentAverageAccuracy?: number | null
                     queuesCompleted?: number
                     averageAccuracy?: number | null
-                    distribution?: {
-                        show?: boolean
-                        responseCount?: number
-                        bins?: AccuracyHistogramBin[]
-                        percentile?: number | null
-                        comparisonScore?: number | null
-                    }
-                    leaderboard?: {
-                        top10?: InstitutionLeaderboardEntry[]
-                        respondent?: InstitutionLeaderboardEntry | null
-                        highlightInstitutionKey?: string | null
-                    }
                 }) => {
                     if (cancelled) return
-
                     const block =
                         typeof data.queueAccuracy === "number"
                             ? data.queueAccuracy
@@ -97,6 +90,47 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                     setQueuesCompleted(
                         typeof data.queuesCompleted === "number" ? data.queuesCompleted : undefined
                     )
+                }
+            )
+            .catch(() => {
+                if (!cancelled) {
+                    setQueueAccuracy(null)
+                    setRespondentAverageAccuracy(null)
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setSummaryLoading(false)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [experimentType, queue])
+
+    useEffect(() => {
+        let cancelled = false
+        setAnalyticsLoading(true)
+
+        fetch(queueAccuracyQuery(experimentType, queue, "analytics"), {
+            credentials: "same-origin",
+        })
+            .then((res) => (res.ok ? res.json() : Promise.resolve({})))
+            .then(
+                (data: {
+                    distribution?: {
+                        show?: boolean
+                        responseCount?: number
+                        bins?: AccuracyHistogramBin[]
+                        percentile?: number | null
+                        comparisonScore?: number | null
+                    }
+                    leaderboard?: {
+                        top10?: InstitutionLeaderboardEntry[]
+                        respondent?: InstitutionLeaderboardEntry | null
+                        highlightInstitutionKey?: string | null
+                    }
+                }) => {
+                    if (cancelled) return
 
                     if (data.distribution?.show && data.distribution.bins?.length) {
                         setDistribution({
@@ -130,14 +164,12 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
             )
             .catch(() => {
                 if (!cancelled) {
-                    setQueueAccuracy(null)
-                    setRespondentAverageAccuracy(null)
                     setDistribution(null)
                     setLeaderboard(null)
                 }
             })
             .finally(() => {
-                if (!cancelled) setInsightsLoading(false)
+                if (!cancelled) setAnalyticsLoading(false)
             })
 
         return () => {
@@ -157,9 +189,11 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
     const showLeaderboard =
         leaderboard !== null &&
         (leaderboard.top10.length > 0 || leaderboard.respondent !== null)
+    const showAccuracyCopy = summaryLoading || showBlockAccuracy || showOverallAccuracy
     const showInsightsSection =
-        insightsLoading || showBlockAccuracy || showOverallAccuracy || showDistributionChart || showLeaderboard
-    const wideLayout = insightsLoading || showDistributionChart || showLeaderboard
+        showAccuracyCopy || analyticsLoading || showDistributionChart || showLeaderboard
+    const wideLayout =
+        analyticsLoading || showDistributionChart || showLeaderboard
 
     return (
         <div className={`mx-auto p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
@@ -169,54 +203,54 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
             </p>
             {showInsightsSection ? (
                 <div className="space-y-3 mb-6">
-                    {insightsLoading ? (
+                    {summaryLoading ? (
+                        <div className="space-y-2" aria-busy="true">
+                            <Skeleton className="h-4 w-full max-w-md" />
+                            <Skeleton className="h-4 w-3/4 max-w-sm" />
+                        </div>
+                    ) : (showBlockAccuracy || showOverallAccuracy) ? (
+                        <div className="space-y-3 text-foreground leading-relaxed">
+                            {showBlockAccuracy ? (
+                                <p>
+                                    Your accuracy for your most recent block of 5 tasks was{" "}
+                                    <span className="font-semibold">
+                                        {formatAccuracyPercent(queueAccuracy)}
+                                    </span>
+                                    .
+                                </p>
+                            ) : null}
+                            {showSeparateOverall ? (
+                                <p>
+                                    Your average accuracy across all{" "}
+                                    <span className="font-semibold">{completed}</span> blocks you
+                                    have completed is{" "}
+                                    <span className="font-semibold">
+                                        {formatAccuracyPercent(respondentAverageAccuracy!)}
+                                    </span>
+                                    .
+                                </p>
+                            ) : showOverallAccuracy && !showBlockAccuracy ? (
+                                <p>
+                                    Your average accuracy across{" "}
+                                    {completed === 1 ? "this block" : `all ${completed} blocks`} is{" "}
+                                    <span className="font-semibold">
+                                        {formatAccuracyPercent(respondentAverageAccuracy!)}
+                                    </span>
+                                    .
+                                </p>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {!summaryLoading && (showBlockAccuracy || showOverallAccuracy) ? (
+                        <AccuracyCalculationInfo />
+                    ) : null}
+                    {analyticsLoading ? (
                         <>
-                            <div className="space-y-2" aria-busy="true">
-                                <Skeleton className="h-4 w-full max-w-md" />
-                                <Skeleton className="h-4 w-3/4 max-w-sm" />
-                            </div>
                             <AccuracyDistributionChartSkeleton />
                             <InstitutionLeaderboardSkeleton />
                         </>
                     ) : (
                         <>
-                            {(showBlockAccuracy || showOverallAccuracy) && (
-                                <div className="space-y-3 text-foreground leading-relaxed">
-                                    {showBlockAccuracy ? (
-                                        <p>
-                                            Your accuracy for your most recent block of 5 tasks was{" "}
-                                            <span className="font-semibold">
-                                                {formatAccuracyPercent(queueAccuracy)}
-                                            </span>
-                                            .
-                                        </p>
-                                    ) : null}
-                                    {showSeparateOverall ? (
-                                        <p>
-                                            Your average accuracy across all{" "}
-                                            <span className="font-semibold">{completed}</span> blocks
-                                            you have completed is{" "}
-                                            <span className="font-semibold">
-                                                {formatAccuracyPercent(respondentAverageAccuracy!)}
-                                            </span>
-                                            .
-                                        </p>
-                                    ) : showOverallAccuracy && !showBlockAccuracy ? (
-                                        <p>
-                                            Your average accuracy across{" "}
-                                            {completed === 1 ? "this block" : `all ${completed} blocks`}{" "}
-                                            is{" "}
-                                            <span className="font-semibold">
-                                                {formatAccuracyPercent(respondentAverageAccuracy!)}
-                                            </span>
-                                            .
-                                        </p>
-                                    ) : null}
-                                </div>
-                            )}
-                            {(showBlockAccuracy || showOverallAccuracy) && (
-                                <AccuracyCalculationInfo />
-                            )}
                             {showDistributionChart && distribution ? (
                                 <AccuracyDistributionChart
                                     bins={distribution.bins}
