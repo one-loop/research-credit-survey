@@ -36,12 +36,21 @@ const roleDetailsMap: Record<string, string> = {
     "Funding acquisition": "Acquisition of financial support for the project.",
 }
 
-function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+function SortableItem({
+    id,
+    children,
+    widthCh,
+}: {
+    id: string
+    children: React.ReactNode
+    widthCh?: number
+}) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
 
     const style = {
         transform: CSS.Transform.toString(transform),
-        transition
+        transition,
+        width: widthCh ? `${widthCh}ch` : undefined,
     }
 
     return (
@@ -50,7 +59,7 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
             style={style}
             {...attributes}
             {...listeners}
-            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing min-w-[100px] bg-violet-50 border-violet-950 text-violet-950"
+            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing bg-violet-50 border-violet-950 text-violet-950"
         >
             {children}
         </div>
@@ -214,6 +223,12 @@ function ExperimentBPageContent() {
         () => (currentWork ? shuffledAuthorsForRanking(currentWork.authors) : []),
         [currentWork?.work_id]
     )
+    const authorCardWidthCh = useMemo(() => {
+        if (items.length === 0) return 14
+        const longestName = Math.max(...items.map((author) => anonymizedBylineName(author).length))
+        // Add some breathing room for padding and optional envelope icon.
+        return Math.min(Math.max(longestName + 4, 14), 32)
+    }, [items])
 
     const rankingUiActive =
         trialGate === "ok" &&
@@ -514,7 +529,7 @@ function ExperimentBPageContent() {
                                     {items.map((author, positionIndex) => {
                                         const showEnvelope = envelopeSlotIndex >= 0 && positionIndex === envelopeSlotIndex
                                         return (
-                                            <SortableItem key={author.id} id={author.id}>
+                                            <SortableItem key={author.id} id={author.id} widthCh={authorCardWidthCh}>
                                                 <div className="flex items-center gap-1.5 align-center justify-center">
                                                     <span className="font-medium">
                                                         {anonymizedBylineName(author)}
