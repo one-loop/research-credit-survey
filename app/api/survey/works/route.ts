@@ -4,6 +4,8 @@ import { getExperimentPapers } from "@/lib/db/papers"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
 import type { Work } from "@/lib/types"
 import { getParticipantAuthorId } from "@/lib/survey/participant"
+import type { ExperimentType } from "@/lib/survey/experimentAssignment"
+import { filterWorksForExperiment, workIsExperimentEligible } from "@/lib/survey/experimentEligibility"
 
 const WORKS_PER_RESPONDENT = 5
 
@@ -32,12 +34,6 @@ export async function GET(request: NextRequest) {
         selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT, experimentType, queueIndex)
         const duration = Date.now() - start
         console.log("[survey/works] Supabase experiment papers took", duration, "ms", "| queue:", queueIndex)
-        if (experimentType === "B" && authorId && selected.length === 0) {
-            return NextResponse.json(
-                { error: "Experiment B is not eligible for this author." },
-                { status: 403 }
-            )
-        }
         if (selected.length > 0) {
             dataSource = "supabase"
         }
@@ -49,23 +45,39 @@ export async function GET(request: NextRequest) {
         const findWorkByAuthorId = (id: string) =>
             worksPool.find((w) => w.authors.some((a) => a.id === id))
         const ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
-        if (ownWork) selected.push({ ...ownWork, isOwnWork: true })
+        if (ownWork && workIsExperimentEligible(ownWork, experimentType)) {
+            selected.push({ ...ownWork, isOwnWork: true })
+        }
         const targetDomain = ownWork?.domain
         const targetJournal = ownWork?.journal
         const candidatePool = worksPool.filter((w) => {
             if (ownWork && w.work_id === ownWork.work_id) return false
             if (targetDomain && w.domain !== targetDomain) return false
             if (targetJournal && w.journal !== targetJournal) return false
+            if (!workIsExperimentEligible(w, experimentType)) return false
             return true
         })
         const pool = targetDomain || targetJournal
             ? candidatePool
-            : worksPool.filter((w) => !ownWork || w.work_id !== ownWork.work_id)
+            : worksPool.filter(
+                  (w) =>
+                      (!ownWork || w.work_id !== ownWork.work_id) &&
+                      workIsExperimentEligible(w, experimentType)
+              )
         const shuffled = shuffle(pool)
         for (const work of shuffled) {
             if (selected.length >= WORKS_PER_RESPONDENT) break
             if (!selected.some((s) => s.work_id === work.work_id)) selected.push(work)
         }
+    }
+
+    selected = filterWorksForExperiment(selected, experimentType)
+
+    if (experimentType === "B" && authorId && selected.length === 0) {
+        return NextResponse.json(
+            { error: "Experiment B is not eligible for this author." },
+            { status: 403 }
+        )
     }
     const res = NextResponse.json({
         works: selected,

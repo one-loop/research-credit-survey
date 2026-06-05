@@ -2,9 +2,11 @@
 
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { CircleHelp } from "lucide-react"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
     Select,
     SelectContent,
@@ -271,9 +273,34 @@ function RespondentSurveyContent() {
                 </div>
 
                 <div>
-                    <label id="institution-label" className="block text-sm font-medium mb-1.5">
-                        Current institution (optional)
-                    </label>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                        <label id="institution-label" className="text-sm font-medium">
+                            Current institution (optional)
+                        </label>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="inline-flex text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label="Why are we asking for your institute?"
+                                >
+                                    <CircleHelp className="h-4 w-4 shrink-0" aria-hidden />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent
+                                side="top"
+                                sideOffset={8}
+                                className="max-w-xs px-3 py-2 text-xs leading-relaxed"
+                            >
+                                <p className="font-medium mb-1">Why are we asking for your institute?</p>
+                                <p>
+                                    We ask for your institution for gamification features, such as the
+                                    institution leaderboard, to make the survey more engaging and fun
+                                    for you.
+                                </p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
                     <Combobox
                         items={institutionOptions}
                         searchValue={institution}

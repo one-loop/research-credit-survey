@@ -497,7 +497,7 @@ function TrialPageContent() {
                                 <p className="text-sm text-muted-foreground mb-2">
                                     This section lists each author&apos;s roles. Example:{" "}
                                     <span className="text-foreground font-medium">
-                                        {experiment === "A" || experiment === "C" ? "A.A: Conceptualization, Funding acquisition" : "Alex Avery: Conceptualization, Funding acquisition"}
+                                        {experiment === "A" || experiment === "C" ? "A.A: Conceptualization, Methodology, Supervision" : "Alex Avery: Conceptualization, Methodology, Supervision"}
                                     </span>{" "}
                                     means {experiment === "A" || experiment === "C" ? "A.A" : "Alex Avery"} performed these tasks for this publication.
                                 </p>

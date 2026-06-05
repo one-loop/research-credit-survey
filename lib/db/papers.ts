@@ -1,6 +1,7 @@
 import type { Work, Author } from "@/lib/types"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
+import { isExperimentEligible as paperIsExperimentEligible } from "@/lib/survey/experimentEligibility"
 import { shouldExcludeBySeenRules, type SeenWorkStats } from "@/lib/survey/poolEligibility"
 import { selectNextOwnWorkId } from "@/lib/survey/queueSelection"
 import {
@@ -134,12 +135,6 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
 const PAPER_COLUMNS =
     "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors,experiment_eligibility,work_exposure"
 
-function isExperimentEligible(paper: PaperRow, experimentType: ExperimentType): boolean {
-    const eligibility = paper.experiment_eligibility
-    if (!Array.isArray(eligibility) || eligibility.length === 0) return experimentType === "A"
-    return eligibility.some((value) => value === experimentType)
-}
-
 function shuffle<T>(array: T[]): T[] {
     const result = [...array]
     for (let i = result.length - 1; i > 0; i--) {
@@ -155,9 +150,10 @@ async function getPapersPool(
         journal?: string
         excludeWorkIds: string[]
         limit: number
+        experimentType: ExperimentType
     }
 ): Promise<PaperRow[]> {
-    const { domain, journal, excludeWorkIds, limit } = opts
+    const { domain, journal, excludeWorkIds, limit, experimentType } = opts
     if (!isSupabaseConfigured()) return []
     try {
         const supabase = getSupabase()
@@ -172,10 +168,15 @@ async function getPapersPool(
             const escapedIds = excludeWorkIds.map((id) => `"${id.replace(/"/g, '\\"')}"`)
             query = query.not("work_id", "in", `(${escapedIds.join(",")})`)
         }
+        if (experimentType === "B" || experimentType === "C") {
+            query = query.contains("experiment_eligibility", [experimentType])
+        }
 
         const { data, error } = await query
         if (error || !data?.length) return []
-        return data as PaperRow[]
+        return (data as PaperRow[]).filter((row) =>
+            paperIsExperimentEligible(row.experiment_eligibility, experimentType)
+        )
     } catch {
         return []
     }
@@ -618,17 +619,21 @@ async function getExperimentPapersPrioritized(
             }
         }
 
+        const eligibleOwnPapers = ownPapers.filter((paper) =>
+            paperIsExperimentEligible(paper.experiment_eligibility, experimentType)
+        )
+        if (experimentType === "B" && authorId && eligibleOwnPapers.length === 0) {
+            return []
+        }
+
         const shownOwnWorkIds = await getShownOwnWorkIdsForExperiment(authorId, experimentType, ownWorkIds)
         const nextOwnWorkId = selectNextOwnWorkId(
-            ownPapers.map((p) => p.work_id),
+            eligibleOwnPapers.map((p) => p.work_id),
             shownOwnWorkIds
         )
         if (nextOwnWorkId) {
-            const ownPaper = ownPapers.find((p) => p.work_id === nextOwnWorkId)
+            const ownPaper = eligibleOwnPapers.find((p) => p.work_id === nextOwnWorkId)
             if (ownPaper) {
-                if (!isExperimentEligible(ownPaper, experimentType)) {
-                    return []
-                }
                 const ownWork = mapPaperToWork(ownPaper, true)
                 selected.push(ownWork)
                 selectedIds.add(ownPaper.work_id)
@@ -637,7 +642,11 @@ async function getExperimentPapersPrioritized(
     }
 
     let remaining = worksPer - selected.length
-    if (remaining <= 0) return selected
+    if (remaining <= 0) {
+        return selected.filter((work) =>
+            paperIsExperimentEligible(work.experiment_eligibility, experimentType)
+        )
+    }
 
     const domain = selected[0]?.domain ?? scopeDomain
     const journal = selected[0]?.journal ?? scopeJournal
@@ -646,6 +655,7 @@ async function getExperimentPapersPrioritized(
         journal,
         excludeWorkIds: Array.from(new Set([...Array.from(selectedIds), ...Array.from(ownWorkIds)])),
         limit: 500,
+        experimentType,
     })
 
     const seenStatsByWork = await getSeenWorkStatsForPool(
@@ -658,7 +668,7 @@ async function getExperimentPapersPrioritized(
     for (const row of orderedStrict) {
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
-        if (!isExperimentEligible(row, experimentType)) continue
+        if (!paperIsExperimentEligible(row.experiment_eligibility, experimentType)) continue
         if (
             shouldExcludeBySeenRules(row, seenStatsByWork.get(row.work_id), {
                 ownWorkId,
@@ -672,7 +682,9 @@ async function getExperimentPapersPrioritized(
         remaining -= 1
     }
 
-    return selected
+    return selected.filter((work) =>
+        paperIsExperimentEligible(work.experiment_eligibility, experimentType)
+    )
 }
 
 /**

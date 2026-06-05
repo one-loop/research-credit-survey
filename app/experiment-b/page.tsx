@@ -17,6 +17,7 @@ import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { Spinner } from "@/components/ui/spinner"
+import { filterWorksForExperiment } from "@/lib/survey/experimentEligibility"
 
 const roleDetailsMap: Record<string, string> = {
     Conceptualization: "Ideas, formulation or evolution of overarching research goals and aims.",
@@ -138,7 +139,10 @@ function ExperimentBPageContent() {
             if (stored) {
                 try {
                     const parsed = JSON.parse(stored) as { works: Work[]; dataSource?: string }
-                    const incoming = parsed.works ?? []
+                    const incoming = filterWorksForExperiment(parsed.works ?? [], "B")
+                    if (incoming.length === 0) {
+                        throw new Error("Prefetched works are not eligible for experiment B")
+                    }
                     if (parsed.dataSource) setDataSource(parsed.dataSource)
                     const shuffled = [...incoming]
                     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -164,11 +168,14 @@ function ExperimentBPageContent() {
         params.set("queueIndex", String(queueIndex))
         fetch(`/api/survey/works?${params.toString()}`, { credentials: "same-origin" })
             .then((res) => {
+                if (res.status === 403) {
+                    throw new Error("Experiment B is not eligible for this author.")
+                }
                 if (!res.ok) throw new Error("Failed to load works")
                 return res.json()
             })
             .then((data: { works: Work[]; dataSource?: string }) => {
-                const incoming = data.works ?? []
+                const incoming = filterWorksForExperiment(data.works ?? [], "B")
                 if (data.dataSource) setDataSource(data.dataSource)
                 // Randomize order of the 5 selected works so the respondent's
                 // own work is not always shown first.
