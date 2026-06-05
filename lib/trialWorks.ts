@@ -1,4 +1,5 @@
 import type { Author, Work } from "@/lib/types"
+import { displayJournalName } from "@/lib/survey/journalDisplay"
 
 /** Example titles for practice only (not real survey stimuli). */
 const TRIAL_TITLES: Record<string, string> = {
@@ -24,14 +25,6 @@ function normalizeDomain(domain: string | undefined): string {
         return "Physical Sciences"
     }
     return "Social Sciences"
-}
-
-function normalizeJournal(journal: string | undefined): "PLOS ONE" | "PNAS" {
-    const j = (journal ?? "").toLowerCase()
-    if (j.includes("proceedings of the national academy of sciences") || j.includes("pnas")) {
-        return "PNAS"
-    }
-    return "PLOS ONE"
 }
 
 function trialAuthorsForExperiment(experiment: "A" | "B" | "C"): Author[] {
@@ -115,7 +108,7 @@ export function getTrialWorkForDomain(
         display_name: displayName,
         field: fieldLabel,
         domain: domainLabel,
-        journal: normalizeJournal(journal),
+        journal: displayJournalName(journal),
         publication_date: "2018-01-01",
         authors: trialAuthorsForExperiment(experiment),
     }
