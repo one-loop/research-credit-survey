@@ -17,6 +17,7 @@ import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { Spinner } from "@/components/ui/spinner"
+import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicInfoTable"
 
 
 const roleDetailsMap: Record<string, string> = {
@@ -471,17 +472,12 @@ function ExperimentCPageContent() {
                             ))}
                         </div>
                     </div>
-                    <div className="mb-6">
-                        <p className="font-medium mb-2">Academic Information:</p>
-                        <div className="space-y-1 text-md text-muted-foreground">
-                            {displayAuthors.map((author) => (
-                                <p key={author.id}>
-                                    <span className="font-medium text-foreground">{author.initials}</span>: Top 100 institution:{" "}
-                                    {author.top100_institution ? "Yes" : "No"}; Academic Age: {author.academic_age ?? "N/A"}; h-index: {author.h_index ?? "N/A"}
-                                </p>
-                            ))}
-                        </div>
-                    </div>
+                    <ExperimentCAcademicInfoTable
+                        authors={displayAuthors}
+                        getAuthorLabel={(author) => author.initials}
+                        title="🎓 Academic information"
+                        className="mb-6"
+                    />
 
                     <div className="mb-6">
                         <p className="font-medium mb-8">

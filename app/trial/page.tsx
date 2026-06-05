@@ -19,6 +19,7 @@ import {
     trialPassedKey,
 } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
+import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicInfoTable"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
@@ -461,16 +462,11 @@ function TrialPageContent() {
                               : "opacity-35",
                     ].join(" ")}
                 >
-                    <p className="font-medium mb-2">Academic information (practice)</p>
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                        {work.authors.map((author) => (
-                            <p key={author.id}>
-                                <span className="font-medium text-foreground">{trialDisplayName(author, experiment)}</span>: Top 100 Institution:{" "}
-                                {author.first_institution_name ?? "N/A"}; Academic age: {author.academic_age ?? "N/A"};
-                                h-index: {author.h_index ?? "N/A"}
-                            </p>
-                        ))}
-                    </div>
+                    <ExperimentCAcademicInfoTable
+                        authors={work.authors}
+                        getAuthorLabel={(author) => trialDisplayName(author, experiment)}
+                        title="Academic information (practice)"
+                    />
                 </div>
             )}
 
@@ -561,8 +557,8 @@ function TrialPageContent() {
                             <>
                                 <p className="font-semibold mb-1">2) Academic information</p>
                                 <p className="text-sm text-muted-foreground mb-2">
-                                    This section provides additional author details: institution status (top/non-top 100),
-                                    academic age, and h-index.
+                                    This table shows additional author details: whether they are at a top-100
+                                    institution, their academic age, and h-index.
                                 </p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Use this information together with the contributions section when judging likely

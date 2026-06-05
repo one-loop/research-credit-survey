@@ -9,6 +9,7 @@ import { InstitutionLeaderboard } from "@/components/InstitutionLeaderboard"
 import { InstitutionLeaderboardSkeleton } from "@/components/InstitutionLeaderboardSkeleton"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ThankYouAnalyticsConfetti, ThankYouConfetti } from "@/components/ThankYouConfetti"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
@@ -196,13 +197,14 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
         analyticsLoading || showDistributionChart || showLeaderboard
 
     return (
-        <div className={`mx-auto p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
+        <div className={`mx-auto overflow-visible p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
+            <ThankYouConfetti />
             <h1 className="text-2xl font-bold mb-3">Thank you</h1>
             <p className="text-muted-foreground leading-relaxed mb-4">
                 Your responses are complete. We appreciate you taking the time to participate in this study.
             </p>
             {showInsightsSection ? (
-                <div className="space-y-3 mb-6">
+                <div className="mb-6 space-y-3 overflow-visible">
                     {summaryLoading ? (
                         <div className="space-y-2" aria-busy="true">
                             <Skeleton className="h-4 w-full max-w-md" />
@@ -244,30 +246,42 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                     {!summaryLoading && (showBlockAccuracy || showOverallAccuracy) ? (
                         <AccuracyCalculationInfo />
                     ) : null}
-                    {analyticsLoading ? (
-                        <>
-                            <AccuracyDistributionChartSkeleton />
-                            <InstitutionLeaderboardSkeleton />
-                        </>
-                    ) : (
-                        <>
-                            {showDistributionChart && distribution ? (
-                                <AccuracyDistributionChart
-                                    bins={distribution.bins}
-                                    percentile={distribution.percentile}
-                                    comparisonScore={distribution.comparisonScore}
-                                    responseCount={distribution.responseCount}
-                                />
-                            ) : null}
-                            {showLeaderboard && leaderboard ? (
-                                <InstitutionLeaderboard
-                                    top10={leaderboard.top10}
-                                    respondent={leaderboard.respondent}
-                                    highlightInstitutionKey={leaderboard.highlightInstitutionKey}
-                                />
-                            ) : null}
-                        </>
-                    )}
+                    <div className="relative overflow-visible">
+                        <ThankYouAnalyticsConfetti
+                            active={
+                                !analyticsLoading &&
+                                (showDistributionChart || showLeaderboard)
+                            }
+                        />
+                        <div className="relative z-10 space-y-3">
+                            {analyticsLoading ? (
+                                <>
+                                    <AccuracyDistributionChartSkeleton />
+                                    <InstitutionLeaderboardSkeleton />
+                                </>
+                            ) : (
+                                <>
+                                    {showDistributionChart && distribution ? (
+                                        <AccuracyDistributionChart
+                                            bins={distribution.bins}
+                                            percentile={distribution.percentile}
+                                            comparisonScore={distribution.comparisonScore}
+                                            responseCount={distribution.responseCount}
+                                        />
+                                    ) : null}
+                                    {showLeaderboard && leaderboard ? (
+                                        <InstitutionLeaderboard
+                                            top10={leaderboard.top10}
+                                            respondent={leaderboard.respondent}
+                                            highlightInstitutionKey={
+                                                leaderboard.highlightInstitutionKey
+                                            }
+                                        />
+                                    ) : null}
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
             ) : null}
             <div className="flex justify-end">
