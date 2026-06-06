@@ -54,11 +54,7 @@ export function AccuracyDistributionChart({
             : null
 
     const cumulativeY =
-        typeof percentile === "number" && Number.isFinite(percentile)
-            ? Math.min(1, Math.max(0, percentile / 100))
-            : clampedScore !== null
-              ? interpolateCumulativeAt(curvePoints, clampedScore)
-              : null
+        clampedScore !== null ? interpolateCumulativeAt(curvePoints, clampedScore) : null
 
     const markerX =
         clampedScore !== null ? PAD.left + clampedScore * CHART_W : null
