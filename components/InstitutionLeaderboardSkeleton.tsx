@@ -19,7 +19,7 @@ function LeaderboardRowSkeleton({ nameWidth }: { nameWidth: string }) {
 export function InstitutionLeaderboardSkeleton() {
     return (
         <div className="rounded-lg border bg-card p-4" aria-busy="true" aria-label="Loading leaderboard">
-            <Skeleton className="h-4 w-44 mb-2" />
+            <Skeleton className="h-5 w-44 mb-2" />
             <Skeleton className="h-3 w-full max-w-sm mb-4" />
             <table className="w-full">
                 <thead>

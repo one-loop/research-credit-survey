@@ -13,6 +13,7 @@ import { ThankYouAnalyticsConfetti, ThankYouConfetti } from "@/components/ThankY
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
+import { formatOrdinal } from "@/lib/survey/percentileFormat"
 
 type Props = {
     experimentType: ExperimentType
@@ -59,6 +60,10 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
         top10: InstitutionLeaderboardEntry[]
         respondent: InstitutionLeaderboardEntry | null
         highlightInstitutionKey: string | null
+    } | null>(null)
+    const [percentileSummary, setPercentileSummary] = useState<{
+        overall: number | null
+        institution: number | null
     } | null>(null)
 
     useEffect(() => {
@@ -124,6 +129,7 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                         bins?: AccuracyHistogramBin[]
                         percentile?: number | null
                         comparisonScore?: number | null
+                        institutionPercentile?: number | null
                     }
                     leaderboard?: {
                         top10?: InstitutionLeaderboardEntry[]
@@ -132,6 +138,17 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                     }
                 }) => {
                     if (cancelled) return
+
+                    setPercentileSummary({
+                        overall:
+                            typeof data.distribution?.percentile === "number"
+                                ? data.distribution.percentile
+                                : null,
+                        institution:
+                            typeof data.distribution?.institutionPercentile === "number"
+                                ? data.distribution.institutionPercentile
+                                : null,
+                    })
 
                     if (data.distribution?.show && data.distribution.bins?.length) {
                         setDistribution({
@@ -167,6 +184,7 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                 if (!cancelled) {
                     setDistribution(null)
                     setLeaderboard(null)
+                    setPercentileSummary(null)
                 }
             })
             .finally(() => {
@@ -191,27 +209,35 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
         leaderboard !== null &&
         (leaderboard.top10.length > 0 || leaderboard.respondent !== null)
     const showAccuracyCopy = summaryLoading || showBlockAccuracy || showOverallAccuracy
+    const showPercentileSummary =
+        !analyticsLoading &&
+        percentileSummary !== null &&
+        (percentileSummary.overall !== null || percentileSummary.institution !== null)
     const showInsightsSection =
-        showAccuracyCopy || analyticsLoading || showDistributionChart || showLeaderboard
+        showAccuracyCopy ||
+        analyticsLoading ||
+        showPercentileSummary ||
+        showDistributionChart ||
+        showLeaderboard
     const wideLayout =
         analyticsLoading || showDistributionChart || showLeaderboard
 
     return (
         <div className={`mx-auto overflow-visible p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
             <ThankYouConfetti />
-            <h1 className="text-2xl font-bold mb-3">Thank you</h1>
-            <p className="text-muted-foreground leading-relaxed mb-4">
+            <h1 className="text-3xl font-bold tracking-tight mb-4">Thank you</h1>
+            <p className="text-base text-muted-foreground leading-relaxed mb-5">
                 Your responses are complete. We appreciate you taking the time to participate in this study.
             </p>
             {showInsightsSection ? (
-                <div className="mb-6 space-y-3 overflow-visible">
+                <div className="mb-6 space-y-4 overflow-visible">
                     {summaryLoading ? (
                         <div className="space-y-2" aria-busy="true">
                             <Skeleton className="h-4 w-full max-w-md" />
                             <Skeleton className="h-4 w-3/4 max-w-sm" />
                         </div>
                     ) : (showBlockAccuracy || showOverallAccuracy) ? (
-                        <div className="space-y-3 text-foreground leading-relaxed">
+                        <div className="space-y-3 text-base text-foreground leading-relaxed">
                             {showBlockAccuracy ? (
                                 <p>
                                     Your accuracy for your most recent block of 5 tasks was{" "}
@@ -246,6 +272,30 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                     {!summaryLoading && (showBlockAccuracy || showOverallAccuracy) ? (
                         <AccuracyCalculationInfo />
                     ) : null}
+                    {analyticsLoading ? (
+                        <Skeleton className="h-4 w-full max-w-md" aria-busy="true" />
+                    ) : showPercentileSummary && percentileSummary ? (
+                        <div className="space-y-1 text-base text-foreground leading-relaxed">
+                            {percentileSummary.overall !== null ? (
+                                <p>
+                                    Of all participants, you are the{" "}
+                                    <span className="font-semibold">
+                                        {formatOrdinal(percentileSummary.overall)}
+                                    </span>{" "}
+                                    percentile.
+                                </p>
+                            ) : null}
+                            {percentileSummary.institution !== null ? (
+                                <p>
+                                    {percentileSummary.overall !== null ? "And the " : "You are the "}
+                                    <span className="font-semibold">
+                                        {formatOrdinal(percentileSummary.institution)}
+                                    </span>{" "}
+                                    percentile in your institution.
+                                </p>
+                            ) : null}
+                        </div>
+                    ) : null}
                     <div className="relative overflow-visible">
                         <ThankYouAnalyticsConfetti
                             active={
@@ -253,7 +303,7 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                                 (showDistributionChart || showLeaderboard)
                             }
                         />
-                        <div className="relative z-10 space-y-3">
+                        <div className="relative z-10 space-y-4">
                             {analyticsLoading ? (
                                 <>
                                     <AccuracyDistributionChartSkeleton />
@@ -264,7 +314,6 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                                     {showDistributionChart && distribution ? (
                                         <AccuracyDistributionChart
                                             bins={distribution.bins}
-                                            percentile={distribution.percentile}
                                             comparisonScore={distribution.comparisonScore}
                                             responseCount={distribution.responseCount}
                                         />

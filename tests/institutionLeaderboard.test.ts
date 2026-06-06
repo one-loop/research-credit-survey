@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
     buildInstitutionLeaderboard,
     institutionKeyFromDemographics,
+    institutionPercentileForScore,
 } from "@/lib/survey/institutionLeaderboard"
 
 describe("institutionLeaderboard", () => {
@@ -68,5 +69,28 @@ describe("institutionLeaderboard", () => {
             })
         ).toBe("id:42")
         expect(institutionKeyFromDemographics({ institution: "NYU" })).toBe("name:nyu")
+    })
+
+    it("computes percentile within institution", () => {
+        const responses = [
+            {
+                averageAccuracy: 0.4,
+                demographics: { institution_id: "1", institution: "Alpha University" },
+            },
+            {
+                averageAccuracy: 0.8,
+                demographics: { institution_id: "1", institution: "Alpha University" },
+            },
+            {
+                averageAccuracy: 0.9,
+                demographics: { institution_id: "2", institution: "Beta College" },
+            },
+        ]
+
+        expect(
+            institutionPercentileForScore(responses, "id:1", 0.8)
+        ).toBe(75)
+        expect(institutionPercentileForScore(responses, "id:2", 0.9)).toBe(50)
+        expect(institutionPercentileForScore(responses, null, 0.8)).toBeNull()
     })
 })

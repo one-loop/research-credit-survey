@@ -4,7 +4,6 @@ import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
 
 type Props = {
     bins: AccuracyHistogramBin[]
-    percentile: number | null
     comparisonScore: number | null
     responseCount: number
 }
@@ -17,7 +16,6 @@ const CHART_H = HEIGHT - PAD.top - PAD.bottom
 
 export function AccuracyDistributionChart({
     bins,
-    percentile,
     comparisonScore,
     responseCount,
 }: Props) {
@@ -30,30 +28,11 @@ export function AccuracyDistributionChart({
 
     return (
         <div className="rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-semibold mb-1">How you compare to other participants</h2>
-            <p className="text-xs text-muted-foreground mb-4">
+            <h2 className="text-base font-semibold mb-1.5">How you compare to other participants</h2>
+            <p className="text-sm text-muted-foreground mb-4">
                 Based on {responseCount} completed blocks in this study. Each bar shows how many
                 blocks scored in that accuracy range.
             </p>
-            {typeof percentile === "number" ? (
-                <p className="text-sm mb-4">
-                    Your average accuracy is higher than{" "}
-                    <span className="font-semibold">{Math.round(percentile)}%</span> of recorded
-                    block scores
-                    {typeof comparisonScore === "number" ? (
-                        <>
-                            {" "}
-                            (your average:{" "}
-                            <span className="font-semibold">
-                                {Math.round(comparisonScore * 100)}%
-                            </span>
-                            ).
-                        </>
-                    ) : (
-                        "."
-                    )}
-                </p>
-            ) : null}
             <svg
                 viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
                 className="w-full max-w-md h-auto text-foreground"
