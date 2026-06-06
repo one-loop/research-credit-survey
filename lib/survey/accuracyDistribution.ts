@@ -19,7 +19,7 @@ export type AccuracyDistributionStats = {
     scores?: number[]
 }
 
-const BIN_COUNT = 10
+const BIN_COUNT = 20
 
 export function buildAccuracyHistogram(scores: number[], binCount = BIN_COUNT): AccuracyHistogramBin[] {
     if (scores.length === 0) {

@@ -17,7 +17,7 @@ describe("accuracyDistribution", () => {
         const scores = [0.75]
         const stats = buildAccuracyDistributionStats(scores, 0.75)
         expect(stats.showDistribution).toBe(true)
-        expect(stats.bins).toHaveLength(10)
+        expect(stats.bins).toHaveLength(20)
         expect(stats.percentile).toBe(50)
     })
 
@@ -31,7 +31,7 @@ describe("accuracyDistribution", () => {
     it("builds histogram bins covering 0–1", () => {
         const bins = buildAccuracyHistogram([0, 0.05, 0.95, 1])
         expect(bins[0]!.count).toBeGreaterThanOrEqual(1)
-        expect(bins[9]!.count).toBeGreaterThanOrEqual(1)
+        expect(bins[19]!.count).toBeGreaterThanOrEqual(1)
         expect(bins.reduce((s, b) => s + b.count, 0)).toBe(4)
     })
 

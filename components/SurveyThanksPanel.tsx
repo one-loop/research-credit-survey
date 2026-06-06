@@ -15,12 +15,16 @@ import { Button } from "@/components/ui/button"
 import { ThankYouAnalyticsConfetti, ThankYouConfetti } from "@/components/ThankYouConfetti"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
+import { accuracyPercentileRank, buildAccuracyHistogram } from "@/lib/survey/accuracyDistribution"
+import { mockAccuracySamples } from "@/lib/survey/mockDistributionSamples"
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
 import { formatOrdinal } from "@/lib/survey/percentileFormat"
 
 type Props = {
     experimentType: ExperimentType
     queue: number
+    /** Dev preview: simulate N sample blocks for the distribution chart. */
+    mockDistributionSamples?: number
 }
 
 function formatAccuracyPercent(accuracy: number): string {
@@ -36,7 +40,11 @@ function queueAccuracyQuery(experimentType: ExperimentType, queue: number, scope
     return `/api/survey/queue-accuracy?${params.toString()}`
 }
 
-export function SurveyThanksPanel({ experimentType, queue }: Props) {
+export function SurveyThanksPanel({
+    experimentType,
+    queue,
+    mockDistributionSamples = 0,
+}: Props) {
     const nextQueue = queue + 1
     const continueHref =
         experimentType === "B"
@@ -207,7 +215,27 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
         completed > 1 &&
         (typeof queueAccuracy !== "number" ||
             Math.round(respondentAverageAccuracy! * 100) !== Math.round(queueAccuracy * 100))
-    const showDistributionChart = distribution?.show === true
+    const showDistributionChart = distribution?.show === true || mockDistributionSamples > 0
+    const chartPreview = useMemo(() => {
+        if (mockDistributionSamples <= 0) return null
+
+        const comparisonScore =
+            (typeof respondentAverageAccuracy === "number"
+                ? respondentAverageAccuracy
+                : null) ??
+            (typeof queueAccuracy === "number" ? queueAccuracy : null) ??
+            0.74
+
+        const mockScores = mockAccuracySamples(mockDistributionSamples)
+
+        return {
+            bins: buildAccuracyHistogram(mockScores),
+            responseCount: mockDistributionSamples,
+            comparisonScore,
+            percentile: accuracyPercentileRank(comparisonScore, mockScores),
+            previewNote: `Simulated preview using ${mockDistributionSamples} sample block scores (dev only). Remove ?mockDistribution from the URL to see real data.`,
+        }
+    }, [mockDistributionSamples, respondentAverageAccuracy, queueAccuracy])
     const showLeaderboard =
         leaderboard !== null &&
         (leaderboard.top10.length > 0 || leaderboard.respondent !== null)
@@ -308,18 +336,33 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                             }
                         />
                         <div className="relative z-10 space-y-4">
-                            {analyticsLoading ? (
+                            {analyticsLoading && !chartPreview ? (
                                 <>
                                     <AccuracyDistributionChartSkeleton />
                                     <InstitutionLeaderboardSkeleton />
                                 </>
                             ) : (
                                 <>
-                                    {showDistributionChart && distribution ? (
+                                    {showDistributionChart && (chartPreview || distribution) ? (
                                         <AccuracyDistributionChart
-                                            bins={distribution.bins}
-                                            comparisonScore={distribution.comparisonScore}
-                                            responseCount={distribution.responseCount}
+                                            bins={
+                                                chartPreview?.bins ?? distribution!.bins
+                                            }
+                                            comparisonScore={
+                                                chartPreview?.comparisonScore ??
+                                                distribution!.comparisonScore
+                                            }
+                                            percentile={
+                                                chartPreview?.percentile ??
+                                                distribution!.percentile ??
+                                                percentileSummary?.overall ??
+                                                null
+                                            }
+                                            responseCount={
+                                                chartPreview?.responseCount ??
+                                                distribution!.responseCount
+                                            }
+                                            previewNote={chartPreview?.previewNote}
                                         />
                                     ) : null}
                                     {showLeaderboard && leaderboard ? (
@@ -337,10 +380,30 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                     </div>
                 </div>
             ) : null}
-            <div className="flex justify-end">
-                <Button asChild>
-                    <Link href={continueHref}>Do 5 more tasks</Link>
-                </Button>
+            <div className="mt-6 space-y-4 border-t pt-6">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                    You can improve your accuracy by completing another block of 5 tasks. Each block
+                    updates your average score and where you rank among other participants.
+                </p>
+                <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-4 space-y-4">
+                    <div>
+                        <p className="text-base font-semibold text-foreground">
+                            Ready for another round?
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                            Five more papers take just a few minutes — and give you another chance
+                            to raise your accuracy and percentile.
+                        </p>
+                    </div>
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                        <Button variant="outline" asChild className="sm:min-w-[7.5rem]">
+                            <Link href="/study-complete">I&apos;m done</Link>
+                        </Button>
+                        <Button asChild className="sm:min-w-[12rem]">
+                            <Link href={continueHref}>Keep going — 5 more tasks</Link>
+                        </Button>
+                    </div>
+                </div>
             </div>
         </div>
     )
