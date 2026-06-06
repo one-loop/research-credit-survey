@@ -4,7 +4,6 @@ import { getExperimentPapers } from "@/lib/db/papers"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
 import type { Work } from "@/lib/types"
 import { getParticipantAuthorId } from "@/lib/survey/participant"
-import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import { filterWorksForExperiment, workIsExperimentEligible } from "@/lib/survey/experimentEligibility"
 
 const WORKS_PER_RESPONDENT = 5
