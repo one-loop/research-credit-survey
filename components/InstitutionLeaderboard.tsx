@@ -21,9 +21,9 @@ function LeaderboardRow({
 }) {
     return (
         <tr className={highlight ? "bg-violet-50" : undefined}>
-            <td className="py-2 pr-3 text-sm font-medium tabular-nums w-10">{entry.rank}</td>
+            <td className="py-2 px-3 text-sm font-medium tabular-nums w-10">{entry.rank}</td>
             <td className="py-2 pr-3 text-sm">{entry.institutionName}</td>
-            <td className="py-2 text-sm text-right font-semibold tabular-nums">
+            <td className="py-2 px-3 text-sm text-right font-semibold tabular-nums">
                 {formatPercent(entry.averageAccuracy)}
             </td>
         </tr>
@@ -39,8 +39,8 @@ export function InstitutionLeaderboard({
 
     return (
         <div className="rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-semibold mb-1">Institution leaderboard</h2>
-            <p className="text-xs text-muted-foreground mb-4">
+            <h2 className="text-base font-semibold mb-1.5">Institution leaderboard</h2>
+            <p className="text-sm text-muted-foreground mb-4">
                 Average block accuracy by institution (participants who listed their current
                 institution).
             </p>
@@ -69,7 +69,7 @@ export function InstitutionLeaderboard({
             </div>
             {respondent ? (
                 <div className="mt-4 pt-4 border-t">
-                    <p className="text-xs text-muted-foreground mb-2">Your institution</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Your institution</p>
                     <table className="w-full">
                         <tbody>
                             <LeaderboardRow entry={respondent} highlight />

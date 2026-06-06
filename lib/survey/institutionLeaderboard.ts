@@ -1,3 +1,5 @@
+import { accuracyPercentileRank } from "@/lib/survey/accuracyDistribution"
+
 export type InstitutionLeaderboardEntry = {
     rank: number
     institutionKey: string
@@ -41,6 +43,25 @@ export function institutionNameFromDemographics(
     const name =
         typeof demographics.institution === "string" ? demographics.institution.trim() : ""
     return name || "Unknown institution"
+}
+
+/** Percentile rank within the respondent's institution (0–100). */
+export function institutionPercentileForScore(
+    responses: ResponseForLeaderboard[],
+    institutionKey: string | null,
+    comparisonScore: number | null
+): number | null {
+    if (
+        !institutionKey ||
+        typeof comparisonScore !== "number" ||
+        !Number.isFinite(comparisonScore)
+    ) {
+        return null
+    }
+    const institutionScores = responses
+        .filter((row) => institutionKeyFromDemographics(row.demographics) === institutionKey)
+        .map((row) => row.averageAccuracy)
+    return accuracyPercentileRank(comparisonScore, institutionScores)
 }
 
 /**

@@ -10,6 +10,7 @@ import { Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { Author, Work } from "@/lib/types"
+import { displayJournalName } from "@/lib/survey/journalDisplay"
 import {
     getAssignedExperimentFromSession,
     getRespondentContextFromSession,
@@ -18,6 +19,7 @@ import {
     trialPassedKey,
 } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
+import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicInfoTable"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
@@ -25,6 +27,30 @@ type TutorialStep = "contributions" | "academic_info" | "byline" | "envelope" | 
 
 const Q1_CORRECT = "fixed_slot"
 const Q2_CORRECT = "by_contribution"
+
+function readRespondentDemographics(authorId: string | undefined): {
+    primary_field?: string
+    primary_domain?: string
+} {
+    if (typeof window === "undefined") return {}
+    const raw = window.sessionStorage.getItem(`respondentDemographics_${authorId ?? "none"}`)
+    if (!raw) return {}
+    try {
+        const parsed = JSON.parse(raw) as { primary_field?: string; primary_domain?: string }
+        return {
+            primary_field:
+                typeof parsed.primary_field === "string" ? parsed.primary_field : undefined,
+            primary_domain:
+                typeof parsed.primary_domain === "string" ? parsed.primary_domain : undefined,
+        }
+    } catch {
+        return {}
+    }
+}
+
+function Em({ children }: { children: ReactNode }) {
+    return <span className="font-semibold text-foreground">{children}</span>
+}
 
 function trialDisplayName(author: Author, experiment: "A" | "B" | "C"): string {
     if (experiment === "B") {
@@ -68,6 +94,8 @@ function TrialPageContent() {
     const [q1, setQ1] = useState<string>("")
     const [q2, setQ2] = useState<string>("")
     const [canAccessExperimentB, setCanAccessExperimentB] = useState(false)
+    const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
+    const [respondentField, setRespondentField] = useState<string | null>(null)
 
     useEffect(() => {
         const failed = typeof window !== "undefined" && sessionStorage.getItem(trialFailedKey(authorId)) === "true"
@@ -78,7 +106,12 @@ function TrialPageContent() {
         const exp = getAssignedExperimentFromSession(authorId)
         setExperiment(exp)
         const context = getRespondentContextFromSession(authorId)
-        const w = getTrialWorkForDomain(context.domain, exp, context.journal, context.field)
+        const demographics = readRespondentDemographics(authorId)
+        const assignedJournal = context.journal ?? null
+        const assignedField = demographics.primary_field ?? context.field ?? null
+        setRespondentJournal(assignedJournal)
+        setRespondentField(assignedField)
+        const w = getTrialWorkForDomain(context.domain, exp, assignedJournal ?? undefined, assignedField ?? undefined)
         const shuffled = shuffledAuthorsForRanking(w.authors)
         setWork(w)
         setItems(shuffled)
@@ -340,6 +373,8 @@ function TrialPageContent() {
     }
 
     // phase === "practice"
+    const journalLabel = displayJournalName(respondentJournal ?? work.journal)
+    const fieldLabel = respondentField ?? work.field ?? work.domain ?? "your field"
     const fixedCorrSlot = Math.max(items.length - 1, 0)
     const slotPhrase =
         fixedCorrSlot < 0
@@ -371,7 +406,7 @@ function TrialPageContent() {
         <div className="max-w-3xl mx-auto p-6">
             <h1 className="text-2xl font-bold mb-2">Practice Task</h1>
             <p className="text-sm text-muted-foreground mb-1">
-                Mock source · Domain: <span className="font-medium text-foreground">{work.domain ?? work.field}</span>
+                Mock source · Journal: <Em>{journalLabel}</Em> · Field: <Em>{fieldLabel}</Em>
             </p>
             <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p>
 
@@ -427,16 +462,11 @@ function TrialPageContent() {
                               : "opacity-35",
                     ].join(" ")}
                 >
-                    <p className="font-medium mb-2">Academic information (practice)</p>
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                        {work.authors.map((author) => (
-                            <p key={author.id}>
-                                <span className="font-medium text-foreground">{trialDisplayName(author, experiment)}</span>: Top 100 Institution:{" "}
-                                {author.first_institution_name ?? "N/A"}; Academic age: {author.academic_age ?? "N/A"};
-                                h-index: {author.h_index ?? "N/A"}
-                            </p>
-                        ))}
-                    </div>
+                    <ExperimentCAcademicInfoTable
+                        authors={work.authors}
+                        getAuthorLabel={(author) => trialDisplayName(author, experiment)}
+                        title="Academic information (practice)"
+                    />
                 </div>
             )}
 
@@ -450,20 +480,27 @@ function TrialPageContent() {
                           : "opacity-35",
                 ].join(" ")}
             >
-                <p className="font-medium mb-2">
-                    Given the information above, please sort these authors in the way you think they would appear in
-                    the byline of the <span className="text-foreground">{work.journal}</span> journal in the{" "}
-                    <span className="text-foreground">{work.domain ?? work.field}</span> field.
+                <p className="font-medium mb-2 leading-relaxed">
+                    Given the information above, please sort these authors in the way you think they would appear on
+                    the byline of the <Em>{journalLabel}</Em> journal in the <Em>{fieldLabel}</Em> field.
                 </p>
-                <div className="mb-4 text-muted-foreground text-sm leading-relaxed grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
-                    <Mail
-                        className="h-3.5 w-3.5 shrink-0 stroke-violet-950 text-violet-950 mt-0.5"
-                        aria-hidden
-                    />
-                    <p className="min-w-0 m-0">
-                        In this practice task, the envelope icon stays fixed at slot{" "}
-                        <span className="font-medium text-foreground">{slotPhrase}</span>
-                        ; whoever you place there is shown with the icon.
+                <div className="mb-4 text-muted-foreground text-sm leading-relaxed space-y-2">
+                    <div className="grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
+                        <Mail
+                            className="h-3.5 w-3.5 shrink-0 stroke-violet-950 text-violet-950 mt-0.5"
+                            aria-hidden
+                        />
+                        <p className="min-w-0 m-0">
+                            The <Em>envelope icon</Em> marks the <Em>corresponding author&apos;s position</Em> on the
+                            publication—the same list slot (first, middle, last, etc.) as on the paper you are shown.
+                            In this practice task, that slot is fixed at position <Em>{slotPhrase}</Em>.
+                        </p>
+                    </div>
+                    <p>
+                        You may drag <Em>any author</Em>, including into or out of that slot. Whichever author you
+                        place at the envelope position is shown with the icon there. Your task is to order authors by{" "}
+                        <Em>contribution</Em> (your judgment); the envelope stays tied to that fixed byline position, not
+                        to one person&apos;s card.
                     </p>
                 </div>
                 <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -497,7 +534,7 @@ function TrialPageContent() {
                                 <p className="text-sm text-muted-foreground mb-2">
                                     This section lists each author&apos;s roles. Example:{" "}
                                     <span className="text-foreground font-medium">
-                                        {experiment === "A" || experiment === "C" ? "A.A: Conceptualization, Funding acquisition" : "Alex Avery: Conceptualization, Funding acquisition"}
+                                        {experiment === "A" || experiment === "C" ? "A.A: Conceptualization, Methodology, Supervision" : "Alex Avery: Conceptualization, Methodology, Supervision"}
                                     </span>{" "}
                                     means {experiment === "A" || experiment === "C" ? "A.A" : "Alex Avery"} performed these tasks for this publication.
                                 </p>
@@ -520,8 +557,8 @@ function TrialPageContent() {
                             <>
                                 <p className="font-semibold mb-1">2) Academic information</p>
                                 <p className="text-sm text-muted-foreground mb-2">
-                                    This section provides additional author details: institution status (top/non-top 100),
-                                    academic age, and h-index.
+                                    This table shows additional author details: whether they are at a top-100
+                                    institution, their academic age, and h-index.
                                 </p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Use this information together with the contributions section when judging likely
@@ -537,12 +574,16 @@ function TrialPageContent() {
                         {tutorialStep === "byline" && (
                             <>
                                 <p className="font-semibold mb-1">{experiment === "C" ? "3) Author byline" : "2) Author byline"}</p>
-                                <p className="text-sm text-muted-foreground mb-3">
+                                <p className="text-sm text-muted-foreground mb-2">
                                     The byline cards are shown in random order. Sort them into the order you think
-                                    matches conventions in{" "}
-                                    <span className="text-foreground">{work.journal}</span> for the{" "}
-                                    <span className="text-foreground">{work.domain ?? work.field}</span> field, based on the
-                                    contributions section.
+                                    matches conventions in <Em>{journalLabel}</Em> for the <Em>{fieldLabel}</Em> field,
+                                    based on the contributions section.
+                                </p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    Read the question above: the <Em>envelope</Em> marks the{" "}
+                                    <Em>corresponding author&apos;s</Em> fixed position on the publication. You can
+                                    reorder all authors freely—the icon stays on that slot, and whoever occupies it is
+                                    shown with the envelope.
                                 </p>
                                 <div className="flex justify-end">
                                     <Button size="sm" onClick={() => setTutorialStep("envelope")}>
@@ -554,15 +595,17 @@ function TrialPageContent() {
                         {tutorialStep === "envelope" && (
                             <>
                                 <p className="font-semibold mb-1">
-                                    {experiment === "C" ? "4) Fixed corresponding-author slot" : "3) Fixed corresponding-author slot"}
+                                    {experiment === "C" ? "4) Corresponding author & envelope" : "3) Corresponding author & envelope"}
                                 </p>
                                 <p className="text-sm text-muted-foreground mb-2">
-                                    The envelope marks the corresponding-author slot. In practice, it is fixed at the
-                                    last author position for this particular example and never moves. The author in that 
-                                    slot can change when you drag cards.
+                                    Try it now: drag any author into the envelope slot at position{" "}
+                                    <Em>{slotPhrase}</Em>. The <Em>envelope</Em> does not follow a person—it marks that
+                                    fixed byline position. The <Em>corresponding author</Em> on the publication is
+                                    whoever you leave in that slot when you submit.
                                 </p>
                                 <p className="text-sm text-muted-foreground mb-3">
-                                    To continue, drag a non-envelope author into the envelope slot once.
+                                    To continue, drag a different author into the envelope slot once so you can see how
+                                    the icon stays on the position while the name changes.
                                 </p>
                                 <div className="flex justify-end">
                                     <Button
@@ -580,8 +623,8 @@ function TrialPageContent() {
                                 <p className="font-semibold mb-1">{experiment === "C" ? "5) Sort the byline" : "4) Sort the byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Please sort the author byline the way you would expect it to appear in{" "}
-                                    <span className="text-foreground">{work.journal}</span> based on the contributions
-                                    section and all other author information shown above. Good luck!
+                                    <Em>{journalLabel}</Em> in the <Em>{fieldLabel}</Em> field, based on the
+                                    contributions section and all other author information shown above. Good luck!
                                 </p>
                                 <div className="flex justify-end">
                                     <Button size="sm" onClick={() => setTutorialStep("done")}>

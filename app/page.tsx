@@ -117,7 +117,7 @@ function HomeContent() {
             <h1 className="text-2xl font-bold mb-6">Contribution Ranking Study</h1>
             <div className="space-y-4 text-muted-foreground leading-relaxed">
                 <p>
-                    The estimated time for this study is 5 minutes.
+                    The estimated time for this study is <b>10 minutes</b>.
                 </p>
                 <p>
                     Welcome to this study, which is carried out by Bedoor AlShebli and Shehryar Ahmed Subhani from New York University Abu Dhabi.

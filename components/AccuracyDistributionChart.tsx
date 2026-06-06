@@ -1,69 +1,97 @@
 "use client"
 
+import { useId, useMemo } from "react"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
+import {
+    buildCumulativeCurvePoints,
+    cumulativeAreaPath,
+    interpolateCumulativeAt,
+    linearCurvePath,
+    type CurvePoint,
+} from "@/lib/survey/accuracyDistributionCurve"
 
 type Props = {
     bins: AccuracyHistogramBin[]
-    percentile: number | null
     comparisonScore: number | null
+    percentile: number | null
     responseCount: number
+    previewNote?: string
 }
 
 const WIDTH = 400
-const HEIGHT = 180
-const PAD = { top: 12, right: 12, bottom: 28, left: 36 }
+const HEIGHT = 200
+const PAD = { top: 20, right: 16, bottom: 32, left: 44 }
 const CHART_W = WIDTH - PAD.left - PAD.right
 const CHART_H = HEIGHT - PAD.top - PAD.bottom
 
+function toSvg(point: CurvePoint): CurvePoint {
+    return {
+        x: PAD.left + point.x * CHART_W,
+        y: PAD.top + CHART_H - point.y * CHART_H,
+    }
+}
+
+function mapPathToSvg(points: CurvePoint[]): CurvePoint[] {
+    return points.map(toSvg)
+}
+
 export function AccuracyDistributionChart({
     bins,
-    percentile,
     comparisonScore,
+    percentile,
     responseCount,
+    previewNote,
 }: Props) {
-    const maxCount = Math.max(1, ...bins.map((b) => b.count))
-    const barWidth = CHART_W / bins.length
-    const markerX =
+    const fillGradientId = useId().replace(/:/g, "")
+    const curvePoints = useMemo(() => buildCumulativeCurvePoints(bins), [bins])
+    const svgPoints = useMemo(() => mapPathToSvg(curvePoints), [curvePoints])
+    const linePath = useMemo(() => linearCurvePath(svgPoints), [svgPoints])
+    const areaPath = useMemo(() => cumulativeAreaPath(svgPoints), [svgPoints])
+
+    const clampedScore =
         typeof comparisonScore === "number" && Number.isFinite(comparisonScore)
-            ? PAD.left + Math.min(1, Math.max(0, comparisonScore)) * CHART_W
+            ? Math.min(1, Math.max(0, comparisonScore))
             : null
+
+    const cumulativeY =
+        clampedScore !== null ? interpolateCumulativeAt(curvePoints, clampedScore) : null
+
+    const markerX =
+        clampedScore !== null ? PAD.left + clampedScore * CHART_W : null
+    const markerY =
+        cumulativeY !== null
+            ? PAD.top + CHART_H - cumulativeY * CHART_H
+            : null
+
+    const baselineY = PAD.top + CHART_H
 
     return (
         <div className="rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-semibold mb-1">How you compare to other participants</h2>
-            <p className="text-xs text-muted-foreground mb-4">
-                Based on {responseCount} completed blocks in this study. Each bar shows how many
-                blocks scored in that accuracy range.
-            </p>
-            {typeof percentile === "number" ? (
-                <p className="text-sm mb-4">
-                    Your average accuracy is higher than{" "}
-                    <span className="font-semibold">{Math.round(percentile)}%</span> of recorded
-                    block scores
-                    {typeof comparisonScore === "number" ? (
-                        <>
-                            {" "}
-                            (your average:{" "}
-                            <span className="font-semibold">
-                                {Math.round(comparisonScore * 100)}%
-                            </span>
-                            ).
-                        </>
-                    ) : (
-                        "."
-                    )}
+            {previewNote ? (
+                <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                    {previewNote}
                 </p>
             ) : null}
+            <h2 className="text-base font-semibold mb-1.5">How you compare to other participants</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+                Based on {responseCount} completed blocks in this study. The curve shows what
+                share of participants scored at or below each accuracy level.
+            </p>
             <svg
                 viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
                 className="w-full max-w-md h-auto text-foreground"
                 role="img"
-                aria-label="Histogram of accuracy scores across all participants"
+                aria-label="Cumulative distribution of accuracy scores across all participants"
             >
-                {/* Y axis ticks */}
+                <defs>
+                    <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgb(124 58 237)" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="rgb(124 58 237)" stopOpacity="0.04" />
+                    </linearGradient>
+                </defs>
+
                 {[0, 0.5, 1].map((frac) => {
                     const y = PAD.top + CHART_H - frac * CHART_H
-                    const label = Math.round(maxCount * frac)
                     return (
                         <g key={frac}>
                             <line
@@ -73,7 +101,7 @@ export function AccuracyDistributionChart({
                                 y2={y}
                                 className="stroke-border"
                                 strokeWidth={0.5}
-                                strokeDasharray="2 2"
+                                strokeDasharray="3 3"
                             />
                             <text
                                 x={PAD.left - 6}
@@ -81,63 +109,96 @@ export function AccuracyDistributionChart({
                                 textAnchor="end"
                                 className="fill-muted-foreground text-[9px]"
                             >
-                                {label}
+                                {Math.round(frac * 100)}%
                             </text>
                         </g>
                     )
                 })}
-                {/* Bars */}
-                {bins.map((bin, i) => {
-                    const barH = (bin.count / maxCount) * CHART_H
-                    const x = PAD.left + i * barWidth + barWidth * 0.1
-                    const w = barWidth * 0.8
-                    const y = PAD.top + CHART_H - barH
-                    const inBin =
-                        markerX !== null &&
-                        comparisonScore !== null &&
-                        comparisonScore >= bin.binStart &&
-                        (i === bins.length - 1
-                            ? comparisonScore <= bin.binEnd
-                            : comparisonScore < bin.binEnd)
-                    return (
-                        <rect
-                            key={`${bin.binStart}-${bin.binEnd}`}
-                            x={x}
-                            y={y}
-                            width={w}
-                            height={Math.max(barH, bin.count > 0 ? 2 : 0)}
-                            rx={2}
-                            className={inBin ? "fill-violet-600" : "fill-violet-300/80"}
-                        />
-                    )
-                })}
-                {/* Respondent marker */}
-                {markerX !== null ? (
+
+                <line
+                    x1={PAD.left}
+                    y1={baselineY}
+                    x2={PAD.left + CHART_W}
+                    y2={baselineY}
+                    className="stroke-border"
+                    strokeWidth={1}
+                />
+
+                {areaPath ? <path d={areaPath} fill={`url(#${fillGradientId})`} /> : null}
+                {linePath ? (
+                    <path
+                        d={linePath}
+                        fill="none"
+                        className="stroke-violet-600"
+                        strokeWidth={2.25}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                ) : null}
+
+                {markerX !== null && markerY !== null ? (
                     <g>
                         <line
                             x1={markerX}
-                            y1={PAD.top}
+                            y1={markerY}
                             x2={markerX}
-                            y2={PAD.top + CHART_H}
-                            className="stroke-violet-950"
-                            strokeWidth={2}
+                            y2={baselineY}
+                            className="stroke-violet-950/35"
+                            strokeWidth={1.5}
+                            strokeDasharray="4 3"
+                        />
+                        <line
+                            x1={PAD.left}
+                            y1={markerY}
+                            x2={markerX}
+                            y2={markerY}
+                            className="stroke-violet-950/35"
+                            strokeWidth={1.5}
+                            strokeDasharray="4 3"
+                        />
+                        <circle
+                            cx={markerX}
+                            cy={markerY}
+                            r={4.5}
+                            className="fill-violet-700 stroke-white"
+                            strokeWidth={1.5}
                         />
                         <text
                             x={markerX}
-                            y={PAD.top - 2}
+                            y={PAD.top - 6}
                             textAnchor="middle"
-                            className="fill-violet-950 text-[9px] font-medium"
+                            className="fill-violet-950 text-[9px] font-semibold"
                         >
                             You
                         </text>
+                        {clampedScore !== null && cumulativeY !== null ? (
+                            <>
+                                <text
+                                    x={markerX}
+                                    y={baselineY + 14}
+                                    textAnchor="middle"
+                                    className="fill-violet-950 text-[9px] font-medium"
+                                >
+                                    {Math.round(clampedScore * 100)}%
+                                </text>
+                                <text
+                                    x={PAD.left - 6}
+                                    y={markerY + 3}
+                                    textAnchor="end"
+                                    className="fill-violet-950 text-[9px] font-medium"
+                                >
+                                    {Math.round(cumulativeY * 100)}%
+                                </text>
+                            </>
+                        ) : null}
                     </g>
                 ) : null}
-                {/* X axis labels */}
+
                 {[0, 0.5, 1].map((t) => (
                     <text
                         key={t}
                         x={PAD.left + t * CHART_W}
-                        y={HEIGHT - 6}
+                        y={HEIGHT - 8}
                         textAnchor="middle"
                         className="fill-muted-foreground text-[9px]"
                     >
@@ -145,7 +206,10 @@ export function AccuracyDistributionChart({
                     </text>
                 ))}
             </svg>
-            <p className="text-[10px] text-muted-foreground text-center mt-1">Accuracy</p>
+            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground px-1">
+                <span className="pl-8">% at or below</span>
+                <span>Accuracy</span>
+            </div>
         </div>
     )
 }

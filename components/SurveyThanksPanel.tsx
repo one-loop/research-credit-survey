@@ -1,21 +1,30 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AccuracyCalculationInfo } from "@/components/AccuracyCalculationInfo"
 import { AccuracyDistributionChart } from "@/components/AccuracyDistributionChart"
+import {
+    SurveyResultsStatsGrid,
+    type SurveyStatCard,
+} from "@/components/SurveyResultsStatsGrid"
 import { AccuracyDistributionChartSkeleton } from "@/components/AccuracyDistributionChartSkeleton"
 import { InstitutionLeaderboard } from "@/components/InstitutionLeaderboard"
 import { InstitutionLeaderboardSkeleton } from "@/components/InstitutionLeaderboardSkeleton"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ThankYouAnalyticsConfetti, ThankYouConfetti } from "@/components/ThankYouConfetti"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
+import { accuracyPercentileRank, buildAccuracyHistogram } from "@/lib/survey/accuracyDistribution"
+import { mockAccuracySamples } from "@/lib/survey/mockDistributionSamples"
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
+import { formatOrdinal } from "@/lib/survey/percentileFormat"
 
 type Props = {
     experimentType: ExperimentType
     queue: number
+    /** Dev preview: simulate N sample blocks for the distribution chart. */
+    mockDistributionSamples?: number
 }
 
 function formatAccuracyPercent(accuracy: number): string {
@@ -31,7 +40,11 @@ function queueAccuracyQuery(experimentType: ExperimentType, queue: number, scope
     return `/api/survey/queue-accuracy?${params.toString()}`
 }
 
-export function SurveyThanksPanel({ experimentType, queue }: Props) {
+export function SurveyThanksPanel({
+    experimentType,
+    queue,
+    mockDistributionSamples = 0,
+}: Props) {
     const nextQueue = queue + 1
     const continueHref =
         experimentType === "B"
@@ -58,6 +71,10 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
         top10: InstitutionLeaderboardEntry[]
         respondent: InstitutionLeaderboardEntry | null
         highlightInstitutionKey: string | null
+    } | null>(null)
+    const [percentileSummary, setPercentileSummary] = useState<{
+        overall: number | null
+        institution: number | null
     } | null>(null)
 
     useEffect(() => {
@@ -123,6 +140,7 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                         bins?: AccuracyHistogramBin[]
                         percentile?: number | null
                         comparisonScore?: number | null
+                        institutionPercentile?: number | null
                     }
                     leaderboard?: {
                         top10?: InstitutionLeaderboardEntry[]
@@ -131,6 +149,17 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                     }
                 }) => {
                     if (cancelled) return
+
+                    setPercentileSummary({
+                        overall:
+                            typeof data.distribution?.percentile === "number"
+                                ? data.distribution.percentile
+                                : null,
+                        institution:
+                            typeof data.distribution?.institutionPercentile === "number"
+                                ? data.distribution.institutionPercentile
+                                : null,
+                    })
 
                     if (data.distribution?.show && data.distribution.bins?.length) {
                         setDistribution({
@@ -166,6 +195,7 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
                 if (!cancelled) {
                     setDistribution(null)
                     setLeaderboard(null)
+                    setPercentileSummary(null)
                 }
             })
             .finally(() => {
@@ -185,95 +215,195 @@ export function SurveyThanksPanel({ experimentType, queue }: Props) {
         completed > 1 &&
         (typeof queueAccuracy !== "number" ||
             Math.round(respondentAverageAccuracy! * 100) !== Math.round(queueAccuracy * 100))
-    const showDistributionChart = distribution?.show === true
+    const showDistributionChart = distribution?.show === true || mockDistributionSamples > 0
+    const chartPreview = useMemo(() => {
+        if (mockDistributionSamples <= 0) return null
+
+        const comparisonScore =
+            (typeof respondentAverageAccuracy === "number"
+                ? respondentAverageAccuracy
+                : null) ??
+            (typeof queueAccuracy === "number" ? queueAccuracy : null) ??
+            0.74
+
+        const mockScores = mockAccuracySamples(mockDistributionSamples)
+
+        return {
+            bins: buildAccuracyHistogram(mockScores),
+            responseCount: mockDistributionSamples,
+            comparisonScore,
+            percentile: accuracyPercentileRank(comparisonScore, mockScores),
+            previewNote: `Simulated preview using ${mockDistributionSamples} sample block scores (dev only). Remove ?mockDistribution from the URL to see real data.`,
+        }
+    }, [mockDistributionSamples, respondentAverageAccuracy, queueAccuracy])
     const showLeaderboard =
         leaderboard !== null &&
         (leaderboard.top10.length > 0 || leaderboard.respondent !== null)
-    const showAccuracyCopy = summaryLoading || showBlockAccuracy || showOverallAccuracy
+    const statCards = useMemo(() => {
+        const cards: SurveyStatCard[] = []
+
+        if (showBlockAccuracy && typeof queueAccuracy === "number") {
+            cards.push({
+                id: "block",
+                label: "Last 5 tasks",
+                value: formatAccuracyPercent(queueAccuracy),
+                description: "Most recent block accuracy",
+            })
+        }
+
+        if (showSeparateOverall && typeof respondentAverageAccuracy === "number") {
+            cards.push({
+                id: "overall",
+                label: "Total average",
+                value: formatAccuracyPercent(respondentAverageAccuracy),
+                description: `Across ${completed} completed blocks`,
+            })
+        } else if (showOverallAccuracy && !showBlockAccuracy && typeof respondentAverageAccuracy === "number") {
+            cards.push({
+                id: "overall",
+                label: "Total average",
+                value: formatAccuracyPercent(respondentAverageAccuracy),
+                description:
+                    completed === 1 ? "This block" : `Across ${completed} completed blocks`,
+            })
+        }
+
+        if (percentileSummary?.overall !== null && percentileSummary?.overall !== undefined) {
+            cards.push({
+                id: "percentile",
+                label: "All participants",
+                value: formatOrdinal(percentileSummary.overall),
+                description: "Your percentile rank",
+            })
+        }
+
+        if (
+            percentileSummary?.institution !== null &&
+            percentileSummary?.institution !== undefined
+        ) {
+            cards.push({
+                id: "institution-percentile",
+                label: "Your institution",
+                value: formatOrdinal(percentileSummary.institution),
+                description: "Percentile at your institution",
+            })
+        }
+
+        return cards
+    }, [
+        showBlockAccuracy,
+        queueAccuracy,
+        showSeparateOverall,
+        respondentAverageAccuracy,
+        completed,
+        showOverallAccuracy,
+        percentileSummary,
+    ])
+
+    const statsSkeletonCount =
+        (summaryLoading ? 2 : 0) + (analyticsLoading ? 2 : 0)
+    const showStatsGrid = statCards.length > 0 || statsSkeletonCount > 0
     const showInsightsSection =
-        showAccuracyCopy || analyticsLoading || showDistributionChart || showLeaderboard
+        showStatsGrid || showDistributionChart || showLeaderboard
     const wideLayout =
         analyticsLoading || showDistributionChart || showLeaderboard
 
     return (
-        <div className={`mx-auto p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
-            <h1 className="text-2xl font-bold mb-3">Thank you</h1>
-            <p className="text-muted-foreground leading-relaxed mb-4">
-                Your responses are complete. We appreciate you taking the time to participate in this study.
+        <div className={`mx-auto overflow-visible p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
+            <ThankYouConfetti />
+            <h1 className="text-3xl font-bold tracking-tight mb-4">Thank you</h1>
+            <p className="text-base text-muted-foreground leading-relaxed mb-5">
+                Your responses are complete. We appreciate you taking the time to participate in this study. Here are your results:
             </p>
             {showInsightsSection ? (
-                <div className="space-y-3 mb-6">
-                    {summaryLoading ? (
-                        <div className="space-y-2" aria-busy="true">
-                            <Skeleton className="h-4 w-full max-w-md" />
-                            <Skeleton className="h-4 w-3/4 max-w-sm" />
-                        </div>
-                    ) : (showBlockAccuracy || showOverallAccuracy) ? (
-                        <div className="space-y-3 text-foreground leading-relaxed">
-                            {showBlockAccuracy ? (
-                                <p>
-                                    Your accuracy for your most recent block of 5 tasks was{" "}
-                                    <span className="font-semibold">
-                                        {formatAccuracyPercent(queueAccuracy)}
-                                    </span>
-                                    .
-                                </p>
-                            ) : null}
-                            {showSeparateOverall ? (
-                                <p>
-                                    Your average accuracy across all{" "}
-                                    <span className="font-semibold">{completed}</span> blocks you
-                                    have completed is{" "}
-                                    <span className="font-semibold">
-                                        {formatAccuracyPercent(respondentAverageAccuracy!)}
-                                    </span>
-                                    .
-                                </p>
-                            ) : showOverallAccuracy && !showBlockAccuracy ? (
-                                <p>
-                                    Your average accuracy across{" "}
-                                    {completed === 1 ? "this block" : `all ${completed} blocks`} is{" "}
-                                    <span className="font-semibold">
-                                        {formatAccuracyPercent(respondentAverageAccuracy!)}
-                                    </span>
-                                    .
-                                </p>
+                <div className="mb-6 space-y-4 overflow-visible">
+                    {showStatsGrid ? (
+                        <div className="space-y-3">
+                            <SurveyResultsStatsGrid
+                                stats={statCards}
+                                skeletonCount={statsSkeletonCount}
+                            />
+                            {!summaryLoading && (showBlockAccuracy || showOverallAccuracy) ? (
+                                <AccuracyCalculationInfo />
                             ) : null}
                         </div>
                     ) : null}
-                    {!summaryLoading && (showBlockAccuracy || showOverallAccuracy) ? (
-                        <AccuracyCalculationInfo />
-                    ) : null}
-                    {analyticsLoading ? (
-                        <>
-                            <AccuracyDistributionChartSkeleton />
-                            <InstitutionLeaderboardSkeleton />
-                        </>
-                    ) : (
-                        <>
-                            {showDistributionChart && distribution ? (
-                                <AccuracyDistributionChart
-                                    bins={distribution.bins}
-                                    percentile={distribution.percentile}
-                                    comparisonScore={distribution.comparisonScore}
-                                    responseCount={distribution.responseCount}
-                                />
-                            ) : null}
-                            {showLeaderboard && leaderboard ? (
-                                <InstitutionLeaderboard
-                                    top10={leaderboard.top10}
-                                    respondent={leaderboard.respondent}
-                                    highlightInstitutionKey={leaderboard.highlightInstitutionKey}
-                                />
-                            ) : null}
-                        </>
-                    )}
+                    <div className="relative overflow-visible">
+                        <ThankYouAnalyticsConfetti
+                            active={
+                                !analyticsLoading &&
+                                (showDistributionChart || showLeaderboard)
+                            }
+                        />
+                        <div className="relative z-10 space-y-4">
+                            {analyticsLoading && !chartPreview ? (
+                                <>
+                                    <AccuracyDistributionChartSkeleton />
+                                    <InstitutionLeaderboardSkeleton />
+                                </>
+                            ) : (
+                                <>
+                                    {showDistributionChart && (chartPreview || distribution) ? (
+                                        <AccuracyDistributionChart
+                                            bins={
+                                                chartPreview?.bins ?? distribution!.bins
+                                            }
+                                            comparisonScore={
+                                                chartPreview?.comparisonScore ??
+                                                distribution!.comparisonScore
+                                            }
+                                            percentile={
+                                                chartPreview?.percentile ??
+                                                distribution!.percentile ??
+                                                percentileSummary?.overall ??
+                                                null
+                                            }
+                                            responseCount={
+                                                chartPreview?.responseCount ??
+                                                distribution!.responseCount
+                                            }
+                                            previewNote={chartPreview?.previewNote}
+                                        />
+                                    ) : null}
+                                    {showLeaderboard && leaderboard ? (
+                                        <InstitutionLeaderboard
+                                            top10={leaderboard.top10}
+                                            respondent={leaderboard.respondent}
+                                            highlightInstitutionKey={
+                                                leaderboard.highlightInstitutionKey
+                                            }
+                                        />
+                                    ) : null}
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
             ) : null}
-            <div className="flex justify-end">
-                <Button asChild>
-                    <Link href={continueHref}>Do 5 more tasks</Link>
-                </Button>
+            <div className="mt-6 space-y-4 border-t pt-6">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                    You can improve your accuracy by completing another block of 5 tasks. Each block
+                    updates your average score and where you rank among other participants.
+                </p>
+                <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-4 space-y-4">
+                    <div>
+                        <p className="text-base font-semibold text-foreground">
+                            Ready for another round?
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                            Five more papers take just a few minutes, and will give you another chance
+                            to raise your accuracy and percentile.
+                        </p>
+                    </div>
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                        <Button variant="outline" asChild className="sm:min-w-[7.5rem]">
+                            <Link href="/study-complete">I&apos;m done</Link>
+                        </Button>
+                        <Button asChild className="sm:min-w-[12rem]">
+                            <Link href={continueHref}>Keep going, 5 more tasks!</Link>
+                        </Button>
+                    </div>
+                </div>
             </div>
         </div>
     )

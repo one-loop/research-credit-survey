@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
         ])
         const comparisonScore =
             summary.respondentAverageAccuracy ?? summary.queueAccuracy ?? null
-        const { distribution, leaderboard } = await getExperimentThankYouAnalytics(
+        const { distribution, leaderboard, institutionPercentile } = await getExperimentThankYouAnalytics(
             experimentType,
             comparisonScore,
             respondentInstitutionKey
@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
                 bins: distribution.bins,
                 percentile: distribution.percentile,
                 comparisonScore: distribution.comparisonScore,
+                institutionPercentile,
             },
             leaderboard: {
                 top10: leaderboard.top10,
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
         getRespondentInstitutionKeyForExperiment(authorId, experimentType),
     ])
     const comparisonScore = summary.respondentAverageAccuracy ?? summary.queueAccuracy ?? null
-    const { distribution, leaderboard } = await getExperimentThankYouAnalytics(
+    const { distribution, leaderboard, institutionPercentile } = await getExperimentThankYouAnalytics(
         experimentType,
         comparisonScore,
         respondentInstitutionKey
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
             bins: distribution.bins,
             percentile: distribution.percentile,
             comparisonScore: distribution.comparisonScore,
+            institutionPercentile,
         },
         leaderboard: {
             top10: leaderboard.top10,

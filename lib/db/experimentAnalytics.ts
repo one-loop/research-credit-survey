@@ -8,6 +8,7 @@ import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import {
     buildInstitutionLeaderboard,
     institutionKeyFromDemographics,
+    institutionPercentileForScore,
     type InstitutionLeaderboardResult,
     type ResponseForLeaderboard,
 } from "@/lib/survey/institutionLeaderboard"
@@ -89,12 +90,27 @@ export async function getExperimentThankYouAnalytics(
 ): Promise<{
     distribution: AccuracyDistributionStats
     leaderboard: InstitutionLeaderboardResult
+    institutionPercentile: number | null
 }> {
     const rows = await getCachedExperimentAnalyticsRows(experimentType)
     const scores = rows.map((r) => r.averageAccuracy)
 
+    let institutionPercentile: number | null = null
+    if (
+        respondentInstitutionKey &&
+        typeof comparisonScore === "number" &&
+        Number.isFinite(comparisonScore)
+    ) {
+        institutionPercentile = institutionPercentileForScore(
+            rows,
+            respondentInstitutionKey,
+            comparisonScore
+        )
+    }
+
     return {
         distribution: buildAccuracyDistributionStats(scores, comparisonScore),
         leaderboard: buildInstitutionLeaderboard(rows, respondentInstitutionKey),
+        institutionPercentile,
     }
 }
