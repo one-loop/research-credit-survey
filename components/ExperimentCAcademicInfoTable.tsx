@@ -36,7 +36,7 @@ export function ExperimentCAcademicInfoTable({
     return (
         <div className={className}>
             <p className="font-medium mb-3">{title}</p>
-            <div className="overflow-x-auto rounded-lg border border-violet-200 bg-card shadow-sm">
+            <div className="overflow-x-auto rounded-lg border border-violet-950 bg-card shadow-sm">
                 <table className="w-full min-w-[320px] text-sm">
                     <thead>
                         <tr className="border-b border-violet-200 bg-violet-50 text-left text-violet-950">
