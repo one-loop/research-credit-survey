@@ -391,7 +391,7 @@ export function SurveyThanksPanel({
                             Ready for another round?
                         </p>
                         <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                            Five more papers take just a few minutes — and give you another chance
+                            Five more papers take just a few minutes, and will give you another chance
                             to raise your accuracy and percentile.
                         </p>
                     </div>
@@ -400,7 +400,7 @@ export function SurveyThanksPanel({
                             <Link href="/study-complete">I&apos;m done</Link>
                         </Button>
                         <Button asChild className="sm:min-w-[12rem]">
-                            <Link href={continueHref}>Keep going — 5 more tasks</Link>
+                            <Link href={continueHref}>Keep going, 5 more tasks!</Link>
                         </Button>
                     </div>
                 </div>
