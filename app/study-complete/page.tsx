@@ -12,7 +12,7 @@ export default function StudyCompletePage() {
                 care you put into ranking author contributions.
             </p>
             <p className="text-base text-muted-foreground leading-relaxed mb-6">
-                You may now close this window. 
+                You may now close this window.
             </p>
             <Button variant="outline" asChild>
                 <Link href="/">Return home</Link>
