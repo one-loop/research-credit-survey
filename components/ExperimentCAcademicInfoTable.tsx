@@ -17,9 +17,6 @@ function formatTop100Institution(author: Author): { label: string; highlight: bo
     const raw = author.first_institution_name?.trim().toLowerCase()
     if (raw === "yes") return { label: "Yes", highlight: true }
     if (raw === "no") return { label: "No", highlight: false }
-    if (author.first_institution_name) {
-        return { label: author.first_institution_name, highlight: false }
-    }
     return { label: "N/A", highlight: false }
 }
 
