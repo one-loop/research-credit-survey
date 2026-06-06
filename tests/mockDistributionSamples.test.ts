@@ -29,15 +29,16 @@ describe("mockDistributionSamples", () => {
 
     it("parses mockDistribution query values in development", () => {
         const prev = process.env.NODE_ENV
-        process.env.NODE_ENV = "development"
-
-        expect(parseMockDistributionSampleCount(null)).toBe(0)
-        expect(parseMockDistributionSampleCount("")).toBe(DEFAULT_MOCK_DISTRIBUTION_SAMPLES)
-        expect(parseMockDistributionSampleCount("true")).toBe(DEFAULT_MOCK_DISTRIBUTION_SAMPLES)
-        expect(parseMockDistributionSampleCount("150")).toBe(150)
-
-        process.env.NODE_ENV = prev
-    })
+        try {
+            process.env.NODE_ENV = "development"
+            expect(parseMockDistributionSampleCount(null)).toBe(0)
+            expect(parseMockDistributionSampleCount("")).toBe(DEFAULT_MOCK_DISTRIBUTION_SAMPLES)
+            expect(parseMockDistributionSampleCount("true")).toBe(DEFAULT_MOCK_DISTRIBUTION_SAMPLES)
+            expect(parseMockDistributionSampleCount("150")).toBe(150)
+        } finally {
+            if (prev === undefined) delete process.env.NODE_ENV
+            else process.env.NODE_ENV = prev
+        }
 
     it("mulberry32 returns values in [0, 1)", () => {
         const rand = mulberry32(1)
