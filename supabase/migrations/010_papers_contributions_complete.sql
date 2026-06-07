@@ -4,11 +4,14 @@ ALTER TABLE papers
 
 UPDATE papers p
 SET contributions_complete = false
-WHERE EXISTS (
-  SELECT 1
-  FROM jsonb_array_elements(COALESCE(p.authors, '[]'::jsonb)) AS author
-  WHERE jsonb_array_length(COALESCE(author->'contributions', '[]'::jsonb)) = 0
-);
+WHERE
+  jsonb_typeof(COALESCE(p.authors, '[]'::jsonb)) <> 'array'
+  OR jsonb_array_length(COALESCE(p.authors, '[]'::jsonb)) = 0
+  OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(COALESCE(p.authors, '[]'::jsonb)) AS author
+    WHERE jsonb_array_length(COALESCE(author->'contributions', '[]'::jsonb)) = 0
+  );
 
 CREATE INDEX IF NOT EXISTS idx_papers_contributions_complete_study
   ON papers (contributions_complete)
