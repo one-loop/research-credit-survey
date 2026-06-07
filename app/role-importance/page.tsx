@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { Suspense } from "react"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
+import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
 
 function RoleImportanceContent() {
     const { authorId } = useSurveyParticipant()
@@ -85,16 +86,18 @@ function RoleImportanceContent() {
     }, [authorId, values])
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-3">
-                Role Importance
-            </h1>
+        <SurveyPageEnter className="max-w-3xl mx-auto p-6">
+            <FadeIn>
+                <h1 className="text-2xl font-bold mb-3">
+                    Role Importance
+                </h1>
 
-            <p className="mb-6">
-                Please rate the importance of each contributor role to the final article on a 1–5 scale (1 = Not important, 5 = Extremely important).
-            </p>
+                <p className="mb-6">
+                    Please rate the importance of each contributor role to the final article on a 1–5 scale (1 = Not important, 5 = Extremely important).
+                </p>
+            </FadeIn>
 
-            <form className="space-y-6">
+            <FadeInStagger className="space-y-6" step={40}>
                 {creditRoles.map((role) => {
                     const current = values[role.id]
                     return (
@@ -137,9 +140,9 @@ function RoleImportanceContent() {
                     </div>
                     )
                 })}
-            </form>
+            </FadeInStagger>
 
-            <div className="mt-8 flex flex-col items-end gap-2">
+            <FadeIn delay={120} className="mt-8 flex flex-col items-end gap-2">
                 {!worksReady && !worksError && (
                     <p className="text-xs text-muted-foreground">
                         Preparing the next task… please wait a moment.
@@ -172,8 +175,8 @@ function RoleImportanceContent() {
                         {!allRolesScored ? "Score every contribution to continue" : "Loading next step…"}
                     </Button>
                 )}
-            </div>
-        </div>
+            </FadeIn>
+        </SurveyPageEnter>
     )
 }
 

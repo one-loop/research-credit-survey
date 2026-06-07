@@ -14,6 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
 
 const inputClass =
     "w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -177,13 +178,16 @@ function RespondentSurveyContent() {
     }
 
     return (
-        <div className="max-w-lg mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-2">Demographic Survey</h1>
-            <p className="text-muted-foreground mb-6 leading-relaxed">
-                Please complete some details about yourself before continuing.
-            </p>
+        <SurveyPageEnter className="max-w-lg mx-auto p-6">
+            <FadeIn>
+                <h1 className="text-2xl font-bold mb-2">Demographic Survey</h1>
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                    Please complete some details about yourself before continuing.
+                </p>
+            </FadeIn>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit}>
+                <FadeInStagger className="space-y-5">
                 <div>
                     <label htmlFor="primaryDomain" className="block text-sm font-medium mb-1.5">
                         Primary domain of research
@@ -332,8 +336,9 @@ function RespondentSurveyContent() {
                         Continue
                     </Button>
                 </div>
+                </FadeInStagger>
             </form>
-        </div>
+        </SurveyPageEnter>
     )
 }
 

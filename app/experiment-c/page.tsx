@@ -17,6 +17,7 @@ import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { Spinner } from "@/components/ui/spinner"
+import { TaskTransition } from "@/components/SurveyMotion"
 import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicInfoTable"
 
 
@@ -433,13 +434,14 @@ function ExperimentCPageContent() {
                 )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">
                     <div
-                        className="bg-primary h-2 rounded-full transition-all"
+                        className="bg-primary h-2 rounded-full transition-all duration-500 ease-out"
                         style={{ width: `${((currentIndex + 1) / totalWorks) * 100}%` }}
                     />
                 </div>
             </div>
 
             {currentWork && (
+                <TaskTransition taskKey={currentIndex}>
                 <>
                     <div className="mb-6 space-y-3">
                         <p className="text-lg font-medium mb-2">Author contributions</p>
@@ -520,6 +522,7 @@ function ExperimentCPageContent() {
                         </Button>
                     </div>
                 </>
+                </TaskTransition>
             )}
             <ConfirmRankingOrderDialog
                 open={confirmUnchangedOpen}

@@ -2,6 +2,7 @@
 
 import { creditRoles } from "@/lib/mockData"
 import { Card, CardContent } from "@/components/ui/card"
+import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Suspense, useEffect, useState } from "react"
@@ -35,20 +36,22 @@ function CreditRolesContent() {
     }
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-4">
-                Contributor Role Taxonomy (CRediT)
-            </h1>
+        <SurveyPageEnter className="max-w-3xl mx-auto p-6">
+            <FadeIn>
+                <h1 className="text-2xl font-bold mb-4">
+                    Contributor Role Taxonomy (CRediT)
+                </h1>
 
-            <p className="mb-2 text-muted-foreground">
-                CRediT is a community-developed taxonomy of 14 contributor roles that capture the key types of contributions made to research outputs, including journal articles. It was created to complement traditional authorship by providing a clearer, more structured account of how research is produced and who contributed what.
-            </p>
-            <p className="mb-2 text-muted-foreground">
-                Beyond scholarly publishing, contributorship information can support research assessment, expert identification, research integrity, and accountability.
-            </p>
-            <p className="mb-2 text-muted-foreground">Learn more: <a href="https://credit.niso.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">https://credit.niso.org</a></p>
-            <p className="mb-8 text-muted-foreground">Please familiarize yourself with the 14 CRediT roles and their definitions below. You will be able to see them later so there is no need to memorize them.</p>
-            <div className="space-y-4">
+                <p className="mb-2 text-muted-foreground">
+                    CRediT is a community-developed taxonomy of 14 contributor roles that capture the key types of contributions made to research outputs, including journal articles. It was created to complement traditional authorship by providing a clearer, more structured account of how research is produced and who contributed what.
+                </p>
+                <p className="mb-2 text-muted-foreground">
+                    Beyond scholarly publishing, contributorship information can support research assessment, expert identification, research integrity, and accountability.
+                </p>
+                <p className="mb-2 text-muted-foreground">Learn more: <a href="https://credit.niso.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">https://credit.niso.org</a></p>
+                <p className="mb-8 text-muted-foreground">Please familiarize yourself with the 14 CRediT roles and their definitions below. You will be able to see them later so there is no need to memorize them.</p>
+            </FadeIn>
+            <FadeInStagger className="space-y-4" step={35}>
             {creditRoles.map(role => (
                 <Card key={role.id}>
                     <CardContent className="p-4">
@@ -59,14 +62,14 @@ function CreditRolesContent() {
                     </CardContent>
                 </Card>
                 ))}
-            </div>
+            </FadeInStagger>
 
-            <div className="mt-8 flex justify-end">
+            <FadeIn delay={180} className="mt-8 flex justify-end">
                 <Button asChild>
                     <Link href={roleImportanceHref}>Continue</Link>
                 </Button>
-            </div>
-        </div>
+            </FadeIn>
+        </SurveyPageEnter>
     )
 }
 

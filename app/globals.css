@@ -123,3 +123,41 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes survey-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes survey-task-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.survey-fade-in {
+  animation: survey-fade-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--survey-delay, 0ms);
+}
+
+.survey-task-enter {
+  animation: survey-task-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .survey-fade-in,
+  .survey-task-enter {
+    animation: none;
+  }
+}

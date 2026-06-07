@@ -39,6 +39,7 @@ describe("mockDistributionSamples", () => {
             if (prev === undefined) delete process.env.NODE_ENV
             else process.env.NODE_ENV = prev
         }
+    })
 
     it("mulberry32 returns values in [0, 1)", () => {
         const rand = mulberry32(1)

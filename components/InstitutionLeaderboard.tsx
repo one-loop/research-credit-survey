@@ -1,6 +1,7 @@
 "use client"
 
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
+import { FadeIn } from "@/components/SurveyMotion"
 
 type Props = {
     top10: InstitutionLeaderboardEntry[]
@@ -38,6 +39,7 @@ export function InstitutionLeaderboard({
     if (top10.length === 0 && !respondent) return null
 
     return (
+        <FadeIn delay={120}>
         <div className="rounded-lg border bg-card p-4">
             <h2 className="text-base font-semibold mb-1.5">Institution leaderboard</h2>
             <p className="text-sm text-muted-foreground mb-4">
@@ -78,5 +80,6 @@ export function InstitutionLeaderboard({
                 </div>
             ) : null}
         </div>
+        </FadeIn>
     )
 }

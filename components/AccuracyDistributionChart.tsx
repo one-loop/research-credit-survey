@@ -2,6 +2,7 @@
 
 import { useId, useMemo } from "react"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
+import { FadeIn } from "@/components/SurveyMotion"
 import {
     buildCumulativeCurvePoints,
     cumulativeAreaPath,
@@ -66,6 +67,7 @@ export function AccuracyDistributionChart({
     const baselineY = PAD.top + CHART_H
 
     return (
+        <FadeIn delay={60}>
         <div className="rounded-lg border bg-card p-4">
             {previewNote ? (
                 <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
@@ -211,5 +213,6 @@ export function AccuracyDistributionChart({
                 <span>Accuracy</span>
             </div>
         </div>
+        </FadeIn>
     )
 }

@@ -13,6 +13,7 @@ import { InstitutionLeaderboard } from "@/components/InstitutionLeaderboard"
 import { InstitutionLeaderboardSkeleton } from "@/components/InstitutionLeaderboardSkeleton"
 import { Button } from "@/components/ui/button"
 import { ThankYouAnalyticsConfetti, ThankYouConfetti } from "@/components/ThankYouConfetti"
+import { FadeIn } from "@/components/SurveyMotion"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
 import { accuracyPercentileRank, buildAccuracyHistogram } from "@/lib/survey/accuracyDistribution"
@@ -311,12 +312,14 @@ export function SurveyThanksPanel({
     return (
         <div className={`mx-auto overflow-visible p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
             <ThankYouConfetti />
-            <h1 className="text-3xl font-bold tracking-tight mb-4">Thank you</h1>
-            <p className="text-base text-muted-foreground leading-relaxed mb-5">
-                Your responses are complete. We appreciate you taking the time to participate in this study. Here are your results:
-            </p>
+            <FadeIn>
+                <h1 className="text-3xl font-bold tracking-tight mb-4">Thank you</h1>
+                <p className="text-base text-muted-foreground leading-relaxed mb-5">
+                    Your responses are complete. We appreciate you taking the time to participate in this study. Here are your results:
+                </p>
+            </FadeIn>
             {showInsightsSection ? (
-                <div className="mb-6 space-y-4 overflow-visible">
+                <FadeIn delay={80} className="mb-6 space-y-4 overflow-visible">
                     {showStatsGrid ? (
                         <div className="space-y-3">
                             <SurveyResultsStatsGrid
@@ -378,9 +381,9 @@ export function SurveyThanksPanel({
                             )}
                         </div>
                     </div>
-                </div>
+                </FadeIn>
             ) : null}
-            <div className="mt-6 space-y-4 border-t pt-6">
+            <FadeIn delay={160} className="mt-6 space-y-4 border-t pt-6">
                 <p className="text-sm text-muted-foreground leading-relaxed">
                     You can improve your accuracy by completing another block of 5 tasks. Each block
                     updates your average score and where you rank among other participants.
@@ -404,7 +407,7 @@ export function SurveyThanksPanel({
                         </Button>
                     </div>
                 </div>
-            </div>
+            </FadeIn>
         </div>
     )
 }

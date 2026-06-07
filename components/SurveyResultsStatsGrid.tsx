@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
+import { FadeIn, surveyStaggerDelay } from "@/components/SurveyMotion"
 
 export type SurveyStatCard = {
     id: string
@@ -57,8 +58,10 @@ export function SurveyResultsStatsGrid({ stats, skeletonCount = 0 }: Props) {
             )}
             aria-busy={skeletonCount > 0 || undefined}
         >
-            {stats.map(({ id, ...stat }) => (
-                <StatCard key={id} {...stat} />
+            {stats.map((stat, index) => (
+                <FadeIn key={stat.id} delay={surveyStaggerDelay(index, 40, 200)}>
+                    <StatCard {...stat} />
+                </FadeIn>
             ))}
             {Array.from({ length: skeletonCount }).map((_, index) => (
                 <StatCardSkeleton key={`skeleton-${index}`} />

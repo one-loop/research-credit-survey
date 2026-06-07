@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { useRespondentLandingReturn } from "@/lib/useRespondentLandingReturn"
 import { SurveyThanksPanel } from "@/components/SurveyThanksPanel"
+import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import { SURVEY_PARTICIPANT_STORAGE_KEY } from "@/lib/survey/participant"
 
 
@@ -113,9 +114,11 @@ function HomeContent() {
     }
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6">Contribution Ranking Study</h1>
-            <div className="space-y-4 text-muted-foreground leading-relaxed">
+        <SurveyPageEnter className="max-w-3xl mx-auto p-6">
+            <FadeIn>
+                <h1 className="text-2xl font-bold mb-6">Contribution Ranking Study</h1>
+            </FadeIn>
+            <FadeIn delay={60} className="space-y-4 text-muted-foreground leading-relaxed">
                 <p>
                     The estimated time for this study is <b>10 minutes</b>.
                 </p>
@@ -152,14 +155,14 @@ function HomeContent() {
                 <p>
                     By clicking the button below you agree to participate in the study. ONLY click this button if you intend to participate. You can only participate in the study once.
                 </p>
-            </div>
+            </FadeIn>
 
-            <div className="mt-8 flex justify-end">
+            <FadeIn delay={120} className="mt-8 flex justify-end">
                 <Button asChild>
                     <Link href={beginHref}>Begin</Link>
                 </Button>
-            </div>
-        </div>
+            </FadeIn>
+        </SurveyPageEnter>
     )
 }
 
