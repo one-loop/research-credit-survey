@@ -6,8 +6,8 @@ import { FadeIn } from "@/components/SurveyMotion"
 import {
     buildCumulativeCurvePoints,
     cumulativeAreaPath,
-    interpolateCumulativeAt,
     linearCurvePath,
+    markerOnCumulativeCurve,
     type CurvePoint,
 } from "@/lib/survey/accuracyDistributionCurve"
 
@@ -22,7 +22,7 @@ type Props = {
 const WIDTH = 400
 const HEIGHT = 224
 /** Plot area insets within the SVG viewBox. */
-const PAD = { top: 36, right: 16, bottom: 48, left: 74 }
+const PAD = { top: 40, right: 16, bottom: 48, left: 74 }
 const CHART_W = WIDTH - PAD.left - PAD.right
 const CHART_H = HEIGHT - PAD.top - PAD.bottom
 const BASELINE_Y = PAD.top + CHART_H
@@ -32,6 +32,9 @@ const Y_AXIS_MID = (PAD.top + BASELINE_Y) / 2
 const Y_AXIS_LABEL_X = 18
 const X_TICK_Y = BASELINE_Y + 16
 const X_TITLE_Y = HEIGHT - 10
+const CALLOUT_W = 84
+const CALLOUT_H = 24
+const CALLOUT_GAP = 10
 
 function toSvg(point: CurvePoint): CurvePoint {
     return {
@@ -42,6 +45,34 @@ function toSvg(point: CurvePoint): CurvePoint {
 
 function mapPathToSvg(points: CurvePoint[]): CurvePoint[] {
     return points.map(toSvg)
+}
+
+/** Place the score callout near the marker without overlapping axis tick labels. */
+function getMarkerCalloutOrigin(
+    markerX: number,
+    markerY: number,
+    cumulativeY: number,
+    clampedScore: number
+): { x: number; y: number } {
+    let centerX = markerX
+    let centerY = markerY - CALLOUT_GAP - CALLOUT_H / 2
+
+    if (cumulativeY > 0.78) {
+        centerY = markerY + CALLOUT_GAP + CALLOUT_H / 2
+    }
+
+    if (clampedScore > 0.72) {
+        centerX = markerX - CALLOUT_W * 0.3
+    } else if (clampedScore < 0.2) {
+        centerX = markerX + CALLOUT_W * 0.3
+    }
+
+    const halfW = CALLOUT_W / 2
+    const halfH = CALLOUT_H / 2
+    centerX = Math.min(Math.max(centerX, PAD.left + halfW + 4), PAD.left + CHART_W - halfW - 4)
+    centerY = Math.min(Math.max(centerY, PAD.top + halfH + 2), BASELINE_Y - halfH - 6)
+
+    return { x: centerX - halfW, y: centerY - halfH }
 }
 
 export function AccuracyDistributionChart({
@@ -55,27 +86,36 @@ export function AccuracyDistributionChart({
     const curvePoints = useMemo(() => buildCumulativeCurvePoints(bins), [bins])
     const svgPoints = useMemo(() => mapPathToSvg(curvePoints), [curvePoints])
     const linePath = useMemo(() => linearCurvePath(svgPoints), [svgPoints])
-    const areaPath = useMemo(() => cumulativeAreaPath(svgPoints), [svgPoints])
+    const areaPath = useMemo(() => cumulativeAreaPath(svgPoints, BASELINE_Y), [svgPoints])
 
-    const clampedScore =
+    const markerNorm =
         typeof comparisonScore === "number" && Number.isFinite(comparisonScore)
-            ? Math.min(1, Math.max(0, comparisonScore))
+            ? markerOnCumulativeCurve(curvePoints, comparisonScore)
             : null
 
-    const cumulativeY =
-        typeof percentile === "number" && Number.isFinite(percentile)
-            ? Math.min(1, Math.max(0, percentile / 100))
-            : clampedScore !== null
-              ? interpolateCumulativeAt(curvePoints, clampedScore)
-              : null
+    const markerSvg = markerNorm ? toSvg(markerNorm) : null
+    const markerX = markerSvg?.x ?? null
+    const markerY = markerSvg?.y ?? null
+    const clampedScore = markerNorm?.x ?? null
+    const cumulativeY = markerNorm?.y ?? null
 
-    const markerX =
-        clampedScore !== null ? PAD.left + clampedScore * CHART_W : null
-    const markerY =
-        cumulativeY !== null ? PAD.top + CHART_H - cumulativeY * CHART_H : null
+    const callout =
+        markerX !== null &&
+        markerY !== null &&
+        clampedScore !== null &&
+        cumulativeY !== null
+            ? getMarkerCalloutOrigin(markerX, markerY, cumulativeY, clampedScore)
+            : null
 
     const yTicks = [0, 0.5, 1]
     const xTicks = [0, 0.5, 1]
+
+    const markerAriaLabel =
+        clampedScore !== null && cumulativeY !== null
+            ? `Your score: ${Math.round(clampedScore * 100)}% accuracy; ${Math.round(cumulativeY * 100)}% of participants scored at or below${
+                  typeof percentile === "number" ? `; overall percentile rank ${Math.round(percentile)}` : ""
+              }`
+            : undefined
 
     return (
         <FadeIn delay={60}>
@@ -183,66 +223,6 @@ export function AccuracyDistributionChart({
                         />
                     ) : null}
 
-                    {markerX !== null && markerY !== null ? (
-                        <g>
-                            <line
-                                x1={markerX}
-                                y1={markerY}
-                                x2={markerX}
-                                y2={BASELINE_Y}
-                                className="stroke-violet-950/35"
-                                strokeWidth={1.5}
-                                strokeDasharray="4 3"
-                            />
-                            <line
-                                x1={PAD.left}
-                                y1={markerY}
-                                x2={markerX}
-                                y2={markerY}
-                                className="stroke-violet-950/35"
-                                strokeWidth={1.5}
-                                strokeDasharray="4 3"
-                            />
-                            <circle
-                                cx={markerX}
-                                cy={markerY}
-                                r={4.5}
-                                className="fill-violet-700 stroke-white"
-                                strokeWidth={1.5}
-                            />
-                            <text
-                                x={markerX}
-                                y={PAD.top - 10}
-                                textAnchor="middle"
-                                className="fill-violet-950 text-[9px] font-semibold"
-                            >
-                                You
-                            </text>
-                            {clampedScore !== null && cumulativeY !== null ? (
-                                <>
-                                    <text
-                                        x={markerX}
-                                        y={X_TICK_Y}
-                                        textAnchor="middle"
-                                        dominantBaseline="central"
-                                        className="fill-violet-950 text-[9px] font-medium"
-                                    >
-                                        {Math.round(clampedScore * 100)}%
-                                    </text>
-                                    <text
-                                        x={Y_TICK_X}
-                                        y={markerY}
-                                        textAnchor="end"
-                                        dominantBaseline="central"
-                                        className="fill-violet-950 text-[9px] font-medium"
-                                    >
-                                        {Math.round(cumulativeY * 100)}%
-                                    </text>
-                                </>
-                            ) : null}
-                        </g>
-                    ) : null}
-
                     {xTicks.map((frac) => (
                         <text
                             key={`x-label-${frac}`}
@@ -274,6 +254,54 @@ export function AccuracyDistributionChart({
                     >
                         Accuracy
                     </text>
+
+                    {markerX !== null && markerY !== null && callout && clampedScore !== null ? (
+                        <g aria-label={markerAriaLabel}>
+                            <line
+                                x1={markerX}
+                                y1={markerY}
+                                x2={markerX}
+                                y2={BASELINE_Y}
+                                className="stroke-violet-950/25"
+                                strokeWidth={1}
+                                strokeDasharray="3 3"
+                            />
+                            <line
+                                x1={PAD.left}
+                                y1={markerY}
+                                x2={markerX}
+                                y2={markerY}
+                                className="stroke-violet-950/25"
+                                strokeWidth={1}
+                                strokeDasharray="3 3"
+                            />
+                            <circle
+                                cx={markerX}
+                                cy={markerY}
+                                r={4.5}
+                                className="fill-violet-700 stroke-white"
+                                strokeWidth={1.5}
+                            />
+                            <g transform={`translate(${callout.x}, ${callout.y})`}>
+                                <rect
+                                    width={CALLOUT_W}
+                                    height={CALLOUT_H}
+                                    rx={4}
+                                    className="fill-white stroke-violet-200"
+                                    strokeWidth={1}
+                                />
+                                <text
+                                    x={CALLOUT_W / 2}
+                                    y={12}
+                                    textAnchor="middle"
+                                    dominantBaseline="central"
+                                    className="fill-violet-950 text-[9px] font-semibold"
+                                >
+                                    You · {Math.round(clampedScore * 100)}% acc.
+                                </text>
+                            </g>
+                        </g>
+                    ) : null}
                 </svg>
             </div>
         </FadeIn>
