@@ -2,6 +2,7 @@
 
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
 import { FadeIn } from "@/components/SurveyMotion"
+import { cn } from "@/lib/utils"
 
 type Props = {
     top10: InstitutionLeaderboardEntry[]
@@ -21,10 +22,24 @@ function LeaderboardRow({
     highlight?: boolean
 }) {
     return (
-        <tr className={highlight ? "bg-violet-50" : undefined}>
-            <td className="py-2 px-3 text-sm font-medium tabular-nums w-10">{entry.rank}</td>
-            <td className="py-2 pr-3 text-sm">{entry.institutionName}</td>
-            <td className="py-2 px-3 text-sm text-right font-semibold tabular-nums">
+        <tr>
+            <td
+                className={cn(
+                    "py-2 px-3 text-sm font-medium tabular-nums w-10",
+                    highlight && "rounded-l-md bg-violet-50"
+                )}
+            >
+                {entry.rank}
+            </td>
+            <td className={cn("py-2 pr-3 text-sm", highlight && "bg-violet-50")}>
+                {entry.institutionName}
+            </td>
+            <td
+                className={cn(
+                    "py-2 px-3 text-sm text-right font-semibold tabular-nums",
+                    highlight && "rounded-r-md bg-violet-50"
+                )}
+            >
                 {formatPercent(entry.averageAccuracy)}
             </td>
         </tr>
@@ -47,7 +62,7 @@ export function InstitutionLeaderboard({
                 institution).
             </p>
             <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full border-separate border-spacing-y-1">
                     <thead>
                         <tr className="border-b text-left text-xs text-muted-foreground">
                             <th className="pb-2 pr-3 font-medium">Rank</th>
@@ -72,11 +87,13 @@ export function InstitutionLeaderboard({
             {respondent ? (
                 <div className="mt-4 pt-4 border-t">
                     <p className="text-sm font-medium text-muted-foreground mb-2">Your institution</p>
-                    <table className="w-full">
-                        <tbody>
-                            <LeaderboardRow entry={respondent} highlight />
-                        </tbody>
-                    </table>
+                    <div className="overflow-hidden rounded-md ring-1 ring-violet-200/70">
+                        <table className="w-full border-separate border-spacing-0">
+                            <tbody>
+                                <LeaderboardRow entry={respondent} highlight />
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             ) : null}
         </div>

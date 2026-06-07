@@ -20,10 +20,14 @@ type Props = {
 }
 
 const WIDTH = 400
-const HEIGHT = 200
-const PAD = { top: 20, right: 16, bottom: 32, left: 44 }
+const HEIGHT = 212
+const PAD = { top: 28, right: 12, bottom: 40, left: 52 }
 const CHART_W = WIDTH - PAD.left - PAD.right
 const CHART_H = HEIGHT - PAD.top - PAD.bottom
+const Y_LABEL_X = PAD.left - 10
+const Y_TITLE_X = 14
+const X_TICK_Y = PAD.top + CHART_H + 14
+const AXIS_TITLE_Y = HEIGHT - 6
 
 function toSvg(point: CurvePoint): CurvePoint {
     return {
@@ -106,9 +110,10 @@ export function AccuracyDistributionChart({
                                 strokeDasharray="3 3"
                             />
                             <text
-                                x={PAD.left - 6}
-                                y={y + 3}
+                                x={Y_LABEL_X}
+                                y={y}
                                 textAnchor="end"
+                                dominantBaseline="middle"
                                 className="fill-muted-foreground text-[9px]"
                             >
                                 {Math.round(frac * 100)}%
@@ -117,6 +122,14 @@ export function AccuracyDistributionChart({
                     )
                 })}
 
+                <line
+                    x1={PAD.left}
+                    y1={PAD.top}
+                    x2={PAD.left}
+                    y2={baselineY}
+                    className="stroke-border"
+                    strokeWidth={1}
+                />
                 <line
                     x1={PAD.left}
                     y1={baselineY}
@@ -167,7 +180,7 @@ export function AccuracyDistributionChart({
                         />
                         <text
                             x={markerX}
-                            y={PAD.top - 6}
+                            y={PAD.top - 8}
                             textAnchor="middle"
                             className="fill-violet-950 text-[9px] font-semibold"
                         >
@@ -177,16 +190,17 @@ export function AccuracyDistributionChart({
                             <>
                                 <text
                                     x={markerX}
-                                    y={baselineY + 14}
+                                    y={X_TICK_Y}
                                     textAnchor="middle"
                                     className="fill-violet-950 text-[9px] font-medium"
                                 >
                                     {Math.round(clampedScore * 100)}%
                                 </text>
                                 <text
-                                    x={PAD.left - 6}
-                                    y={markerY + 3}
+                                    x={Y_LABEL_X}
+                                    y={markerY!}
                                     textAnchor="end"
+                                    dominantBaseline="middle"
                                     className="fill-violet-950 text-[9px] font-medium"
                                 >
                                     {Math.round(cumulativeY * 100)}%
@@ -200,18 +214,33 @@ export function AccuracyDistributionChart({
                     <text
                         key={t}
                         x={PAD.left + t * CHART_W}
-                        y={HEIGHT - 8}
+                        y={X_TICK_Y}
                         textAnchor="middle"
+                        dominantBaseline="middle"
                         className="fill-muted-foreground text-[9px]"
                     >
                         {Math.round(t * 100)}%
                     </text>
                 ))}
+
+                <text
+                    x={Y_TITLE_X}
+                    y={(PAD.top + baselineY) / 2}
+                    textAnchor="middle"
+                    transform={`rotate(-90 ${Y_TITLE_X} ${(PAD.top + baselineY) / 2})`}
+                    className="fill-muted-foreground text-[9px]"
+                >
+                    % at or below
+                </text>
+                <text
+                    x={PAD.left + CHART_W / 2}
+                    y={AXIS_TITLE_Y}
+                    textAnchor="middle"
+                    className="fill-muted-foreground text-[9px]"
+                >
+                    Accuracy
+                </text>
             </svg>
-            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground px-1">
-                <span className="pl-8">% at or below</span>
-                <span>Accuracy</span>
-            </div>
         </div>
         </FadeIn>
     )
