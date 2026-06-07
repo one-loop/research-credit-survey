@@ -24,6 +24,13 @@ import {
     rankingAccuracyForWork,
     type AuthorForRankingAccuracy,
 } from "@/lib/survey/rankingAccuracy"
+import {
+    AUTHOR_COUNT_BINS,
+    authorCountRangeForBin,
+    authorCountToBin,
+    selectWorksOnePerAuthorBin,
+    type AuthorBinnedWork,
+} from "@/lib/survey/authorCountBins"
 
 /** Raw author object as stored in papers.authors JSONB (from PNAS/PLOS JSONL) */
 type PaperAuthor = {
@@ -62,6 +69,8 @@ export type PaperRow = {
     created_at?: string
     /** Total survey exposures (increments on any experiment completion that included this work). */
     work_exposure?: number | null
+    /** Generated column; used for fast author-count bin pool queries. */
+    author_count?: number | null
 }
 
 function readString(obj: Record<string, unknown>, keys: string[]): string | undefined {
@@ -143,6 +152,14 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
 const PAPER_COLUMNS =
     "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors,experiment_eligibility,work_exposure"
 
+/** Minimal columns for pool selection; full rows are loaded for the chosen works only. */
+const POOL_LIGHT_COLUMNS =
+    "work_id,domain,journal,field,experiment_eligibility,work_exposure,author_count"
+
+/** Enough candidates per bin to survive seen-work filtering without fetching thousands of rows. */
+const POOL_CANDIDATES_PER_BIN = 40
+const POOL_TOTAL_LIMIT = POOL_CANDIDATES_PER_BIN * AUTHOR_COUNT_BINS.length
+
 function shuffle<T>(array: T[]): T[] {
     const result = [...array]
     for (let i = result.length - 1; i > 0; i--) {
@@ -152,52 +169,243 @@ function shuffle<T>(array: T[]): T[] {
     return result
 }
 
-async function getPapersPool(
-    opts: {
-        domain?: string
-        journal?: string
-        scope?: RespondentPaperScope
-        excludeWorkIds: string[]
-        limit: number
-        experimentType: ExperimentType
+type PapersPoolOpts = {
+    domain?: string
+    journal?: string
+    scope?: RespondentPaperScope
+    excludeWorkIds: string[]
+    limit: number
+    experimentType: ExperimentType
+}
+
+function filterPaperPoolRows(
+    rows: PaperRow[],
+    scope: RespondentPaperScope,
+    experimentType: ExperimentType
+): PaperRow[] {
+    return rows.filter(
+        (row) =>
+            paperIsExperimentEligible(row.experiment_eligibility, experimentType) &&
+            isInRespondentScope(row, scope)
+    )
+}
+
+function isMissingAuthorCountColumnError(error: { message?: string } | null): boolean {
+    const message = error?.message?.toLowerCase() ?? ""
+    return message.includes("author_count") && message.includes("does not exist")
+}
+
+function applyPapersPoolFilters<T extends { eq: Function; not: Function; contains: Function }>(
+    query: T,
+    scope: RespondentPaperScope,
+    excludeWorkIds: string[],
+    experimentType: ExperimentType
+): T {
+    let next = query.eq("contributions_complete", true)
+    if (scope.domain) next = next.eq("domain", scope.domain)
+    if (scope.journal) next = next.eq("journal", scope.journal)
+    if (excludeWorkIds.length > 0) {
+        const escapedIds = excludeWorkIds.map((id) => `"${id.replace(/"/g, '\\"')}"`)
+        next = next.not("work_id", "in", `(${escapedIds.join(",")})`)
     }
-): Promise<PaperRow[]> {
-    const { domain, journal, excludeWorkIds, limit, experimentType } = opts
-    const scope: RespondentPaperScope = opts.scope ?? { domain, journal }
+    if (experimentType === "B" || experimentType === "C") {
+        next = next.contains("experiment_eligibility", [experimentType])
+    }
+    return next
+}
+
+function buildAuthorBinPoolQuery(
+    supabase: ReturnType<typeof getSupabase>,
+    opts: PapersPoolOpts,
+    scope: RespondentPaperScope,
+    bin: (typeof AUTHOR_COUNT_BINS)[number],
+    perBinLimit: number,
+    columns: string
+) {
+    const { min, max } = authorCountRangeForBin(bin)
+    return applyPapersPoolFilters(
+        supabase.from("papers").select(columns),
+        scope,
+        opts.excludeWorkIds,
+        opts.experimentType
+    )
+        .gte("author_count", min)
+        .lte("author_count", max)
+        .order("work_exposure", { ascending: true, nullsFirst: true })
+        .order("work_id", { ascending: true })
+        .limit(perBinLimit)
+}
+
+/** Fetch filler candidates from each author-count bin so selection is not biased by table order. */
+async function getPapersPoolStratifiedByAuthorBin(opts: PapersPoolOpts): Promise<PaperRow[] | null> {
+    const scope: RespondentPaperScope = opts.scope ?? { domain: opts.domain, journal: opts.journal }
+    if (!isSupabaseConfigured()) return []
+
+    const supabase = getSupabase()
+    const perBinLimit = Math.min(
+        POOL_CANDIDATES_PER_BIN,
+        Math.max(10, Math.ceil(opts.limit / AUTHOR_COUNT_BINS.length))
+    )
+
+    const results = await Promise.all(
+        AUTHOR_COUNT_BINS.map((bin) =>
+            buildAuthorBinPoolQuery(supabase, opts, scope, bin, perBinLimit, POOL_LIGHT_COLUMNS)
+        )
+    )
+
+    const merged: PaperRow[] = []
+    const seenWorkIds = new Set<string>()
+
+    for (const { data, error } of results) {
+        if (error) {
+            if (isMissingAuthorCountColumnError(error)) return null
+            continue
+        }
+        for (const row of (data ?? []) as PaperRow[]) {
+            if (seenWorkIds.has(row.work_id)) continue
+            seenWorkIds.add(row.work_id)
+            merged.push(row)
+        }
+    }
+
+    return filterPaperPoolRows(merged, scope, opts.experimentType)
+}
+
+/** Fallback when author_count is unavailable: avoid Postgres' default row order (often bin-skewed). */
+async function getPapersPoolOrdered(opts: PapersPoolOpts): Promise<PaperRow[]> {
+    const { excludeWorkIds, limit, experimentType } = opts
+    const scope: RespondentPaperScope = opts.scope ?? { domain: opts.domain, journal: opts.journal }
+    if (!isSupabaseConfigured()) return []
+
+    const supabase = getSupabase()
+    let query = applyPapersPoolFilters(
+        supabase.from("papers").select(PAPER_COLUMNS),
+        scope,
+        excludeWorkIds,
+        experimentType
+    )
+        .order("work_id", { ascending: true })
+        .limit(limit)
+
+    const { data, error } = await query
+    if (error || !data?.length) return []
+    return filterPaperPoolRows(data as PaperRow[], scope, experimentType)
+}
+
+async function getPapersPool(opts: PapersPoolOpts): Promise<PaperRow[]> {
     if (!isSupabaseConfigured()) return []
     try {
-        const supabase = getSupabase()
-        let query = supabase
-            .from("papers")
-            .select(PAPER_COLUMNS)
-            .eq("contributions_complete", true)
-            .limit(limit)
-
-        if (scope.domain) query = query.eq("domain", scope.domain)
-        if (scope.journal) query = query.eq("journal", scope.journal)
-        if (excludeWorkIds.length > 0) {
-            const escapedIds = excludeWorkIds.map((id) => `"${id.replace(/"/g, '\\"')}"`)
-            query = query.not("work_id", "in", `(${escapedIds.join(",")})`)
-        }
-        if (experimentType === "B" || experimentType === "C") {
-            query = query.contains("experiment_eligibility", [experimentType])
-        }
-
-        const { data, error } = await query
-        if (error || !data?.length) return []
-        return (data as PaperRow[]).filter(
-            (row) =>
-                paperIsExperimentEligible(row.experiment_eligibility, experimentType) &&
-                isInRespondentScope(row, scope)
-        )
+        const stratified = await getPapersPoolStratifiedByAuthorBin(opts)
+        if (stratified !== null) return stratified
+        return await getPapersPoolOrdered(opts)
     } catch {
         return []
     }
 }
 
+async function hydratePaperRowsById(workIds: string[]): Promise<Map<string, PaperRow>> {
+    const byId = new Map<string, PaperRow>()
+    if (!isSupabaseConfigured() || workIds.length === 0) return byId
+    try {
+        const supabase = getSupabase()
+        const { data, error } = await supabase
+            .from("papers")
+            .select(PAPER_COLUMNS)
+            .in("work_id", workIds)
+        if (error || !data?.length) return byId
+        for (const row of data as PaperRow[]) {
+            byId.set(row.work_id, row)
+        }
+    } catch {
+        return byId
+    }
+    return byId
+}
+
 function filterWorksToRespondentScope(works: Work[], scope: RespondentPaperScope): Work[] {
     if (!scope.domain && !scope.journal) return works
     return works.filter((work) => isInRespondentScope(work, scope))
+}
+
+function authorCountFromPaperRow(row: PaperRow): number {
+    if (typeof row.author_count === "number" && Number.isFinite(row.author_count)) {
+        return row.author_count
+    }
+    return Array.isArray(row.authors) ? row.authors.length : 0
+}
+
+function groupOrderedPoolByAuthorBin(pool: PaperRow[]): PaperRow[] {
+    const byBin = new Map<ReturnType<typeof authorCountToBin>, PaperRow[]>()
+    for (const row of pool) {
+        const bin = authorCountToBin(authorCountFromPaperRow(row))
+        if (!bin) continue
+        const bucket = byBin.get(bin) ?? []
+        bucket.push(row)
+        byBin.set(bin, bucket)
+    }
+    const ordered: PaperRow[] = []
+    for (const bin of [2, 3, 4, 5, "6-10"] as const) {
+        ordered.push(...orderPapersForFillers(byBin.get(bin) ?? []))
+    }
+    return ordered
+}
+
+function selectPaperRowsForAuthorBinBatch(opts: {
+    pool: PaperRow[]
+    ownPaper: PaperRow | null
+    ownWorkId: string | undefined
+    authorId: string | undefined
+    experimentType: ExperimentType
+    seenStatsByWork: Map<string, SeenWorkStats>
+    reservedWorkIds: Set<string>
+    scope: RespondentPaperScope
+}): PaperRow[] {
+    const rowById = new Map<string, PaperRow>()
+    for (const row of opts.pool) rowById.set(row.work_id, row)
+    if (opts.ownPaper) rowById.set(opts.ownPaper.work_id, opts.ownPaper)
+
+    const isEligible = (work: AuthorBinnedWork): boolean => {
+        const row = rowById.get(work.work_id)
+        if (!row) return false
+        if (!paperIsExperimentEligible(row.experiment_eligibility, opts.experimentType)) return false
+        if (!isInRespondentScope(row, opts.scope)) return false
+        if (
+            shouldExcludeBySeenRules(row, opts.seenStatsByWork.get(row.work_id), {
+                ownWorkId: opts.ownWorkId,
+                experimentType: opts.experimentType,
+            })
+        ) {
+            return false
+        }
+        return true
+    }
+
+    const orderedPool = groupOrderedPoolByAuthorBin(opts.pool)
+    const candidates: AuthorBinnedWork[] = orderedPool
+        .filter((row) => row.work_id !== opts.ownPaper?.work_id)
+        .map((row) => ({
+            work_id: row.work_id,
+            authorCount: authorCountFromPaperRow(row),
+        }))
+
+    const ownWork: AuthorBinnedWork | null = opts.ownPaper
+        ? {
+              work_id: opts.ownPaper.work_id,
+              authorCount: authorCountFromPaperRow(opts.ownPaper),
+              isOwnWork: true,
+          }
+        : null
+
+    const picked = selectWorksOnePerAuthorBin({
+        candidates,
+        ownWork,
+        reservedWorkIds: opts.reservedWorkIds,
+        isEligible,
+    })
+
+    return picked
+        .map((work) => rowById.get(work.work_id))
+        .filter((row): row is PaperRow => row !== undefined)
 }
 
 function workExposureValue(p: PaperRow): number {
@@ -611,10 +819,9 @@ async function getExperimentPapersPrioritized(
     experimentType: ExperimentType,
     queueIndex: number
 ): Promise<Work[]> {
-    const selected: Work[] = []
-    const selectedIds = new Set<string>()
     let scope: RespondentPaperScope = {}
     const ownWorkIds = new Set<string>()
+    let ownPaper: PaperRow | null = null
 
     if (authorId) {
         const allOwnPapers = await getCorrespondingOwnPapersByAuthorIdRows(authorId)
@@ -647,27 +854,50 @@ async function getExperimentPapersPrioritized(
             return []
         }
 
-        const shownOwnWorkIds = await getShownOwnWorkIdsForExperiment(authorId, experimentType, ownWorkIds)
+        const [shownOwnWorkIds, strictPool] = await Promise.all([
+            getShownOwnWorkIdsForExperiment(authorId, experimentType, ownWorkIds),
+            getPapersPool({
+                domain: scope.domain,
+                journal: scope.journal,
+                scope,
+                excludeWorkIds: Array.from(ownWorkIds),
+                limit: POOL_TOTAL_LIMIT,
+                experimentType,
+            }),
+        ])
+
         const nextOwnWorkId = selectNextOwnWorkId(
             eligibleOwnPapers.map((p) => p.work_id),
             shownOwnWorkIds
         )
         if (nextOwnWorkId) {
-            const ownPaper = eligibleOwnPapers.find((p) => p.work_id === nextOwnWorkId)
-            if (ownPaper) {
-                const ownWork = mapPaperToWork(ownPaper, true)
-                selected.push(ownWork)
-                selectedIds.add(ownPaper.work_id)
-            }
+            ownPaper = eligibleOwnPapers.find((p) => p.work_id === nextOwnWorkId) ?? null
         }
-    }
 
-    let remaining = worksPer - selected.length
-    if (remaining <= 0) {
+        const seenStatsByWork = await getSeenWorkStatsForPool(
+            [
+                ...strictPool.map((row) => row.work_id),
+                ...(ownPaper ? [ownPaper.work_id] : []),
+            ],
+            authorId
+        )
+
+        const selectedRows = selectPaperRowsForAuthorBinBatch({
+            pool: strictPool,
+            ownPaper,
+            ownWorkId: ownPaper?.work_id,
+            authorId,
+            experimentType,
+            seenStatsByWork,
+            reservedWorkIds: ownWorkIds,
+            scope,
+        }).slice(0, worksPer)
+
+        const hydrated = await hydratePaperRowsById(selectedRows.map((row) => row.work_id))
+        const binRows = selectedRows.map((row) => hydrated.get(row.work_id) ?? row)
+
         return filterWorksToRespondentScope(
-            selected.filter((work) =>
-                paperIsExperimentEligible(work.experiment_eligibility, experimentType)
-            ),
+            binRows.map((row) => mapPaperToWork(row, row.work_id === ownPaper?.work_id)),
             scope
         )
     }
@@ -676,40 +906,35 @@ async function getExperimentPapersPrioritized(
         domain: scope.domain,
         journal: scope.journal,
         scope,
-        excludeWorkIds: Array.from(new Set([...Array.from(selectedIds), ...Array.from(ownWorkIds)])),
-        limit: 500,
+        excludeWorkIds: Array.from(ownWorkIds),
+        limit: POOL_TOTAL_LIMIT,
         experimentType,
     })
 
     const seenStatsByWork = await getSeenWorkStatsForPool(
-        strictPool.map((row) => row.work_id),
+        [
+            ...strictPool.map((row) => row.work_id),
+            ...(ownPaper ? [ownPaper.work_id] : []),
+        ],
         authorId
     )
-    const orderedStrict = orderPapersForFillers(strictPool)
-    const ownWorkId = selected.find((w) => w.isOwnWork)?.work_id
 
-    for (const row of orderedStrict) {
-        if (remaining <= 0) break
-        if (selectedIds.has(row.work_id)) continue
-        if (!paperIsExperimentEligible(row.experiment_eligibility, experimentType)) continue
-        if (!isInRespondentScope(row, scope)) continue
-        if (
-            shouldExcludeBySeenRules(row, seenStatsByWork.get(row.work_id), {
-                ownWorkId,
-                experimentType,
-            })
-        ) {
-            continue
-        }
-        selected.push(mapPaperToWork(row))
-        selectedIds.add(row.work_id)
-        remaining -= 1
-    }
+    const selectedRows = selectPaperRowsForAuthorBinBatch({
+        pool: strictPool,
+        ownPaper,
+        ownWorkId: ownPaper?.work_id,
+        authorId,
+        experimentType,
+        seenStatsByWork,
+        reservedWorkIds: ownWorkIds,
+        scope,
+    }).slice(0, worksPer)
+
+    const hydrated = await hydratePaperRowsById(selectedRows.map((row) => row.work_id))
+    const binRows = selectedRows.map((row) => hydrated.get(row.work_id) ?? row)
 
     return filterWorksToRespondentScope(
-        selected.filter((work) =>
-            paperIsExperimentEligible(work.experiment_eligibility, experimentType)
-        ),
+        binRows.map((row) => mapPaperToWork(row, row.work_id === ownPaper?.work_id)),
         scope
     )
 }

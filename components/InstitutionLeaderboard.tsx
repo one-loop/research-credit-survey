@@ -55,7 +55,7 @@ function LeaderboardListItem({
 }) {
     if (highlight) {
         return (
-            <li className="py-1.5">
+            <li className="py-0">
                 <HighlightedRow entry={entry} />
             </li>
         )
