@@ -51,18 +51,22 @@ export async function GET(request: NextRequest) {
         const targetJournal = ownWork?.journal
         const candidatePool = worksPool.filter((w) => {
             if (ownWork && w.work_id === ownWork.work_id) return false
+            if (authorId && !targetJournal) return false
             if (targetDomain && w.domain !== targetDomain) return false
             if (targetJournal && w.journal !== targetJournal) return false
             if (!workIsExperimentEligible(w, experimentType)) return false
             return true
         })
-        const pool = targetDomain || targetJournal
-            ? candidatePool
-            : worksPool.filter(
-                  (w) =>
-                      (!ownWork || w.work_id !== ownWork.work_id) &&
-                      workIsExperimentEligible(w, experimentType)
-              )
+        const pool =
+            authorId && targetJournal
+                ? candidatePool
+                : authorId
+                  ? []
+                  : worksPool.filter(
+                        (w) =>
+                            (!ownWork || w.work_id !== ownWork.work_id) &&
+                            workIsExperimentEligible(w, experimentType)
+                    )
         const shuffled = shuffle(pool)
         for (const work of shuffled) {
             if (selected.length >= WORKS_PER_RESPONDENT) break

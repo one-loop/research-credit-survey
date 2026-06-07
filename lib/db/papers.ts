@@ -2,7 +2,14 @@ import type { Work, Author } from "@/lib/types"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import { isExperimentEligible as paperIsExperimentEligible } from "@/lib/survey/experimentEligibility"
-import { shouldExcludeBySeenRules, type SeenWorkStats } from "@/lib/survey/poolEligibility"
+import { isInRespondentScope, shouldExcludeBySeenRules, type SeenWorkStats } from "@/lib/survey/poolEligibility"
+import {
+    filterRowsToRespondentScope,
+    mergeRespondentScope,
+    pickRespondentScopeFromOwnPapers,
+    respondentScopeIsComplete,
+    type RespondentPaperScope,
+} from "@/lib/survey/respondentPaperScope"
 import { selectNextOwnWorkId } from "@/lib/survey/queueSelection"
 import {
     buildAccuracyDistributionStats,
@@ -149,12 +156,14 @@ async function getPapersPool(
     opts: {
         domain?: string
         journal?: string
+        scope?: RespondentPaperScope
         excludeWorkIds: string[]
         limit: number
         experimentType: ExperimentType
     }
 ): Promise<PaperRow[]> {
     const { domain, journal, excludeWorkIds, limit, experimentType } = opts
+    const scope: RespondentPaperScope = opts.scope ?? { domain, journal }
     if (!isSupabaseConfigured()) return []
     try {
         const supabase = getSupabase()
@@ -164,8 +173,8 @@ async function getPapersPool(
             .eq("contributions_complete", true)
             .limit(limit)
 
-        if (domain) query = query.eq("domain", domain)
-        if (journal) query = query.eq("journal", journal)
+        if (scope.domain) query = query.eq("domain", scope.domain)
+        if (scope.journal) query = query.eq("journal", scope.journal)
         if (excludeWorkIds.length > 0) {
             const escapedIds = excludeWorkIds.map((id) => `"${id.replace(/"/g, '\\"')}"`)
             query = query.not("work_id", "in", `(${escapedIds.join(",")})`)
@@ -176,12 +185,19 @@ async function getPapersPool(
 
         const { data, error } = await query
         if (error || !data?.length) return []
-        return (data as PaperRow[]).filter((row) =>
-            paperIsExperimentEligible(row.experiment_eligibility, experimentType)
+        return (data as PaperRow[]).filter(
+            (row) =>
+                paperIsExperimentEligible(row.experiment_eligibility, experimentType) &&
+                isInRespondentScope(row, scope)
         )
     } catch {
         return []
     }
+}
+
+function filterWorksToRespondentScope(works: Work[], scope: RespondentPaperScope): Work[] {
+    if (!scope.domain && !scope.journal) return works
+    return works.filter((work) => isInRespondentScope(work, scope))
 }
 
 function workExposureValue(p: PaperRow): number {
@@ -597,34 +613,37 @@ async function getExperimentPapersPrioritized(
 ): Promise<Work[]> {
     const selected: Work[] = []
     const selectedIds = new Set<string>()
-
-    let scopeDomain: string | undefined
-    let scopeJournal: string | undefined
+    let scope: RespondentPaperScope = {}
     const ownWorkIds = new Set<string>()
 
     if (authorId) {
-        const ownPapers = await getCorrespondingOwnPapersByAuthorIdRows(authorId)
-        for (const row of ownPapers) ownWorkIds.add(row.work_id)
+        const allOwnPapers = await getCorrespondingOwnPapersByAuthorIdRows(authorId)
+        for (const row of allOwnPapers) ownWorkIds.add(row.work_id)
 
-        if (queueIndex === 0) {
-            if (ownPapers.length > 0) {
-                scopeDomain = ownPapers[0]?.domain ?? undefined
-                scopeJournal = ownPapers[0]?.journal ?? undefined
-            }
-        } else {
+        const fallbackScope = pickRespondentScopeFromOwnPapers(allOwnPapers)
+        if (queueIndex > 0) {
             const initialScope = await getInitialSubmissionScope(authorId, experimentType)
-            scopeDomain = initialScope.domain
-            scopeJournal = initialScope.journal
-            if (!scopeDomain && !scopeJournal && ownPapers.length > 0) {
-                scopeDomain = ownPapers[0]?.domain ?? undefined
-                scopeJournal = ownPapers[0]?.journal ?? undefined
-            }
+            scope = mergeRespondentScope(
+                {
+                    domain: initialScope.domain,
+                    journal: initialScope.journal,
+                },
+                fallbackScope
+            )
+        } else {
+            scope = fallbackScope
         }
+
+        if (!respondentScopeIsComplete(scope)) {
+            return []
+        }
+
+        const ownPapers = filterRowsToRespondentScope(allOwnPapers, scope)
 
         const eligibleOwnPapers = ownPapers.filter((paper) =>
             paperIsExperimentEligible(paper.experiment_eligibility, experimentType)
         )
-        if (experimentType === "B" && authorId && eligibleOwnPapers.length === 0) {
+        if (experimentType === "B" && eligibleOwnPapers.length === 0) {
             return []
         }
 
@@ -645,16 +664,18 @@ async function getExperimentPapersPrioritized(
 
     let remaining = worksPer - selected.length
     if (remaining <= 0) {
-        return selected.filter((work) =>
-            paperIsExperimentEligible(work.experiment_eligibility, experimentType)
+        return filterWorksToRespondentScope(
+            selected.filter((work) =>
+                paperIsExperimentEligible(work.experiment_eligibility, experimentType)
+            ),
+            scope
         )
     }
 
-    const domain = selected[0]?.domain ?? scopeDomain
-    const journal = selected[0]?.journal ?? scopeJournal
     const strictPool = await getPapersPool({
-        domain,
-        journal,
+        domain: scope.domain,
+        journal: scope.journal,
+        scope,
         excludeWorkIds: Array.from(new Set([...Array.from(selectedIds), ...Array.from(ownWorkIds)])),
         limit: 500,
         experimentType,
@@ -671,6 +692,7 @@ async function getExperimentPapersPrioritized(
         if (remaining <= 0) break
         if (selectedIds.has(row.work_id)) continue
         if (!paperIsExperimentEligible(row.experiment_eligibility, experimentType)) continue
+        if (!isInRespondentScope(row, scope)) continue
         if (
             shouldExcludeBySeenRules(row, seenStatsByWork.get(row.work_id), {
                 ownWorkId,
@@ -684,8 +706,11 @@ async function getExperimentPapersPrioritized(
         remaining -= 1
     }
 
-    return selected.filter((work) =>
-        paperIsExperimentEligible(work.experiment_eligibility, experimentType)
+    return filterWorksToRespondentScope(
+        selected.filter((work) =>
+            paperIsExperimentEligible(work.experiment_eligibility, experimentType)
+        ),
+        scope
     )
 }
 
