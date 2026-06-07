@@ -51,6 +51,7 @@ export type PaperRow = {
     corresponding_email: string | null
     authors: PaperAuthor[] | null
     experiment_eligibility?: string[] | null
+    contributions_complete?: boolean | null
     created_at?: string
     /** Total survey exposures (increments on any experiment completion that included this work). */
     work_exposure?: number | null
@@ -160,6 +161,7 @@ async function getPapersPool(
         let query = supabase
             .from("papers")
             .select(PAPER_COLUMNS)
+            .eq("contributions_complete", true)
             .limit(limit)
 
         if (domain) query = query.eq("domain", domain)
@@ -710,6 +712,7 @@ async function getPaperByAuthorIdRow(authorId: string): Promise<PaperRow | null>
             const result = await supabase
                 .from("papers")
                 .select(PAPER_COLUMNS)
+                .eq("contributions_complete", true)
                 .filter("authors", "cs", pattern)
                 .order("publication_date", { ascending: false })
                 .limit(1)
@@ -743,6 +746,7 @@ async function getCorrespondingOwnPapersByAuthorIdRows(authorId: string): Promis
             const result = await supabase
                 .from("papers")
                 .select(PAPER_COLUMNS)
+                .eq("contributions_complete", true)
                 .filter("authors", "cs", pattern)
                 .order("publication_date", { ascending: false })
             const rows = (result.data as PaperRow[] | null) ?? []
@@ -816,6 +820,7 @@ export async function getPapersByField(
         const { data, error } = await supabase
             .from("papers")
             .select(PAPER_COLUMNS)
+            .eq("contributions_complete", true)
             .eq("field", field)
             .neq("work_id", excludeWorkId)
             .or("work_exposure.is.null,work_exposure.lt.3")
@@ -841,6 +846,7 @@ export async function getPapersSample(limit: number): Promise<Work[]> {
         const { data, error } = await supabase
             .from("papers")
             .select(PAPER_COLUMNS)
+            .eq("contributions_complete", true)
             .or("work_exposure.is.null,work_exposure.lt.3")
             .limit(limit)
             .order("created_at", { ascending: false })
