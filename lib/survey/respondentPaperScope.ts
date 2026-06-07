@@ -17,7 +17,7 @@ export function pickRespondentScopeFromOwnPapers(
     const anchor = ownPapers.find(
         (paper) => typeof paper.journal === "string" && paper.journal.trim().length > 0
     )
-    if (!anchor) return {}
+    if (!anchor?.journal) return {}
     const journal = anchor.journal.trim()
     return {
         domain: anchor.domain?.trim() || undefined,
