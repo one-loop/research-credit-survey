@@ -54,7 +54,7 @@ export function Combobox<T>({
     }
 
     return (
-        <div className={cn("relative", className)}>
+        <div className={cn("relative", shouldShow && "z-50", className)}>
             <input
                 type="text"
                 value={searchValue}
