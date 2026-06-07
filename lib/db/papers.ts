@@ -396,10 +396,13 @@ function selectPaperRowsForAuthorBinBatch(opts: {
           }
         : null
 
+    const reservedWorkIds = new Set(opts.reservedWorkIds)
+    if (ownWork) reservedWorkIds.delete(ownWork.work_id)
+
     const picked = selectWorksOnePerAuthorBin({
         candidates,
         ownWork,
-        reservedWorkIds: opts.reservedWorkIds,
+        reservedWorkIds,
         isEligible,
     })
 
