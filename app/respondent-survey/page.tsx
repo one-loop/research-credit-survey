@@ -330,13 +330,13 @@ function RespondentSurveyContent() {
                 </div>
 
                 {error ? <p className="text-sm text-destructive">{error}</p> : null}
+                </FadeInStagger>
 
                 <div className="flex justify-end pt-2">
                     <Button type="submit" disabled={submitting}>
                         Continue
                     </Button>
                 </div>
-                </FadeInStagger>
             </form>
         </SurveyPageEnter>
     )

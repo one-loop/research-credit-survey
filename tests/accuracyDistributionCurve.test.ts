@@ -5,6 +5,7 @@ import {
     cumulativeAreaPath,
     interpolateCumulativeAt,
     linearCurvePath,
+    markerOnCumulativeCurve,
 } from "@/lib/survey/accuracyDistributionCurve"
 
 describe("accuracyDistributionCurve", () => {
@@ -38,5 +39,16 @@ describe("accuracyDistributionCurve", () => {
 
         expect(linearCurvePath(points)).toMatch(/^M .* L /)
         expect(cumulativeAreaPath(points)).toMatch(/ Z$/)
+    })
+
+    it("places the marker on the cumulative curve at the comparison score", () => {
+        const points = [
+            { x: 0, y: 0 },
+            { x: 0.5, y: 0.4 },
+            { x: 1, y: 1 },
+        ]
+
+        expect(markerOnCumulativeCurve(points, 0.5)).toEqual({ x: 0.5, y: 0.4 })
+        expect(markerOnCumulativeCurve(points, 1.2)).toEqual({ x: 1, y: 1 })
     })
 })

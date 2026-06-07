@@ -3,6 +3,7 @@ Upload or update papers in Supabase from JSONL dataset files.
 
 Uses upsert on work_id: existing rows are updated, new rows are inserted.
 Columns not in the payload (e.g. work_exposure, created_at) are left unchanged.
+contributions_complete is set from each paper's authors on every upsert.
 
 Requires .env.local with:
   NEXT_PUBLIC_SUPABASE_URL
@@ -50,8 +51,23 @@ PAPER_COLUMNS = (
 )
 
 
+def has_complete_contributions(paper: dict) -> bool:
+    authors = paper.get("authors")
+    if not isinstance(authors, list) or not authors:
+        return False
+    for author in authors:
+        if not isinstance(author, dict):
+            return False
+        contributions = author.get("contributions")
+        if not isinstance(contributions, list) or len(contributions) == 0:
+            return False
+    return True
+
+
 def paper_row(paper: dict) -> dict:
-    return {key: paper[key] for key in PAPER_COLUMNS}
+    row = {key: paper[key] for key in PAPER_COLUMNS}
+    row["contributions_complete"] = has_complete_contributions(paper)
+    return row
 
 
 def is_transient_error(err: BaseException) -> bool:

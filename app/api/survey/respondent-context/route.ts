@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
         const { data, error } = await supabase
             .from("papers")
             .select("journal,field,publication_date,authors")
+            .eq("contributions_complete", true)
             .filter("authors", "cs", `[{"id":"${authorId}"}]`)
             .order("publication_date", { ascending: false })
             .limit(10)
