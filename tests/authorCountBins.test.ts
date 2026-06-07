@@ -7,6 +7,7 @@ import {
     selectWorksOnePerAuthorBin,
     shuffleAuthorCountBins,
     WORKS_PER_AUTHOR_BIN_BATCH,
+    type AuthorBinnedWork,
 } from "@/lib/survey/authorCountBins"
 
 describe("authorCountToBin", () => {
@@ -59,9 +60,10 @@ describe("selectWorksOnePerAuthorBin", () => {
     })
 
     it("uses own work for its author-count bin", () => {
+        const ownWork: AuthorBinnedWork = { work_id: "own4", authorCount: 4, isOwnWork: true }
         const selected = selectWorksOnePerAuthorBin({
             candidates,
-            ownWork: { work_id: "own4", authorCount: 4, isOwnWork: true },
+            ownWork,
             random: () => 0,
         })
         expect(selected.some((w) => w.work_id === "own4")).toBe(true)

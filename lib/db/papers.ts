@@ -261,7 +261,7 @@ async function getPapersPoolStratifiedByAuthorBin(opts: PapersPoolOpts): Promise
             if (isMissingAuthorCountColumnError(error)) return null
             continue
         }
-        for (const row of (data ?? []) as PaperRow[]) {
+        for (const row of (data ?? []) as unknown as PaperRow[]) {
             if (seenWorkIds.has(row.work_id)) continue
             seenWorkIds.add(row.work_id)
             merged.push(row)
@@ -912,17 +912,14 @@ async function getExperimentPapersPrioritized(
     })
 
     const seenStatsByWork = await getSeenWorkStatsForPool(
-        [
-            ...strictPool.map((row) => row.work_id),
-            ...(ownPaper ? [ownPaper.work_id] : []),
-        ],
+        strictPool.map((row) => row.work_id),
         authorId
     )
 
     const selectedRows = selectPaperRowsForAuthorBinBatch({
         pool: strictPool,
-        ownPaper,
-        ownWorkId: ownPaper?.work_id,
+        ownPaper: null,
+        ownWorkId: undefined,
         authorId,
         experimentType,
         seenStatsByWork,
@@ -934,7 +931,7 @@ async function getExperimentPapersPrioritized(
     const binRows = selectedRows.map((row) => hydrated.get(row.work_id) ?? row)
 
     return filterWorksToRespondentScope(
-        binRows.map((row) => mapPaperToWork(row, row.work_id === ownPaper?.work_id)),
+        binRows.map((row) => mapPaperToWork(row, false)),
         scope
     )
 }

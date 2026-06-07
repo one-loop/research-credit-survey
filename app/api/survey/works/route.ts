@@ -46,7 +46,9 @@ function selectMockWorksByAuthorBins(
         .map((work) => {
             const row = workById.get(work.work_id)
             if (!row) return null
-            return work.isOwnWork ? { ...row, isOwnWork: true } : row
+            return ownWork && work.work_id === ownWork.work_id
+                ? { ...row, isOwnWork: true }
+                : row
         })
         .filter((work): work is Work => work !== null)
         .slice(0, WORKS_PER_RESPONDENT)
