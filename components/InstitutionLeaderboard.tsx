@@ -2,6 +2,7 @@
 
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
 import { FadeIn } from "@/components/SurveyMotion"
+import { cn } from "@/lib/utils"
 
 type Props = {
     top10: InstitutionLeaderboardEntry[]
@@ -13,21 +14,64 @@ function formatPercent(accuracy: number): string {
     return `${Math.round(accuracy * 100)}%`
 }
 
-function LeaderboardRow({
+/** Shared column layout for header and every row. */
+const ROW_GRID =
+    "grid grid-cols-[2.75rem_minmax(0,1fr)_5.75rem] items-center gap-x-3"
+
+function LeaderboardRowContent({ entry }: { entry: InstitutionLeaderboardEntry }) {
+    return (
+        <>
+            <span className="text-sm font-medium tabular-nums text-muted-foreground">
+                {entry.rank}
+            </span>
+            <span className="min-w-0 truncate text-sm text-foreground" title={entry.institutionName}>
+                {entry.institutionName}
+            </span>
+            <span className="text-right text-sm font-semibold tabular-nums text-foreground whitespace-nowrap">
+                {formatPercent(entry.averageAccuracy)}
+            </span>
+        </>
+    )
+}
+
+function HighlightedRow({ entry }: { entry: InstitutionLeaderboardEntry }) {
+    return (
+        <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5">
+            <div className={ROW_GRID}>
+                <LeaderboardRowContent entry={entry} />
+            </div>
+        </div>
+    )
+}
+
+function LeaderboardListItem({
     entry,
     highlight,
+    showDividerBelow,
 }: {
     entry: InstitutionLeaderboardEntry
     highlight?: boolean
+    showDividerBelow?: boolean
 }) {
+    if (highlight) {
+        return (
+            <li className="py-0">
+                <HighlightedRow entry={entry} />
+            </li>
+        )
+    }
+
     return (
-        <tr className={highlight ? "bg-violet-50" : undefined}>
-            <td className="py-2 px-3 text-sm font-medium tabular-nums w-10">{entry.rank}</td>
-            <td className="py-2 pr-3 text-sm">{entry.institutionName}</td>
-            <td className="py-2 px-3 text-sm text-right font-semibold tabular-nums">
-                {formatPercent(entry.averageAccuracy)}
-            </td>
-        </tr>
+        <li
+            className={cn(
+                "px-3 py-2.5",
+                showDividerBelow && "border-b border-border"
+            )}
+        >
+            <div className={ROW_GRID}>
+                <LeaderboardRowContent entry={entry} />
+            </div>
+        </li>
     )
 }
 
@@ -40,46 +84,67 @@ export function InstitutionLeaderboard({
 
     return (
         <FadeIn delay={120}>
-        <div className="rounded-lg border bg-card p-4">
-            <h2 className="text-base font-semibold mb-1.5">Institution leaderboard</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-                Average block accuracy by institution (participants who listed their current
-                institution).
-            </p>
-            <div className="overflow-x-auto">
-                <table className="w-full">
-                    <thead>
-                        <tr className="border-b text-left text-xs text-muted-foreground">
-                            <th className="pb-2 pr-3 font-medium">Rank</th>
-                            <th className="pb-2 pr-3 font-medium">Institution</th>
-                            <th className="pb-2 font-medium text-right">Avg. accuracy</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {top10.map((entry) => (
-                            <LeaderboardRow
-                                key={entry.institutionKey}
-                                entry={entry}
-                                highlight={
+            <div className="rounded-lg border bg-card p-4">
+                <h2 className="text-base font-semibold mb-1.5">Institution leaderboard</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                    Average block accuracy by institution (participants who listed their current
+                    institution).
+                </p>
+
+                <div className="overflow-x-auto">
+                    <div className="min-w-[16rem]">
+                        <div className="border-b border-border px-3 pb-2.5 mb-0.5">
+                            <div
+                                className={cn(
+                                    ROW_GRID,
+                                    "text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                                )}
+                            >
+                                <span>Rank</span>
+                                <span>Institution</span>
+                                <span className="text-right whitespace-nowrap">Avg. accuracy</span>
+                            </div>
+                        </div>
+
+                        <ul className="m-0 list-none p-0">
+                            {top10.map((entry, index) => {
+                                const highlight =
                                     !respondent &&
                                     highlightInstitutionKey === entry.institutionKey
-                                }
-                            />
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {respondent ? (
-                <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">Your institution</p>
-                    <table className="w-full">
-                        <tbody>
-                            <LeaderboardRow entry={respondent} highlight />
-                        </tbody>
-                    </table>
+                                const nextEntry = top10[index + 1]
+                                const nextIsHighlight =
+                                    !respondent &&
+                                    nextEntry &&
+                                    highlightInstitutionKey === nextEntry.institutionKey
+
+                                return (
+                                    <LeaderboardListItem
+                                        key={entry.institutionKey}
+                                        entry={entry}
+                                        highlight={highlight}
+                                        showDividerBelow={
+                                            index < top10.length - 1 &&
+                                            !highlight &&
+                                            !nextIsHighlight
+                                        }
+                                    />
+                                )
+                            })}
+                        </ul>
+
+                        {respondent ? (
+                            <div className="mt-4 border-t border-border pt-4">
+                                <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                    Your institution
+                                </p>
+                                <div className="px-0">
+                                    <HighlightedRow entry={respondent} />
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
-            ) : null}
-        </div>
+            </div>
         </FadeIn>
     )
 }

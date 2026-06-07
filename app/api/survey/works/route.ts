@@ -4,17 +4,54 @@ import { getExperimentPapers } from "@/lib/db/papers"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
 import type { Work } from "@/lib/types"
 import { getParticipantAuthorId } from "@/lib/survey/participant"
+import { selectWorksOnePerAuthorBin } from "@/lib/survey/authorCountBins"
 import { filterWorksForExperiment, workIsExperimentEligible } from "@/lib/survey/experimentEligibility"
+import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 
 const WORKS_PER_RESPONDENT = 5
 
-function shuffle<T>(array: T[]): T[] {
-    const result = [...array]
-    for (let i = result.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[result[i], result[j]] = [result[j], result[i]]
-    }
-    return result
+function selectMockWorksByAuthorBins(
+    ownWork: Work | undefined,
+    pool: Work[],
+    experimentType: ExperimentType
+): Work[] {
+    const workById = new Map(pool.map((work) => [work.work_id, work]))
+    if (ownWork) workById.set(ownWork.work_id, ownWork)
+
+    const candidates = pool
+        .filter((work) => !ownWork || work.work_id !== ownWork.work_id)
+        .map((work) => ({
+            work_id: work.work_id,
+            authorCount: work.authors.length,
+        }))
+
+    const ownCandidate = ownWork
+        ? {
+              work_id: ownWork.work_id,
+              authorCount: ownWork.authors.length,
+              isOwnWork: true as const,
+          }
+        : null
+
+    const picked = selectWorksOnePerAuthorBin({
+        candidates,
+        ownWork: ownCandidate,
+        isEligible: (work) => {
+            const row = workById.get(work.work_id)
+            return row ? workIsExperimentEligible(row, experimentType) : false
+        },
+    })
+
+    return picked
+        .map((work) => {
+            const row = workById.get(work.work_id)
+            if (!row) return null
+            return ownWork && work.work_id === ownWork.work_id
+                ? { ...row, isOwnWork: true }
+                : row
+        })
+        .filter((work): work is Work => work !== null)
+        .slice(0, WORKS_PER_RESPONDENT)
 }
 
 export async function GET(request: NextRequest) {
@@ -43,31 +80,32 @@ export async function GET(request: NextRequest) {
         const worksPool = mockWorksPool
         const findWorkByAuthorId = (id: string) =>
             worksPool.find((w) => w.authors.some((a) => a.id === id))
-        const ownWork = authorId ? findWorkByAuthorId(authorId) : undefined
-        if (ownWork && workIsExperimentEligible(ownWork, experimentType)) {
-            selected.push({ ...ownWork, isOwnWork: true })
-        }
+        const ownWorkRaw = authorId ? findWorkByAuthorId(authorId) : undefined
+        const ownWork =
+            ownWorkRaw && workIsExperimentEligible(ownWorkRaw, experimentType)
+                ? ownWorkRaw
+                : undefined
         const targetDomain = ownWork?.domain
         const targetJournal = ownWork?.journal
         const candidatePool = worksPool.filter((w) => {
             if (ownWork && w.work_id === ownWork.work_id) return false
+            if (authorId && !targetJournal) return false
             if (targetDomain && w.domain !== targetDomain) return false
             if (targetJournal && w.journal !== targetJournal) return false
             if (!workIsExperimentEligible(w, experimentType)) return false
             return true
         })
-        const pool = targetDomain || targetJournal
-            ? candidatePool
-            : worksPool.filter(
-                  (w) =>
-                      (!ownWork || w.work_id !== ownWork.work_id) &&
-                      workIsExperimentEligible(w, experimentType)
-              )
-        const shuffled = shuffle(pool)
-        for (const work of shuffled) {
-            if (selected.length >= WORKS_PER_RESPONDENT) break
-            if (!selected.some((s) => s.work_id === work.work_id)) selected.push(work)
-        }
+        const pool =
+            authorId && targetJournal
+                ? candidatePool
+                : authorId
+                  ? []
+                  : worksPool.filter(
+                        (w) =>
+                            (!ownWork || w.work_id !== ownWork.work_id) &&
+                            workIsExperimentEligible(w, experimentType)
+                    )
+        selected = selectMockWorksByAuthorBins(ownWork, pool, experimentType)
     }
 
     selected = filterWorksForExperiment(selected, experimentType)
@@ -85,4 +123,3 @@ export async function GET(request: NextRequest) {
     res.headers.set("X-Data-Source", dataSource)
     return res
 }
-

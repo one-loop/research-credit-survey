@@ -16,6 +16,7 @@ async function isRespondentEligibleForExperimentB(authorId: string): Promise<boo
         const { data, error } = await supabase
             .from("papers")
             .select("experiment_eligibility")
+            .eq("contributions_complete", true)
             .or(`authors.cs.[{"id":"${escapedAuthorId}"}],authors.cs.[{"author_id":"${escapedAuthorId}"}]`)
             .order("publication_date", { ascending: false })
             .limit(1)

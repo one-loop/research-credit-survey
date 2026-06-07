@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
-import { Spinner } from "@/components/ui/spinner"
+import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { TaskTransition } from "@/components/SurveyMotion"
 import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicInfoTable"
 
@@ -337,11 +337,7 @@ function ExperimentCPageContent() {
     }
 
     if (!returnCheck.ready || trialGate === "pending") {
-        return (
-            <div className="max-w-3xl mx-auto p-6">
-                <p className="text-muted-foreground">Checking session…</p>
-            </div>
-        )
+        return <SurveyLoadingScreen message="Checking session…" />
     }
 
     if (returnCheck.showThanks) {
@@ -362,16 +358,10 @@ function ExperimentCPageContent() {
 
     if (showLoadingScreen) {
         return (
-            <div
-                className={`min-h-[70vh] w-full flex items-center justify-center transition-opacity duration-300 ${
-                    loadingScreenFading ? "opacity-0" : "opacity-100"
-                }`}
-            >
-                <div className="flex flex-row gap-4 items-center">
-                    <Spinner />
-                    <p className="text-muted-foreground">Loading works…</p>
-                </div>
-            </div>
+            <SurveyLoadingScreen
+                message="Loading works…"
+                fading={loadingScreenFading}
+            />
         )
     }
 
@@ -388,16 +378,11 @@ function ExperimentCPageContent() {
 
     if (isComplete) {
         return (
-            <div
-                className={`min-h-[70vh] w-full flex items-center justify-center transition-opacity duration-200 ${
-                    submittingFadeOut ? "opacity-0" : "opacity-100"
-                }`}
-            >
-                <div className="flex flex-row gap-4 items-center">
-                    <Spinner />
-                    <p className="text-muted-foreground">Submitting your responses…</p>
-                </div>
-            </div>
+            <SurveyLoadingScreen
+                message="Submitting your responses…"
+                fading={submittingFadeOut}
+                fastFade
+            />
         )
     }
 

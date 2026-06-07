@@ -52,12 +52,22 @@ export function linearCurvePath(points: CurvePoint[]): string {
         .join(" ")
 }
 
-/** Closed path: CDF line on top, baseline along y = 0. */
-export function cumulativeAreaPath(points: CurvePoint[]): string {
+/** Closed path: CDF line on top, baseline at `baselineY` (0 in normalized coords, plot bottom in SVG). */
+export function cumulativeAreaPath(points: CurvePoint[], baselineY = 0): string {
     if (points.length < 2) return ""
 
     const line = linearCurvePath(points)
     const last = points[points.length - 1]!
     const first = points[0]!
-    return `${line} L ${last.x},0 L ${first.x},0 Z`
+    return `${line} L ${last.x},${baselineY} L ${first.x},${baselineY} Z`
+}
+
+/** Point on the empirical CDF at the respondent's accuracy (same curve the chart draws). */
+export function markerOnCumulativeCurve(
+    points: CurvePoint[],
+    comparisonScore: number
+): CurvePoint | null {
+    if (!Number.isFinite(comparisonScore)) return null
+    const x = Math.min(1, Math.max(0, comparisonScore))
+    return { x, y: interpolateCumulativeAt(points, x) }
 }
