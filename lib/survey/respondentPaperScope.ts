@@ -14,12 +14,14 @@ type ScopedRow = {
 export function pickRespondentScopeFromOwnPapers(
     ownPapers: ScopedRow[]
 ): RespondentPaperScope {
-    const anchor = ownPapers[0]
+    const anchor = ownPapers.find(
+        (paper) => typeof paper.journal === "string" && paper.journal.trim().length > 0
+    )
     if (!anchor) return {}
-    const journal = anchor.journal?.trim()
+    const journal = anchor.journal.trim()
     return {
         domain: anchor.domain?.trim() || undefined,
-        journal: journal || undefined,
+        journal,
     }
 }
 
