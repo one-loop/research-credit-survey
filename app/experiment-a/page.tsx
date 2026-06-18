@@ -325,13 +325,22 @@ function ExperimentAPageContent() {
                     setError(data.error ?? "Failed to submit rankings")
                     return
                 }
+                const savedResponseId = data.responseId
                 const savedQueue =
                     typeof data.queueIndex === "number" && data.queueIndex >= 0
                         ? data.queueIndex
                         : queueIndex
+                if (typeof window !== "undefined") {
+                    window.sessionStorage.setItem(
+                        `responseId_A_${savedQueue}`,
+                        savedResponseId
+                    )
+                }
                 setSubmittingFadeOut(true)
                 window.setTimeout(() => {
-                    router.replace(`/survey-thanks?experimentType=A&queue=${savedQueue}`)
+                    router.replace(
+                        `/survey-thanks?experimentType=A&queue=${savedQueue}&responseId=${encodeURIComponent(savedResponseId)}`
+                    )
                 }, 220)
             } catch {
                 setError("Failed to submit rankings")
