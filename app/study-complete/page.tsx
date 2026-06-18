@@ -116,8 +116,7 @@ function StudyCompleteContent() {
             </FadeIn>
             <FadeIn delay={150} className="mt-6 space-y-4 border-t pt-6">
                 <p className="text-base text-muted-foreground leading-relaxed">
-                    You may now close this window. If you received a completion code or follow-up
-                    instructions from your recruiter, please use those as directed.
+                    You may now close this window.
                 </p>
                 <Button variant="outline" asChild>
                     <Link href="/">Return home</Link>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { randomUUID } from "crypto"
 import { promises as fs } from "fs"
 import path from "path"
@@ -10,6 +11,7 @@ import {
 } from "@/lib/db/papers"
 import { getParticipantAuthorId } from "@/lib/survey/participant"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
+import { experimentAnalyticsCacheTag } from "@/lib/db/experimentAnalytics"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
@@ -39,6 +41,36 @@ async function appendResponse(payload: {
     existing.push(payload)
     await fs.mkdir(path.dirname(RESPONSES_PATH), { recursive: true })
     await fs.writeFile(RESPONSES_PATH, JSON.stringify(existing, null, 2), "utf-8")
+}
+
+async function resolveRespondentDemographicsForSave(
+    authorId: string | undefined,
+    experimentType: ExperimentType | null | undefined,
+    incoming: Record<string, string> | null | undefined
+): Promise<Record<string, string> | null> {
+    if (incoming && Object.keys(incoming).length > 0) return incoming
+    if (!authorId || !experimentType || !isSupabaseConfigured()) return incoming ?? null
+
+    try {
+        const supabase = getSupabase()
+        const { data } = await supabase
+            .from("experiment_responses")
+            .select("respondent_demographics")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .not("respondent_demographics", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        const prior = (data?.[0] as { respondent_demographics?: Record<string, string> | null })
+            ?.respondent_demographics
+        if (prior && typeof prior === "object" && Object.keys(prior).length > 0) {
+            return prior
+        }
+    } catch {
+        // fall through
+    }
+    return incoming ?? null
 }
 
 export async function POST(request: NextRequest) {
@@ -98,6 +130,12 @@ export async function POST(request: NextRequest) {
         rankings
     )
 
+    const demographicsForSave = await resolveRespondentDemographicsForSave(
+        authorId,
+        experimentType ?? null,
+        respondentDemographics ?? null
+    )
+
     let responseId: string
 
     if (isSupabaseConfigured()) {
@@ -111,7 +149,7 @@ export async function POST(request: NextRequest) {
                 role_importance: roleImportanceWithDefault,
                 experiment_type: experimentType ?? null,
                 time_spent: timeSpent ?? null,
-                respondent_demographics: respondentDemographics ?? null,
+                respondent_demographics: demographicsForSave,
                 own_work: ownWork,
                 queue_index: queueIndex,
                 average_accuracy: averageAccuracy,
@@ -146,12 +184,15 @@ export async function POST(request: NextRequest) {
             experimentType,
             completedAt: new Date().toISOString(),
             time_spent: timeSpent ?? null,
-            respondent_demographics: respondentDemographics ?? null,
+            respondent_demographics: demographicsForSave,
         })
     }
 
     if (isSupabaseConfigured()) {
         await incrementWorkExposure(workIds)
+        if (experimentType) {
+            revalidateTag(experimentAnalyticsCacheTag(experimentType), "max")
+        }
     }
 
     const accuracySummary =

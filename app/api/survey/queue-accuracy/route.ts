@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
         const { distribution, leaderboard, institutionPercentile } = await getExperimentThankYouAnalytics(
             experimentType,
             comparisonScore,
-            respondentInstitutionKey
+            respondentInstitutionKey,
+            { fresh: true }
         )
 
         return NextResponse.json({
@@ -87,7 +88,8 @@ export async function GET(request: NextRequest) {
     const { distribution, leaderboard, institutionPercentile } = await getExperimentThankYouAnalytics(
         experimentType,
         comparisonScore,
-        respondentInstitutionKey
+        respondentInstitutionKey,
+        { fresh: true }
     )
 
     return NextResponse.json({
