@@ -12,31 +12,13 @@ import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
 import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { AuthorContributionsMatrix } from "@/components/AuthorContributionsMatrix"
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { TaskTransition } from "@/components/SurveyMotion"
 import { filterWorksForExperiment } from "@/lib/survey/experimentEligibility"
-
-const roleDetailsMap: Record<string, string> = {
-    Conceptualization: "Ideas, formulation or evolution of overarching research goals and aims.",
-    Methodology: "Development or design of methodology; creation of models.",
-    Software: "Programming, software development, and implementation of code and supporting algorithms.",
-    Validation: "Verification and reproducibility of results, experiments, or outputs.",
-    "Formal analysis": "Application of formal techniques to analyze data.",
-    "Formal Analysis": "Application of formal techniques to analyze data.",
-    Investigation: "Conducting experiments or data/evidence collection.",
-    Resources: "Provision of materials, instrumentation, computing resources, or other tools.",
-    "Data curation": "Data annotation, cleaning, and maintenance for use/reuse.",
-    "Writing – original draft": "Preparation and creation of the initial manuscript draft.",
-    "Writing – review & editing": "Critical review, commentary, or revision of the manuscript.",
-    Visualization: "Preparation and creation of visual representations and data presentations.",
-    Supervision: "Oversight and leadership responsibility for planning and execution.",
-    "Project administration": "Management and coordination for planning and execution.",
-    "Funding acquisition": "Acquisition of financial support for the project.",
-}
 
 function SortableItem({
     id,
@@ -472,36 +454,15 @@ function ExperimentBPageContent() {
             {currentWork && (
                 <TaskTransition taskKey={currentIndex}>
                 <>
-                    <div className="mb-6 space-y-3">
-                        <p className="text-lg font-medium mb-0">Author contributions</p>
+                    <div className="mb-6 space-y-2">
+                        <p className="text-lg font-medium">Author contributions</p>
                         <p className="text-sm text-muted-foreground">
-                            You can hover over a contribution role to see more information about it.
+                            You can hover over a role name to see more information about it.
                         </p>
-                        <div className="space-y-1 text-md text-muted-foreground">
-                            {displayAuthors.map((author) => (
-                                <p key={author.id}>
-                                    <span className="font-medium text-foreground">{anonymizedBylineName(author)}</span>:{" "}
-                                    <TooltipProvider>
-                                        {author.contributions.map((role, idx) => (
-                                            <span key={`${author.id}-${role}-${idx}`}>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
-                                                            {role}
-                                                        </span>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent sideOffset={6} className="max-w-sm leading-relaxed">
-                                                        {/* <p className="font-semibold">{role}</p> */}
-                                                        <p>{roleDetailsMap[role] ?? role}</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                                {idx < author.contributions.length - 1 ? ", " : ""}
-                                            </span>
-                                        ))}
-                                    </TooltipProvider>
-                                </p>
-                            ))}
-                        </div>
+                        <AuthorContributionsMatrix
+                            authors={displayAuthors}
+                            getAuthorLabel={anonymizedBylineName}
+                        />
                     </div>
 
                     {/* <div className="mb-6">
