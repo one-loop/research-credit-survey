@@ -95,7 +95,7 @@ function TrialPageContent() {
     const [q2, setQ2] = useState<string>("")
     const [canAccessExperimentB, setCanAccessExperimentB] = useState(false)
     const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
-    const [respondentField, setRespondentField] = useState<string | null>(null)
+    const [respondentDomain, setRespondentDomain] = useState<string | null>(null)
 
     useEffect(() => {
         const failed = typeof window !== "undefined" && sessionStorage.getItem(trialFailedKey(authorId)) === "true"
@@ -108,10 +108,14 @@ function TrialPageContent() {
         const context = getRespondentContextFromSession(authorId)
         const demographics = readRespondentDemographics(authorId)
         const assignedJournal = context.journal ?? null
-        const assignedField = demographics.primary_field ?? context.field ?? null
+        const assignedDomain = demographics.primary_domain ?? context.domain ?? null
         setRespondentJournal(assignedJournal)
-        setRespondentField(assignedField)
-        const w = getTrialWorkForDomain(context.domain, exp, assignedJournal ?? undefined, assignedField ?? undefined)
+        setRespondentDomain(assignedDomain)
+        const w = getTrialWorkForDomain(
+            context.domain ?? assignedDomain ?? undefined,
+            exp,
+            assignedJournal ?? undefined
+        )
         const shuffled = shuffledAuthorsForRanking(w.authors)
         setWork(w)
         setItems(shuffled)
@@ -374,7 +378,7 @@ function TrialPageContent() {
 
     // phase === "practice"
     const journalLabel = displayJournalName(respondentJournal ?? work.journal)
-    const fieldLabel = respondentField ?? work.field ?? work.domain ?? "your field"
+    const domainLabel = respondentDomain ?? work.domain ?? "your field"
     const fixedCorrSlot = Math.max(items.length - 1, 0)
     const slotPhrase =
         fixedCorrSlot < 0
@@ -406,7 +410,7 @@ function TrialPageContent() {
         <div className="max-w-3xl mx-auto p-6">
             <h1 className="text-2xl font-bold mb-2">Practice Task</h1>
             <p className="text-sm text-muted-foreground mb-1">
-                Mock source · Journal: <Em>{journalLabel}</Em> · Field: <Em>{fieldLabel}</Em>
+                Mock source · Journal: <Em>{journalLabel}</Em> · Field: <Em>{domainLabel}</Em>
             </p>
             <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p>
 
@@ -482,7 +486,7 @@ function TrialPageContent() {
             >
                 <p className="font-medium mb-2 leading-relaxed">
                     Given the information above, please sort these authors in the way you think they would appear on
-                    the byline of the <Em>{journalLabel}</Em> journal in the <Em>{fieldLabel}</Em> field.
+                    the byline of the <Em>{journalLabel}</Em> journal in the <Em>{domainLabel}</Em> field.
                 </p>
                 <div className="mb-4 text-muted-foreground text-sm leading-relaxed space-y-2">
                     <div className="grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
@@ -576,7 +580,7 @@ function TrialPageContent() {
                                 <p className="font-semibold mb-1">{experiment === "C" ? "3) Author byline" : "2) Author byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-2">
                                     The byline cards are shown in random order. Sort them into the order you think
-                                    matches conventions in <Em>{journalLabel}</Em> for the <Em>{fieldLabel}</Em> field,
+                                    matches conventions in <Em>{journalLabel}</Em> for the <Em>{domainLabel}</Em> field,
                                     based on the contributions section.
                                 </p>
                                 <p className="text-sm text-muted-foreground mb-3">
@@ -623,7 +627,7 @@ function TrialPageContent() {
                                 <p className="font-semibold mb-1">{experiment === "C" ? "5) Sort the byline" : "4) Sort the byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Please sort the author byline the way you would expect it to appear in{" "}
-                                    <Em>{journalLabel}</Em> in the <Em>{fieldLabel}</Em> field, based on the
+                                    <Em>{journalLabel}</Em> in the <Em>{domainLabel}</Em> field, based on the
                                     contributions section and all other author information shown above. Good luck!
                                 </p>
                                 <div className="flex justify-end">

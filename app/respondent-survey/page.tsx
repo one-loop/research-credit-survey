@@ -118,21 +118,6 @@ function RespondentSurveyContent() {
             return
         }
 
-        // Reuse a shorter cached prefix for instant options while the full query runs.
-        for (let len = q.length - 1; len >= 2; len--) {
-            const prefixItems = institutionQueryCacheRef.current.get(q.slice(0, len))
-            if (prefixItems) {
-                const qLower = q.toLowerCase()
-                const filtered = prefixItems.filter((item) =>
-                    item.label.toLowerCase().includes(qLower)
-                )
-                if (filtered.length > 0) {
-                    setInstitutionOptions(filtered)
-                }
-                break
-            }
-        }
-
         const handle = window.setTimeout(async () => {
             institutionRequestAbortRef.current?.abort()
             const controller = new AbortController()
@@ -155,7 +140,7 @@ function RespondentSurveyContent() {
                     setInstitutionLoading(false)
                 }
             }
-        }, 200)
+        }, 300)
 
         return () => {
             window.clearTimeout(handle)

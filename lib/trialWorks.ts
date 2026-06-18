@@ -90,23 +90,19 @@ function trialAuthorsForExperiment(experiment: "A" | "B" | "C"): Author[] {
 }
 
 /**
- * Practice paper keyed to the respondent's broad domain when available,
- * then field as a compatibility fallback.
+ * Practice paper keyed to the respondent's broad domain when available.
  */
 export function getTrialWorkForDomain(
     domain: string | undefined,
     experiment: "A" | "B" | "C",
-    journal?: string,
-    field?: string
+    journal?: string
 ): Work {
     const domainLabel = normalizeDomain(domain)
     const displayName = TRIAL_TITLES[domainLabel]
-    const fieldLabel = field && field.trim().length > 0 ? field : domainLabel
     const slug = domainLabel.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase() || "general"
     return {
         work_id: `trial_practice_${slug}`,
         display_name: displayName,
-        field: fieldLabel,
         domain: domainLabel,
         journal: displayJournalName(journal),
         publication_date: "2018-01-01",
@@ -116,17 +112,15 @@ export function getTrialWorkForDomain(
 
 export function getRespondentContextFromSession(
     authorId: string | undefined
-): { domain?: string; field?: string; journal?: string } {
+): { domain?: string; journal?: string } {
     if (typeof window === "undefined") return {}
     const keyAuthor = authorId ?? "none"
     const cachedContext = window.sessionStorage.getItem(`respondentContext_${keyAuthor}`)
     if (cachedContext) {
         try {
-            const parsed = JSON.parse(cachedContext) as { field?: string; journal?: string }
-            const field = typeof parsed.field === "string" ? parsed.field : undefined
+            const parsed = JSON.parse(cachedContext) as { domain?: string; journal?: string }
             return {
-                domain: field,
-                field,
+                domain: typeof parsed.domain === "string" ? parsed.domain : undefined,
                 journal: typeof parsed.journal === "string" ? parsed.journal : undefined,
             }
         } catch {
@@ -137,15 +131,14 @@ export function getRespondentContextFromSession(
     if (!raw) return {}
     try {
         const data = JSON.parse(raw) as {
-            works?: Array<{ domain?: string; field?: string; journal?: string; authors?: Array<{ id?: string }> }>
+            works?: Array<{ domain?: string; journal?: string; authors?: Array<{ id?: string }> }>
         }
         const ownWork = authorId
             ? data.works?.find((w) => Array.isArray(w.authors) && w.authors.some((a) => a.id === authorId))
             : undefined
         const base = ownWork ?? data.works?.[0]
         return {
-            domain: base?.domain ?? base?.field,
-            field: base?.field,
+            domain: base?.domain,
             journal: base?.journal,
         }
     } catch {

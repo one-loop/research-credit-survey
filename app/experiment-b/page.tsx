@@ -95,7 +95,7 @@ function ExperimentBPageContent() {
     const [items, setItems] = useState<Author[]>([])
     const [showIntro, setShowIntro] = useState(true)
     const [confirmUnchangedOpen, setConfirmUnchangedOpen] = useState(false)
-    const [respondentField, setRespondentField] = useState<string | null>(null)
+    const [respondentDomain, setRespondentDomain] = useState<string | null>(null)
     const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
     const [showLoadingScreen, setShowLoadingScreen] = useState(true)
     const [loadingScreenFading, setLoadingScreenFading] = useState(false)
@@ -202,8 +202,8 @@ function ExperimentBPageContent() {
         const raw = window.sessionStorage.getItem(`respondentContext_${keyAuthor}`)
         if (!raw) return
         try {
-            const parsed = JSON.parse(raw) as { field?: string | null; journal?: string | null }
-            setRespondentField(parsed.field ?? null)
+            const parsed = JSON.parse(raw) as { domain?: string | null; journal?: string | null }
+            setRespondentDomain(parsed.domain ?? null)
             setRespondentJournal(parsed.journal ?? null)
         } catch {
             // ignore malformed cached context
@@ -421,7 +421,7 @@ function ExperimentBPageContent() {
     }
 
     if (showIntro && !isComplete) {
-        const introDomain = currentWork?.domain ?? respondentField ?? currentWork?.field ?? "your domain"
+        const introDomain = currentWork?.domain ?? respondentDomain ?? "your domain"
         const introJournal = respondentJournal ?? currentWork?.journal ?? "your journal"
         return (
             <div className="max-w-3xl mx-auto p-6">
@@ -512,7 +512,7 @@ function ExperimentBPageContent() {
                         <p className="font-medium mb-8">
                             Given the information above, please sort these authors in the way you think they would
                             appear on the byline of the {currentWork.journal} journal in the{" "}
-                            {currentWork.domain ?? currentWork.field ?? "relevant"} domain.
+                            {currentWork.domain ?? "relevant"} domain.
                         </p>
                         {/* <p className="mb-12 text-muted-foreground text-sm">
                             <Mail className="h-3.5 w-3.5 inline stroke-violet-950 text-violet-950" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
