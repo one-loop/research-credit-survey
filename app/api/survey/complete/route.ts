@@ -13,6 +13,10 @@ import { getParticipantAuthorId } from "@/lib/survey/participant"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import { experimentAnalyticsCacheTag } from "@/lib/db/experimentAnalytics"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
+import type {
+    AuthorPositionBeliefs,
+    CreditRolePositionBeliefs,
+} from "@/lib/survey/preTaskBeliefs"
 
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
 
@@ -30,6 +34,8 @@ async function appendResponse(payload: {
     completedAt: string
     time_spent?: Record<string, number> | null
     respondent_demographics?: Record<string, string> | null
+    credit_role_position_beliefs?: CreditRolePositionBeliefs | null
+    author_position_beliefs?: AuthorPositionBeliefs | null
 }): Promise<void> {
     let existing: unknown[] = []
     try {
@@ -73,6 +79,73 @@ async function resolveRespondentDemographicsForSave(
     return incoming ?? null
 }
 
+async function resolveCreditRolePositionBeliefsForSave(
+    authorId: string | undefined,
+    experimentType: ExperimentType | null | undefined,
+    incoming: CreditRolePositionBeliefs | null | undefined
+): Promise<CreditRolePositionBeliefs | null> {
+    if (incoming && Object.keys(incoming).length > 0) return incoming
+    if (!authorId || !experimentType || !isSupabaseConfigured()) return incoming ?? null
+
+    try {
+        const supabase = getSupabase()
+        const { data } = await supabase
+            .from("experiment_responses")
+            .select("credit_role_position_beliefs")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .not("credit_role_position_beliefs", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        const prior = (data?.[0] as { credit_role_position_beliefs?: CreditRolePositionBeliefs | null })
+            ?.credit_role_position_beliefs
+        if (prior && typeof prior === "object" && Object.keys(prior).length > 0) {
+            return prior
+        }
+    } catch {
+        // fall through
+    }
+    return incoming ?? null
+}
+
+async function resolveAuthorPositionBeliefsForSave(
+    authorId: string | undefined,
+    experimentType: ExperimentType | null | undefined,
+    incoming: AuthorPositionBeliefs | null | undefined
+): Promise<AuthorPositionBeliefs | null> {
+    if (incoming && typeof incoming.younger === "string" && typeof incoming.pi === "string") {
+        return incoming
+    }
+    if (!authorId || !experimentType || !isSupabaseConfigured()) return incoming ?? null
+
+    try {
+        const supabase = getSupabase()
+        const { data } = await supabase
+            .from("experiment_responses")
+            .select("author_position_beliefs")
+            .eq("author_id", authorId)
+            .eq("experiment_type", experimentType)
+            .not("author_position_beliefs", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+
+        const prior = (data?.[0] as { author_position_beliefs?: AuthorPositionBeliefs | null })
+            ?.author_position_beliefs
+        if (
+            prior &&
+            typeof prior === "object" &&
+            typeof prior.younger === "string" &&
+            typeof prior.pi === "string"
+        ) {
+            return prior
+        }
+    } catch {
+        // fall through
+    }
+    return incoming ?? null
+}
+
 export async function POST(request: NextRequest) {
     let body: {
         workIds: string[]
@@ -83,6 +156,8 @@ export async function POST(request: NextRequest) {
         timeSpent?: Record<string, number> | null
         respondentDemographics?: Record<string, string> | null
         ownWorkId?: string | null
+        creditRolePositionBeliefs?: CreditRolePositionBeliefs | null
+        authorPositionBeliefs?: AuthorPositionBeliefs | null
     }
     try {
         body = await request.json()
@@ -107,6 +182,8 @@ export async function POST(request: NextRequest) {
         timeSpent,
         respondentDemographics,
         ownWorkId,
+        creditRolePositionBeliefs,
+        authorPositionBeliefs,
     } = body
 
     const ownWork =
@@ -136,6 +213,18 @@ export async function POST(request: NextRequest) {
         respondentDemographics ?? null
     )
 
+    const creditRolePositionBeliefsForSave = await resolveCreditRolePositionBeliefsForSave(
+        authorId,
+        experimentType ?? null,
+        creditRolePositionBeliefs ?? null
+    )
+
+    const authorPositionBeliefsForSave = await resolveAuthorPositionBeliefsForSave(
+        authorId,
+        experimentType ?? null,
+        authorPositionBeliefs ?? null
+    )
+
     let responseId: string
 
     if (isSupabaseConfigured()) {
@@ -150,6 +239,8 @@ export async function POST(request: NextRequest) {
                 experiment_type: experimentType ?? null,
                 time_spent: timeSpent ?? null,
                 respondent_demographics: demographicsForSave,
+                credit_role_position_beliefs: creditRolePositionBeliefsForSave,
+                author_position_beliefs: authorPositionBeliefsForSave,
                 own_work: ownWork,
                 queue_index: queueIndex,
                 average_accuracy: averageAccuracy,
@@ -185,6 +276,8 @@ export async function POST(request: NextRequest) {
             completedAt: new Date().toISOString(),
             time_spent: timeSpent ?? null,
             respondent_demographics: demographicsForSave,
+            credit_role_position_beliefs: creditRolePositionBeliefsForSave,
+            author_position_beliefs: authorPositionBeliefsForSave,
         })
     }
 

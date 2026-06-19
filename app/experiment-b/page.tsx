@@ -14,6 +14,7 @@ import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
 import { AuthorContributionsMatrix } from "@/components/AuthorContributionsMatrix"
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
+import { readPreTaskBeliefsForSubmit } from "@/lib/survey/preTaskBeliefs"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
@@ -309,6 +310,9 @@ function ExperimentBPageContent() {
                 }
             }
 
+            const { creditRolePositionBeliefs, authorPositionBeliefs } =
+                readPreTaskBeliefsForSubmit(authorId)
+
             try {
                 const res = await fetch("/api/survey/complete", {
                     method: "POST",
@@ -322,6 +326,8 @@ function ExperimentBPageContent() {
                         experimentType: "B",
                         timeSpent,
                         respondentDemographics,
+                        creditRolePositionBeliefs,
+                        authorPositionBeliefs,
                     }),
                 })
                 const data = (await res.json()) as {
