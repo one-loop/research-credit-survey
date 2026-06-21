@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
     if (isSupabaseConfigured()) {
         await incrementWorkExposure(workIds)
         if (experimentType) {
-            revalidateTag(experimentAnalyticsCacheTag(experimentType), "max")
+            revalidateTag(experimentAnalyticsCacheTag(experimentType))
         }
     }
 
