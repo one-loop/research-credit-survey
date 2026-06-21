@@ -21,6 +21,7 @@ import {
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicInfoTable"
 import { AuthorContributionsMatrix } from "@/components/AuthorContributionsMatrix"
+import { cn } from "@/lib/utils"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
 type TutorialStep = "contributions" | "academic_info" | "byline" | "envelope" | "sort" | "done"
@@ -390,12 +391,17 @@ function TrialPageContent() {
                 : `${fixedCorrSlot + 1} (from the left)`
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
+        <div
+            className={cn(
+                "max-w-3xl mx-auto p-6",
+                tutorialStep !== "done" && "pb-[28rem] sm:pb-80"
+            )}
+        >
             <h1 className="text-2xl font-bold mb-2">Practice Task</h1>
             <p className="text-sm text-muted-foreground mb-1">
                 Mock source · Journal: <Em>{journalLabel}</Em> · Field: <Em>{domainLabel}</Em>
             </p>
-            <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p>
+            {/* <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p> */}
 
             <div
                 className={[
