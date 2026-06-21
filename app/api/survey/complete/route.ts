@@ -84,8 +84,16 @@ async function resolveCreditRolePositionBeliefsForSave(
     experimentType: ExperimentType | null | undefined,
     incoming: CreditRolePositionBeliefs | null | undefined
 ): Promise<CreditRolePositionBeliefs | null> {
-    if (incoming && Object.keys(incoming).length > 0) return incoming
-    if (!authorId || !experimentType || !isSupabaseConfigured()) return incoming ?? null
+    if (incoming && typeof incoming === "object") {
+        const cleaned: CreditRolePositionBeliefs = {}
+        for (const [roleId, value] of Object.entries(incoming as Record<string, unknown>)) {
+            if (value === "first" || value === "middle" || value === "last") {
+                cleaned[roleId] = value
+            }
+        }
+        if (Object.keys(cleaned).length > 0) return cleaned
+    }
+    if (!authorId || !experimentType || !isSupabaseConfigured()) return null
 
     try {
         const supabase = getSupabase()
