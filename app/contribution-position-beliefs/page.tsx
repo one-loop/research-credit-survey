@@ -12,7 +12,7 @@ import {
     type CreditRolePositionBeliefs,
     creditRolePositionBeliefsStorageKey,
 } from "@/lib/survey/preTaskBeliefs"
-import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
+import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import { cn } from "@/lib/utils"
 
 const POSITIONS: { value: AuthorPosition; label: string }[] = [
