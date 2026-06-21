@@ -20,7 +20,8 @@ import {
 } from "@/lib/trialWorks"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicInfoTable"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { AuthorContributionsMatrix } from "@/components/AuthorContributionsMatrix"
+import { cn } from "@/lib/utils"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
 type TutorialStep = "contributions" | "academic_info" | "byline" | "envelope" | "sort" | "done"
@@ -95,7 +96,7 @@ function TrialPageContent() {
     const [q2, setQ2] = useState<string>("")
     const [canAccessExperimentB, setCanAccessExperimentB] = useState(false)
     const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
-    const [respondentField, setRespondentField] = useState<string | null>(null)
+    const [respondentDomain, setRespondentDomain] = useState<string | null>(null)
 
     useEffect(() => {
         const failed = typeof window !== "undefined" && sessionStorage.getItem(trialFailedKey(authorId)) === "true"
@@ -108,10 +109,14 @@ function TrialPageContent() {
         const context = getRespondentContextFromSession(authorId)
         const demographics = readRespondentDemographics(authorId)
         const assignedJournal = context.journal ?? null
-        const assignedField = demographics.primary_field ?? context.field ?? null
+        const assignedDomain = demographics.primary_domain ?? context.domain ?? null
         setRespondentJournal(assignedJournal)
-        setRespondentField(assignedField)
-        const w = getTrialWorkForDomain(context.domain, exp, assignedJournal ?? undefined, assignedField ?? undefined)
+        setRespondentDomain(assignedDomain)
+        const w = getTrialWorkForDomain(
+            context.domain ?? assignedDomain ?? undefined,
+            exp,
+            assignedJournal ?? undefined
+        )
         const shuffled = shuffledAuthorsForRanking(w.authors)
         setWork(w)
         setItems(shuffled)
@@ -374,7 +379,7 @@ function TrialPageContent() {
 
     // phase === "practice"
     const journalLabel = displayJournalName(respondentJournal ?? work.journal)
-    const fieldLabel = respondentField ?? work.field ?? work.domain ?? "your field"
+    const domainLabel = respondentDomain ?? work.domain ?? "your field"
     const fixedCorrSlot = Math.max(items.length - 1, 0)
     const slotPhrase =
         fixedCorrSlot < 0
@@ -385,30 +390,18 @@ function TrialPageContent() {
                 ? `${items.length} (last from the left)`
                 : `${fixedCorrSlot + 1} (from the left)`
 
-    const roleDetailsMap: Record<string, { verb: string; description: string }> = {
-        Conceptualization: { verb: "conceived the study", description: "Ideas, formulation or evolution of overarching research goals and aims." },
-        Methodology: { verb: "designed methods", description: "Development or design of methodology; creation of models." },
-        Supervision: { verb: "supervised the work", description: "Oversight and leadership responsibility for planning and execution." },
-        Investigation: { verb: "ran investigations", description: "Conducting experiments or data/evidence collection." },
-        "Formal analysis": { verb: "analyzed data", description: "Application of formal techniques to analyze data." },
-        Visualization: { verb: "made figures", description: "Preparation and creation of visual representations and data presentations." },
-        "Data curation": { verb: "curated data", description: "Data annotation, cleaning, and maintenance for use/reuse." },
-        "Writing – original draft": { verb: "drafted the paper", description: "Preparation and creation of the initial manuscript draft." },
-        "Writing – review & editing": { verb: "edited the paper", description: "Critical review, commentary, or revision of the manuscript." },
-        "Project administration": { verb: "administered the project", description: "Management and coordination for planning and execution." },
-        Software: { verb: "built software", description: "Programming, software development, and implementation of code and supporting algorithms." },
-        Validation: { verb: "validated results", description: "Verification and reproducibility of results, experiments, or outputs." },
-        Resources: { verb: "provided resources", description: "Provision of materials, instrumentation, computing resources, or other tools." },
-        "Funding acquisition": { verb: "secured funding", description: "Acquisition of financial support for the project." },
-    }
-
     return (
-        <div className="max-w-3xl mx-auto p-6">
+        <div
+            className={cn(
+                "max-w-3xl mx-auto p-6",
+                tutorialStep !== "done" && "pb-[28rem] sm:pb-80"
+            )}
+        >
             <h1 className="text-2xl font-bold mb-2">Practice Task</h1>
             <p className="text-sm text-muted-foreground mb-1">
-                Mock source · Journal: <Em>{journalLabel}</Em> · Field: <Em>{fieldLabel}</Em>
+                Mock source · Journal: <Em>{journalLabel}</Em> · Field: <Em>{domainLabel}</Em>
             </p>
-            <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p>
+            {/* <p className="text-sm text-muted-foreground mb-4">{work.display_name}</p> */}
 
             <div
                 className={[
@@ -422,33 +415,12 @@ function TrialPageContent() {
             >
                 <p className="text-lg font-medium">Author contributions (practice)</p>
                 <p className="text-sm text-muted-foreground mb-2">
-                    You can hover over a contribution role to see more information about it.
+                    You can hover over a role name to see more information about it.
                 </p>
-                <div className="space-y-1 text-md text-muted-foreground">
-                    {work.authors.map((author) => (
-                        <p key={author.id}>
-                            <span className="font-medium text-foreground">{trialDisplayName(author, experiment)}</span>:{" "}
-                            <TooltipProvider>
-                                {author.contributions.map((role, idx) => (
-                                    <span key={`${author.id}-${role}-${idx}`}>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
-                                                    {role}
-                                                </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent className="max-w-xs">
-                                                {/* <p className="font-semibold">{role}</p> */}
-                                                <p>{roleDetailsMap[role]?.description ?? role}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                        {idx < author.contributions.length - 1 ? ", " : ""}
-                                    </span>
-                                ))}
-                            </TooltipProvider>
-                        </p>
-                    ))}
-                </div>
+                <AuthorContributionsMatrix
+                    authors={work.authors}
+                    getAuthorLabel={(author) => trialDisplayName(author, experiment)}
+                />
             </div>
 
             {experiment === "C" && (
@@ -482,7 +454,7 @@ function TrialPageContent() {
             >
                 <p className="font-medium mb-2 leading-relaxed">
                     Given the information above, please sort these authors in the way you think they would appear on
-                    the byline of the <Em>{journalLabel}</Em> journal in the <Em>{fieldLabel}</Em> field.
+                    the byline of the <Em>{journalLabel}</Em> journal in the <Em>{domainLabel}</Em> field.
                 </p>
                 <div className="mb-4 text-muted-foreground text-sm leading-relaxed space-y-2">
                     <div className="grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0 items-start">
@@ -576,7 +548,7 @@ function TrialPageContent() {
                                 <p className="font-semibold mb-1">{experiment === "C" ? "3) Author byline" : "2) Author byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-2">
                                     The byline cards are shown in random order. Sort them into the order you think
-                                    matches conventions in <Em>{journalLabel}</Em> for the <Em>{fieldLabel}</Em> field,
+                                    matches conventions in <Em>{journalLabel}</Em> for the <Em>{domainLabel}</Em> field,
                                     based on the contributions section.
                                 </p>
                                 <p className="text-sm text-muted-foreground mb-3">
@@ -623,7 +595,7 @@ function TrialPageContent() {
                                 <p className="font-semibold mb-1">{experiment === "C" ? "5) Sort the byline" : "4) Sort the byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Please sort the author byline the way you would expect it to appear in{" "}
-                                    <Em>{journalLabel}</Em> in the <Em>{fieldLabel}</Em> field, based on the
+                                    <Em>{journalLabel}</Em> in the <Em>{domainLabel}</Em> field, based on the
                                     contributions section and all other author information shown above. Good luck!
                                 </p>
                                 <div className="flex justify-end">

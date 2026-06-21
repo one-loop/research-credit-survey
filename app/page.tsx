@@ -11,7 +11,7 @@ import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import { SURVEY_PARTICIPANT_STORAGE_KEY } from "@/lib/survey/participant"
 
 
-type RespondentContext = { journal: string | null; field: string | null }
+type RespondentContext = { journal: string | null; domain: string | null }
 
 function HomeContent() {
     const { authorId, ready: participantReady } = useSurveyParticipant()
@@ -46,7 +46,7 @@ function HomeContent() {
         let cancelled = false
         setLoadingContext(true)
         fetch(`/api/survey/respondent-context`, { credentials: "same-origin" })
-            .then((res) => (res.ok ? (res.json() as Promise<RespondentContext>) : Promise.resolve({ journal: null, field: null })))
+            .then((res) => (res.ok ? (res.json() as Promise<RespondentContext>) : Promise.resolve({ journal: null, domain: null })))
             .then((data) => {
                 if (!cancelled) {
                     setContext(data)
@@ -57,7 +57,7 @@ function HomeContent() {
                 }
             })
             .catch(() => {
-                if (!cancelled) setContext({ journal: null, field: null })
+                if (!cancelled) setContext({ journal: null, domain: null })
             })
             .finally(() => {
                 if (!cancelled) setLoadingContext(false)
@@ -114,8 +114,8 @@ function HomeContent() {
                 </p>
                 <p>
                     Welcome to this study, which is carried out by Bedoor AlShebli and Shehryar Ahmed Subhani from New York University Abu Dhabi.
-                    {authorId && !loadingContext && context?.journal && context?.field ? (
-                        <> We are reaching out to you as we have identified you as a corresponding author in {context.journal} in the field of {context.field}.</>
+                    {authorId && !loadingContext && context?.journal && context?.domain ? (
+                        <> We are reaching out to you as we have identified you as a corresponding author in {context.journal} in the field of {context.domain}.</>
                     ) : null}
                 </p>
                 <p>In recent years, many academic journals have adopted the CRediT taxonomy to provide greater transparency around individual contributions to research. Rather than relying solely on authorship order, these journals use contributor roles to clarify who was responsible for specific aspects of the work, improving accountability and recognition across collaborative research. We aim to study how individuals interpret contributor roles and assess their relative importance in research publications.</p>

@@ -11,7 +11,7 @@ import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotio
 function RoleImportanceContent() {
     const { authorId } = useSurveyParticipant()
     const [assignedExperiment, setAssignedExperiment] = useState<"A" | "B" | "C" | null>(null)
-    const trialHref = "/trial"
+    const trialHref = "/contribution-position-beliefs"
     const [values, setValues] = useState<Record<string, number>>({})
     const [worksReady, setWorksReady] = useState(false)
     const [worksError, setWorksError] = useState<string | null>(null)

@@ -53,6 +53,7 @@ export function SurveyThanksPanel({
             : experimentType === "C"
               ? `/experiment-c?queue=${nextQueue}`
               : `/experiment-a?queue=${nextQueue}`
+    const studyCompleteHref = `/study-complete?experimentType=${experimentType}&queue=${queue}`
 
     const [summaryLoading, setSummaryLoading] = useState(true)
     const [analyticsLoading, setAnalyticsLoading] = useState(true)
@@ -400,7 +401,7 @@ export function SurveyThanksPanel({
                     </div>
                     <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
                         <Button variant="outline" asChild className="sm:min-w-[7.5rem]">
-                            <Link href="/study-complete">I&apos;m done</Link>
+                            <Link href={studyCompleteHref}>I&apos;m done</Link>
                         </Button>
                         <Button asChild className="sm:min-w-[12rem]">
                             <Link href={continueHref}>Keep going, 5 more tasks!</Link>

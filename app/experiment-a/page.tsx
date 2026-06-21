@@ -12,30 +12,13 @@ import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
 import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { AuthorContributionsMatrix } from "@/components/AuthorContributionsMatrix"
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
+import { readPreTaskBeliefsForSubmit } from "@/lib/survey/preTaskBeliefs"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { TaskTransition } from "@/components/SurveyMotion"
-
-const roleDetailsMap: Record<string, string> = {
-    Conceptualization: "Ideas, formulation or evolution of overarching research goals and aims.",
-    Methodology: "Development or design of methodology; creation of models.",
-    Software: "Programming, software development, and implementation of code and supporting algorithms.",
-    Validation: "Verification and reproducibility of results, experiments, or outputs.",
-    "Formal analysis": "Application of formal techniques to analyze data.",
-    "Formal Analysis": "Application of formal techniques to analyze data.",
-    Investigation: "Conducting experiments or data/evidence collection.",
-    Resources: "Provision of materials, instrumentation, computing resources, or other tools.",
-    "Data curation": "Data annotation, cleaning, and maintenance for use/reuse.",
-    "Writing – original draft": "Preparation and creation of the initial manuscript draft.",
-    "Writing – review & editing": "Critical review, commentary, or revision of the manuscript.",
-    Visualization: "Preparation and creation of visual representations and data presentations.",
-    Supervision: "Oversight and leadership responsibility for planning and execution.",
-    "Project administration": "Management and coordination for planning and execution.",
-    "Funding acquisition": "Acquisition of financial support for the project.",
-}
 
 function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
@@ -76,7 +59,7 @@ function ExperimentAPageContent() {
     const [items, setItems] = useState<Author[]>([])
     const [showIntro, setShowIntro] = useState(true)
     const [confirmUnchangedOpen, setConfirmUnchangedOpen] = useState(false)
-    const [respondentField, setRespondentField] = useState<string | null>(null)
+    const [respondentDomain, setRespondentDomain] = useState<string | null>(null)
     const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
     const [showLoadingScreen, setShowLoadingScreen] = useState(true)
     const [loadingScreenFading, setLoadingScreenFading] = useState(false)
@@ -177,8 +160,8 @@ function ExperimentAPageContent() {
         const raw = window.sessionStorage.getItem(`respondentContext_${keyAuthor}`)
         if (!raw) return
         try {
-            const parsed = JSON.parse(raw) as { field?: string | null; journal?: string | null }
-            setRespondentField(parsed.field ?? null)
+            const parsed = JSON.parse(raw) as { domain?: string | null; journal?: string | null }
+            setRespondentDomain(parsed.domain ?? null)
             setRespondentJournal(parsed.journal ?? null)
         } catch {
             // ignore malformed cached context
@@ -296,6 +279,9 @@ function ExperimentAPageContent() {
                 }
             }
 
+            const { creditRolePositionBeliefs, authorPositionBeliefs } =
+                readPreTaskBeliefsForSubmit(authorId)
+
             try {
                 const res = await fetch("/api/survey/complete", {
                     method: "POST",
@@ -309,6 +295,8 @@ function ExperimentAPageContent() {
                         experimentType: "A",
                         timeSpent,
                         respondentDemographics,
+                        creditRolePositionBeliefs,
+                        authorPositionBeliefs,
                     }),
                 })
                 const data = (await res.json()) as {
@@ -325,13 +313,22 @@ function ExperimentAPageContent() {
                     setError(data.error ?? "Failed to submit rankings")
                     return
                 }
+                const savedResponseId = data.responseId
                 const savedQueue =
                     typeof data.queueIndex === "number" && data.queueIndex >= 0
                         ? data.queueIndex
                         : queueIndex
+                if (typeof window !== "undefined") {
+                    window.sessionStorage.setItem(
+                        `responseId_A_${savedQueue}`,
+                        savedResponseId
+                    )
+                }
                 setSubmittingFadeOut(true)
                 window.setTimeout(() => {
-                    router.replace(`/survey-thanks?experimentType=A&queue=${savedQueue}`)
+                    router.replace(
+                        `/survey-thanks?experimentType=A&queue=${savedQueue}&responseId=${encodeURIComponent(savedResponseId)}`
+                    )
                 }, 220)
             } catch {
                 setError("Failed to submit rankings")
@@ -390,7 +387,7 @@ function ExperimentAPageContent() {
     }
 
     if (showIntro && !isComplete) {
-        const introDomain = currentWork?.domain ?? respondentField ?? currentWork?.field ?? "your domain"
+        const introDomain = currentWork?.domain ?? respondentDomain ?? "your domain"
         const introJournal = respondentJournal ?? currentWork?.journal ?? "your journal"
         return (
             <div className="max-w-3xl mx-auto p-6">
@@ -432,43 +429,19 @@ function ExperimentAPageContent() {
             {currentWork && (
                 <TaskTransition taskKey={currentIndex}>
                 <>
-                    <div className="mb-6 space-y-3">
-                        <p className="text-lg font-medium mb-0">Author contributions</p>
+                    <div className="mb-6 space-y-2">
+                        <p className="text-lg font-medium">Author contributions</p>
                         <p className="text-sm text-muted-foreground">
-                            You can hover over a contribution role to see more information about it.
+                            You can hover over a role name to see more information about it.
                         </p>
-                        <div className="space-y-1 text-md text-muted-foreground">
-                            {displayAuthors.map((author) => (
-                                <p key={author.id}>
-                                    <span className="font-medium text-foreground">{author.initials}</span>:{" "}
-                                    <TooltipProvider>
-                                        {author.contributions.map((role, idx) => (
-                                            <span key={`${author.id}-${role}-${idx}`}>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <span className="cursor-help decoration-dotted underline-offset-4 hover:underline">
-                                                            {role}
-                                                        </span>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent sideOffset={6} className="max-w-sm leading-relaxed">
-                                                        {/* <p className="font-semibold">{role}</p> */}
-                                                        <p>{roleDetailsMap[role] ?? role}</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                                {idx < author.contributions.length - 1 ? ", " : ""}
-                                            </span>
-                                        ))}
-                                    </TooltipProvider>
-                                </p>
-                            ))}
-                        </div>
+                        <AuthorContributionsMatrix authors={displayAuthors} />
                     </div>
 
                     <div className="mb-6">
                         <p className="font-medium mb-8">
                             Given the information above, please sort these authors in the way you think they would
                             appear on the byline of the {currentWork.journal} journal in the{" "}
-                            {currentWork.domain ?? currentWork.field ?? "relevant"} domain.
+                            {currentWork.domain ?? "relevant"} domain.
                         </p>
                         {/* <p className="mb-12 text-muted-foreground text-sm">
                             <Mail className="h-3.5 w-3.5 inline stroke-violet-950 text-violet-950" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed

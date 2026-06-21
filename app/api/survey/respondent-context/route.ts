@@ -6,20 +6,20 @@ import { getParticipantAuthorId } from "@/lib/survey/participant"
 export async function GET(request: NextRequest) {
     const authorId = getParticipantAuthorId(request)
     if (!authorId) {
-        return NextResponse.json({ journal: null, field: null })
+        return NextResponse.json({ journal: null, domain: null })
     }
 
     if (isSupabaseConfigured()) {
         const supabase = getSupabase()
         const { data, error } = await supabase
             .from("papers")
-            .select("journal,field,publication_date,authors")
+            .select("journal,domain,publication_date,authors")
             .eq("contributions_complete", true)
             .filter("authors", "cs", `[{"id":"${authorId}"}]`)
             .order("publication_date", { ascending: false })
             .limit(10)
 
-        if (error || !data?.length) return NextResponse.json({ journal: null, field: null })
+        if (error || !data?.length) return NextResponse.json({ journal: null, domain: null })
 
         const own =
             data.find((row) =>
@@ -31,14 +31,14 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             journal: (own as { journal?: string | null }).journal ?? null,
-            field: (own as { field?: string | null }).field ?? null,
+            domain: (own as { domain?: string | null }).domain ?? null,
         })
     }
 
     const own = worksPool.find((w) => w.authors.some((a) => a.id === authorId))
     return NextResponse.json({
         journal: own?.journal ?? null,
-        field: own?.field ?? null,
+        domain: own?.domain ?? null,
     })
 }
 

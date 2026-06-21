@@ -16,7 +16,6 @@ function SurveyThanksContent() {
     const mockDistributionSamples = parseMockDistributionSampleCount(
         searchParams.get("mockDistribution")
     )
-
     return (
         <SurveyThanksPanel
             experimentType={experimentType}
