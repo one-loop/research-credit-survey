@@ -1,5 +1,4 @@
 import { creditRoles } from "@/lib/mockData"
-import type { Author } from "@/lib/types"
 
 /** Normalize CRediT role strings for fuzzy matching across data sources. */
 export function normalizeContributionLabel(label: string): string {
