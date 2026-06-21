@@ -114,7 +114,11 @@ async function resolveAuthorPositionBeliefsForSave(
     experimentType: ExperimentType | null | undefined,
     incoming: AuthorPositionBeliefs | null | undefined
 ): Promise<AuthorPositionBeliefs | null> {
-    if (incoming && typeof incoming.younger === "string" && typeof incoming.pi === "string") {
+    if (
+        incoming &&
+        (incoming.younger === "first" || incoming.younger === "last") &&
+        (incoming.pi === "first" || incoming.pi === "last")
+    ) {
         return incoming
     }
     if (!authorId || !experimentType || !isSupabaseConfigured()) return incoming ?? null
