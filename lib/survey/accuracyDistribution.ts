@@ -1,5 +1,9 @@
-/** Minimum completed queue submissions before showing the accuracy distribution. */
-export const ACCURACY_DISTRIBUTION_MIN_RESPONSES = 1
+/** Minimum completed queue submissions before showing global comparison analytics. */
+export const ACCURACY_DISTRIBUTION_MIN_RESPONSES = 101
+
+export function hasEnoughResponsesForGlobalAnalytics(responseCount: number): boolean {
+    return responseCount > 100
+}
 
 export type AccuracyHistogramBin = {
     binStart: number
