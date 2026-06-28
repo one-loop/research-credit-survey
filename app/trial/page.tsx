@@ -94,7 +94,6 @@ function TrialPageContent() {
     const [envelopeSwapCompleted, setEnvelopeSwapCompleted] = useState(false)
     const [q1, setQ1] = useState<string>("")
     const [q2, setQ2] = useState<string>("")
-    const [canAccessExperimentB, setCanAccessExperimentB] = useState(false)
     const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
     const [respondentDomain, setRespondentDomain] = useState<string | null>(null)
 
@@ -125,38 +124,6 @@ function TrialPageContent() {
         }
         setEnvelopeSwapCompleted(false)
         setTutorialStep("contributions")
-    }, [authorId])
-
-    useEffect(() => {
-        if (typeof window === "undefined") return
-        const keyAuthor = authorId ?? "none"
-        const raw = window.sessionStorage.getItem(`experimentWorks_${keyAuthor}`)
-        if (!raw) {
-            setCanAccessExperimentB(false)
-            return
-        }
-        try {
-            const parsed = JSON.parse(raw) as {
-                works?: Array<{
-                    isOwnWork?: boolean
-                    experiment_eligibility?: string[]
-                    authors?: Array<{ id?: string }>
-                }>
-            }
-            const ownWork = authorId
-                ? parsed.works?.find(
-                      (w) =>
-                          w.isOwnWork ||
-                          (Array.isArray(w.authors) && w.authors.some((a) => a.id === authorId))
-                  )
-                : parsed.works?.[0]
-            const eligible = Array.isArray(ownWork?.experiment_eligibility)
-                ? ownWork.experiment_eligibility.includes("B")
-                : false
-            setCanAccessExperimentB(eligible)
-        } catch {
-            setCanAccessExperimentB(false)
-        }
     }, [authorId])
 
     function handleDragEnd(event: DragEndEvent) {
@@ -202,9 +169,6 @@ function TrialPageContent() {
 
     const experimentPath = experiment === "C" ? "/experiment-c" : experiment === "B" ? "/experiment-b" : "/experiment-a"
     const experimentHref = experimentPath
-    const experimentAHref = "/experiment-a"
-    const experimentBHref = "/experiment-b"
-    const experimentCHref = "/experiment-c"
 
     if (phase === "failed") {
         return (
@@ -278,26 +242,6 @@ function TrialPageContent() {
                 <p className="text-muted-foreground mb-6 leading-relaxed">
                     You answered both questions correctly. We will now show you five tasks. You may not go back to a previously attempted task once you have submitted it.
                 </p>
-                <div className="mb-6 rounded-md border border-dashed p-4 bg-green-50/50">
-                    <p className="text-sm font-medium mb-3 text-green-600">[Debug links]</p>
-                    <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="outline" size="sm">
-                            <Link href={experimentAHref}>Go to Experiment A</Link>
-                        </Button>
-                        {canAccessExperimentB ? (
-                            <Button asChild variant="outline" size="sm">
-                                <Link href={experimentBHref}>Go to Experiment B</Link>
-                            </Button>
-                        ) : (
-                            <Button variant="outline" size="sm" disabled>
-                                Go to Experiment B
-                            </Button>
-                        )}
-                        <Button asChild variant="outline" size="sm">
-                            <Link href={experimentCHref}>Go to Experiment C</Link>
-                        </Button>
-                    </div>
-                </div>
                 <div className="flex justify-end">
                     <Link href={experimentHref}>
                         <Button>Continue to main study</Button>

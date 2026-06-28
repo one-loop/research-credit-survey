@@ -19,6 +19,7 @@ import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { TaskTransition } from "@/components/SurveyMotion"
+import { logExperimentTaskDebug } from "@/lib/survey/experimentTaskDebug"
 
 function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
@@ -202,6 +203,16 @@ function ExperimentAPageContent() {
             isRankingUiActive: rankingUiActive,
             items,
         })
+
+    useEffect(() => {
+        if (!currentWork || showIntro || isComplete) return
+        logExperimentTaskDebug({
+            experimentType: "A",
+            taskIndex: currentIndex,
+            work: currentWork,
+            dataSource,
+        })
+    }, [currentWork, currentIndex, dataSource, showIntro, isComplete])
 
     function handleDragEnd(event: { active: { id: unknown }; over: { id: unknown } | null }) {
         const { active, over } = event
@@ -413,11 +424,6 @@ function ExperimentAPageContent() {
                 <h1 className="text-2xl font-bold mb-2">
                     Author Contribution Ranking: Task {currentIndex + 1}
                 </h1>
-                {currentWork && (
-                    <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
-                        [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | domain: {currentWork.domain ?? "N/A"} | journal: {currentWork.journal ?? "N/A"} | data_source: {dataSource === "supabase" ? "Supabase" : "mock data"}
-                    </p>
-                )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">
                     <div
                         className="bg-primary h-2 rounded-full transition-all duration-500 ease-out"
