@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
     buildAccuracyDistributionStats,
+    hasEnoughResponsesForGlobalAnalytics,
     type AccuracyDistributionStats,
 } from "@/lib/survey/accuracyDistribution"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
@@ -133,9 +134,11 @@ export async function getExperimentThankYouAnalytics(
         ? await fetchExperimentAnalyticsRows(experimentType)
         : await getCachedExperimentAnalyticsRows(experimentType)
     const scores = rows.map((r) => r.averageAccuracy)
+    const showGlobalAnalytics = hasEnoughResponsesForGlobalAnalytics(scores.length)
 
     let institutionPercentile: number | null = null
     if (
+        showGlobalAnalytics &&
         respondentInstitutionKey &&
         typeof comparisonScore === "number" &&
         Number.isFinite(comparisonScore)
@@ -149,7 +152,9 @@ export async function getExperimentThankYouAnalytics(
 
     return {
         distribution: buildAccuracyDistributionStats(scores, comparisonScore),
-        leaderboard: buildInstitutionLeaderboard(rows, respondentInstitutionKey),
+        leaderboard: showGlobalAnalytics
+            ? buildInstitutionLeaderboard(rows, respondentInstitutionKey)
+            : { top10: [], respondent: null, respondentInstitutionKey: null },
         institutionPercentile,
     }
 }

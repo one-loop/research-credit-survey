@@ -4,6 +4,7 @@ import {
     accuracyPercentileRank,
     buildAccuracyDistributionStats,
     buildAccuracyHistogram,
+    hasEnoughResponsesForGlobalAnalytics,
 } from "@/lib/survey/accuracyDistribution"
 
 describe("accuracyDistribution", () => {
@@ -13,8 +14,16 @@ describe("accuracyDistribution", () => {
         expect(stats.responseCount).toBe(0)
     })
 
-    it("shows distribution after one or more responses", () => {
-        const scores = [0.75]
+    it("does not show distribution below the global analytics threshold", () => {
+        const scores = Array.from({ length: 100 }, (_, i) => i / 100)
+        const stats = buildAccuracyDistributionStats(scores, 0.5)
+        expect(stats.showDistribution).toBe(false)
+        expect(stats.percentile).toBeNull()
+        expect(stats.responseCount).toBe(100)
+    })
+
+    it("shows distribution after more than 100 responses", () => {
+        const scores = Array.from({ length: 101 }, () => 0.75)
         const stats = buildAccuracyDistributionStats(scores, 0.75)
         expect(stats.showDistribution).toBe(true)
         expect(stats.bins).toHaveLength(20)
@@ -36,6 +45,11 @@ describe("accuracyDistribution", () => {
     })
 
     it("exports threshold constant", () => {
-        expect(ACCURACY_DISTRIBUTION_MIN_RESPONSES).toBe(1)
+        expect(ACCURACY_DISTRIBUTION_MIN_RESPONSES).toBe(101)
+    })
+
+    it("hasEnoughResponsesForGlobalAnalytics requires more than 100", () => {
+        expect(hasEnoughResponsesForGlobalAnalytics(100)).toBe(false)
+        expect(hasEnoughResponsesForGlobalAnalytics(101)).toBe(true)
     })
 })

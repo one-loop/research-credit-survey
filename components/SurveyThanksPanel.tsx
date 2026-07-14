@@ -16,7 +16,11 @@ import { ThankYouAnalyticsConfetti, ThankYouConfetti } from "@/components/ThankY
 import { FadeIn } from "@/components/SurveyMotion"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import type { AccuracyHistogramBin } from "@/lib/survey/accuracyDistribution"
-import { accuracyPercentileRank, buildAccuracyHistogram } from "@/lib/survey/accuracyDistribution"
+import {
+    accuracyPercentileRank,
+    buildAccuracyHistogram,
+    hasEnoughResponsesForGlobalAnalytics,
+} from "@/lib/survey/accuracyDistribution"
 import { mockAccuracySamples } from "@/lib/survey/mockDistributionSamples"
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
 import { formatOrdinal } from "@/lib/survey/percentileFormat"
@@ -217,7 +221,11 @@ export function SurveyThanksPanel({
         completed > 1 &&
         (typeof queueAccuracy !== "number" ||
             Math.round(respondentAverageAccuracy! * 100) !== Math.round(queueAccuracy * 100))
-    const showDistributionChart = distribution?.show === true || mockDistributionSamples > 0
+    const globalAnalyticsReady =
+        mockDistributionSamples > 0 ||
+        hasEnoughResponsesForGlobalAnalytics(distribution?.responseCount ?? 0)
+    const showDistributionChart =
+        globalAnalyticsReady && (distribution?.show === true || mockDistributionSamples > 0)
     const chartPreview = useMemo(() => {
         if (mockDistributionSamples <= 0) return null
 
@@ -239,6 +247,7 @@ export function SurveyThanksPanel({
         }
     }, [mockDistributionSamples, respondentAverageAccuracy, queueAccuracy])
     const showLeaderboard =
+        globalAnalyticsReady &&
         leaderboard !== null &&
         (leaderboard.top10.length > 0 || leaderboard.respondent !== null)
     const statCards = useMemo(() => {
@@ -270,7 +279,11 @@ export function SurveyThanksPanel({
             })
         }
 
-        if (percentileSummary?.overall !== null && percentileSummary?.overall !== undefined) {
+        if (
+            globalAnalyticsReady &&
+            percentileSummary?.overall !== null &&
+            percentileSummary?.overall !== undefined
+        ) {
             cards.push({
                 id: "percentile",
                 label: "All participants",
@@ -280,6 +293,7 @@ export function SurveyThanksPanel({
         }
 
         if (
+            globalAnalyticsReady &&
             percentileSummary?.institution !== null &&
             percentileSummary?.institution !== undefined
         ) {
@@ -300,10 +314,11 @@ export function SurveyThanksPanel({
         completed,
         showOverallAccuracy,
         percentileSummary,
+        globalAnalyticsReady,
     ])
 
     const statsSkeletonCount =
-        (summaryLoading ? 2 : 0) + (analyticsLoading ? 2 : 0)
+        (summaryLoading ? 2 : 0) + (analyticsLoading && globalAnalyticsReady ? 2 : 0)
     const showStatsGrid = statCards.length > 0 || statsSkeletonCount > 0
     const showInsightsSection =
         showStatsGrid || showDistributionChart || showLeaderboard
@@ -340,7 +355,7 @@ export function SurveyThanksPanel({
                             }
                         />
                         <div className="relative z-10 space-y-4">
-                            {analyticsLoading && !chartPreview ? (
+                            {analyticsLoading && globalAnalyticsReady && !chartPreview ? (
                                 <>
                                     <AccuracyDistributionChartSkeleton />
                                     <InstitutionLeaderboardSkeleton />

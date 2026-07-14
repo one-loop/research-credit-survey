@@ -1,55 +1,23 @@
 "use client"
 
-import { DndContext, closestCenter } from "@dnd-kit/core"
-import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { useState, useEffect, Suspense, useMemo } from "react"
+import { useState, useEffect, Suspense, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { useExperimentReturnCheck } from "@/lib/useExperimentReturnCheck"
 import { SurveyThanksPanel } from "@/components/SurveyThanksPanel"
 import { Button } from "@/components/ui/button"
 import { ConfirmRankingOrderDialog } from "@/components/ConfirmRankingOrderDialog"
-import { Mail } from "lucide-react"
 import type { Work, Author } from "@/lib/types"
 import { AuthorContributionsMatrix } from "@/components/AuthorContributionsMatrix"
+import { AuthorBylineRankingBoard } from "@/components/AuthorBylineRankingBoard"
 import { trialFailedKey, trialPassedKey } from "@/lib/trialWorks"
 import { readPreTaskBeliefsForSubmit } from "@/lib/survey/preTaskBeliefs"
 import { publicationCorrespondingSlotIndex, shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { TaskTransition } from "@/components/SurveyMotion"
+import { logExperimentTaskDebug } from "@/lib/survey/experimentTaskDebug"
 import { filterWorksForExperiment } from "@/lib/survey/experimentEligibility"
-
-function SortableItem({
-    id,
-    children,
-    widthCh,
-}: {
-    id: string
-    children: React.ReactNode
-    widthCh?: number
-}) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        width: widthCh ? `${widthCh}ch` : undefined,
-    }
-
-    return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            {...attributes}
-            {...listeners}
-            className="border rounded p-3 bg-card cursor-grab active:cursor-grabbing bg-violet-50 border-violet-950 text-violet-950"
-        >
-            {children}
-        </div>
-    )
-}
 
 function anonymizedBylineName(author: Author): string {
     const withAnonymized = author as Author & { anonymized_name?: string }
@@ -75,7 +43,8 @@ function ExperimentBPageContent() {
     const [error, setError] = useState<string | null>(null)
     const [currentIndex, setCurrentIndex] = useState(0)
     const [trialResults, setTrialResults] = useState<string[][]>([])
-    const [items, setItems] = useState<Author[]>([])
+    const [rankingAuthors, setRankingAuthors] = useState<Author[]>([])
+    const [initialShuffledOrderKey, setInitialShuffledOrderKey] = useState("")
     const [showIntro, setShowIntro] = useState(true)
     const [confirmUnchangedOpen, setConfirmUnchangedOpen] = useState(false)
     const [respondentDomain, setRespondentDomain] = useState<string | null>(null)
@@ -135,7 +104,8 @@ function ExperimentBPageContent() {
                     }
                     setWorks(shuffled)
                     if (shuffled.length > 0) {
-                        setItems(shuffledAuthorsForRanking(shuffled[0].authors))
+                        setRankingAuthors([])
+                        setInitialShuffledOrderKey("")
                     }
                     setError(null)
                     setLoading(false)
@@ -171,7 +141,8 @@ function ExperimentBPageContent() {
 
                 setWorks(shuffled)
                 if (shuffled.length > 0) {
-                    setItems(shuffledAuthorsForRanking(shuffled[0].authors))
+                    setRankingAuthors([])
+                    setInitialShuffledOrderKey("")
                 }
                 setError(null)
             })
@@ -215,11 +186,10 @@ function ExperimentBPageContent() {
         [currentWork?.work_id]
     )
     const authorCardWidthCh = useMemo(() => {
-        if (items.length === 0) return 14
-        const longestName = Math.max(...items.map((author) => anonymizedBylineName(author).length))
-        // Add some breathing room for padding and optional envelope icon.
+        if (displayAuthors.length === 0) return 14
+        const longestName = Math.max(...displayAuthors.map((author) => anonymizedBylineName(author).length))
         return Math.min(Math.max(longestName + 4, 14), 32)
-    }, [items])
+    }, [displayAuthors])
 
     const rankingUiActive =
         trialGate === "ok" &&
@@ -231,26 +201,31 @@ function ExperimentBPageContent() {
         useExperimentRankingTiming({
             workId: currentWork?.work_id,
             isRankingUiActive: rankingUiActive,
-            items,
+            items: rankingAuthors,
+            initialShuffledOrderKey,
         })
 
-    function handleDragEnd(event: { active: { id: unknown }; over: { id: unknown } | null }) {
-        const { active, over } = event
-        if (!over) return
-        const activeId = String(active.id)
-        const overId = String(over.id)
-        if (activeId !== overId) {
-            setItems((prev) => {
-                const oldIndex = prev.findIndex((i) => i.id === activeId)
-                const newIndex = prev.findIndex((i) => i.id === overId)
-                return arrayMove(prev, oldIndex, newIndex)
-            })
-        }
-    }
+    const handleRankingChange = useCallback((ranking: Author[], poolOrderKey: string) => {
+        setRankingAuthors(ranking)
+        if (poolOrderKey) setInitialShuffledOrderKey(poolOrderKey)
+    }, [])
+
+    const allSlotsFilled =
+        displayAuthors.length > 0 && rankingAuthors.length === displayAuthors.length
+
+    useEffect(() => {
+        if (!currentWork || showIntro || isComplete) return
+        logExperimentTaskDebug({
+            experimentType: "B",
+            taskIndex: currentIndex,
+            work: currentWork,
+            dataSource,
+        })
+    }, [currentWork, currentIndex, dataSource, showIntro, isComplete])
 
     function requestAdvance() {
         if (!works || !currentWork) return
-        if (!minTimeMet) return
+        if (!minTimeMet || !allSlotsFilled) return
         if (orderUnchangedFromInitial) {
             setConfirmUnchangedOpen(true)
             return
@@ -263,13 +238,14 @@ function ExperimentBPageContent() {
         flushCurrentWorkSeconds(currentWork.work_id)
         setConfirmUnchangedOpen(false)
 
-        const ranking = items.map((i) => i.id)
+        const ranking = rankingAuthors.map((author) => author.id)
         const newResults = [...trialResults, ranking]
 
         if (currentIndex < totalWorks - 1) {
             setTrialResults(newResults)
             setCurrentIndex(currentIndex + 1)
-            setItems(shuffledAuthorsForRanking(works[currentIndex + 1].authors))
+            setRankingAuthors([])
+            setInitialShuffledOrderKey("")
         } else {
             setTrialResults(newResults)
             setCurrentIndex(totalWorks)
@@ -444,11 +420,6 @@ function ExperimentBPageContent() {
                 <h1 className="text-2xl font-bold mb-2">
                     Author Contribution Ranking: Task {currentIndex + 1}
                 </h1>
-                {currentWork && (
-                    <p className={`mt-1 text-xs ${dataSource === "supabase" ? "text-green-600" : "text-muted-foreground"}`}>
-                        [Debug] paper_id: {currentWork.work_id} | own_paper: {currentWork.isOwnWork ? "yes" : "no"} | domain: {currentWork.domain ?? "N/A"} | journal: {currentWork.journal ?? "N/A"} | data_source: {dataSource === "supabase" ? "Supabase" : "mock data"}
-                    </p>
-                )}
                 <div className="mt-2 w-full bg-secondary rounded-full h-2">
                     <div
                         className="bg-primary h-2 rounded-full transition-all duration-500 ease-out"
@@ -493,34 +464,26 @@ function ExperimentBPageContent() {
                         {/* <p className="mb-12 text-muted-foreground text-sm">
                             <Mail className="h-3.5 w-3.5 inline stroke-violet-950 text-violet-950" /> Your choice of corresponding author once you submit. The position at which the corresponding author occurs is fixed
                         </p> */}
-                        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                            <SortableContext items={items.map((i) => i.id)} strategy={horizontalListSortingStrategy}>
-                                <div className="flex flex-row flex-wrap gap-3">
-                                    {items.map((author, positionIndex) => {
-                                        const showEnvelope = envelopeSlotIndex >= 0 && positionIndex === envelopeSlotIndex
-                                        return (
-                                            <SortableItem key={author.id} id={author.id} widthCh={authorCardWidthCh}>
-                                                <div className="flex items-center gap-1.5 align-center justify-center">
-                                                    <span className="font-medium">
-                                                        {anonymizedBylineName(author)}
-                                                    </span>
-                                                    {showEnvelope && (
-                                                        <Mail className="h-3.5 w-3.5 stroke-violet-950 text-violet-950" />
-                                                    )}
-                                                </div>
-                                            </SortableItem>
-                                        )
-                                    })}
-                                </div>
-                            </SortableContext>
-                        </DndContext>
+                        <AuthorBylineRankingBoard
+                            key={currentWork.work_id}
+                            authors={displayAuthors}
+                            envelopeSlotIndex={envelopeSlotIndex}
+                            renderAuthorLabel={anonymizedBylineName}
+                            cardMinWidthCh={authorCardWidthCh}
+                            onRankingChange={handleRankingChange}
+                        />
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
+                        {!allSlotsFilled ? (
+                            <p className="text-xs text-muted-foreground">
+                                Drag each author into a byline slot to continue.
+                            </p>
+                        ) : null}
                         {!minTimeMet ? (
                             <p className="text-xs text-muted-foreground">Wait at least 10 seconds before continuing.</p>
                         ) : null}
-                        <Button onClick={() => void requestAdvance()} disabled={!minTimeMet}>
+                        <Button onClick={() => void requestAdvance()} disabled={!minTimeMet || !allSlotsFilled}>
                             {currentIndex < totalWorks - 1 ? "Next Work" : "Complete"}
                         </Button>
                     </div>

@@ -11,6 +11,8 @@ export function useExperimentRankingTiming(opts: {
     workId: string | undefined
     isRankingUiActive: boolean
     items: Author[]
+    /** Shuffled pool order when the ranking board first loads (for unchanged-order detection). */
+    initialShuffledOrderKey?: string
 }) {
     const [minTimeMet, setMinTimeMet] = useState(false)
     const [baselineOrderKey, setBaselineOrderKey] = useState("")
@@ -22,10 +24,12 @@ export function useExperimentRankingTiming(opts: {
     useLayoutEffect(() => {
         if (!opts.workId || !opts.isRankingUiActive) return
         pageStartedAtRef.current = Date.now()
-        const key = itemsRef.current.map((a) => a.id).join("\0")
+        const key =
+            opts.initialShuffledOrderKey ??
+            itemsRef.current.map((a) => a.id).join("\0")
         setBaselineOrderKey(key)
         setMinTimeMet(false)
-    }, [opts.workId, opts.isRankingUiActive])
+    }, [opts.workId, opts.isRankingUiActive, opts.initialShuffledOrderKey])
 
     useEffect(() => {
         if (!opts.workId || !opts.isRankingUiActive) return
