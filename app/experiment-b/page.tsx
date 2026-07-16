@@ -185,11 +185,7 @@ function ExperimentBPageContent() {
         () => (currentWork ? shuffledAuthorsForRanking(currentWork.authors) : []),
         [currentWork?.work_id]
     )
-    const authorCardWidthCh = useMemo(() => {
-        if (displayAuthors.length === 0) return 14
-        const longestName = Math.max(...displayAuthors.map((author) => anonymizedBylineName(author).length))
-        return Math.min(Math.max(longestName + 4, 14), 32)
-    }, [displayAuthors])
+
 
     const rankingUiActive =
         trialGate === "ok" &&
@@ -469,7 +465,6 @@ function ExperimentBPageContent() {
                             authors={displayAuthors}
                             envelopeSlotIndex={envelopeSlotIndex}
                             renderAuthorLabel={anonymizedBylineName}
-                            cardMinWidthCh={authorCardWidthCh}
                             onRankingChange={handleRankingChange}
                         />
                     </div>
