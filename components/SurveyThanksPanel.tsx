@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
+import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
 import { AccuracyCalculationInfo } from "@/components/AccuracyCalculationInfo"
 import { AccuracyDistributionChart } from "@/components/AccuracyDistributionChart"
 import {
@@ -30,6 +31,7 @@ type Props = {
     queue: number
     /** Dev preview: simulate N sample blocks for the distribution chart. */
     mockDistributionSamples?: number
+    consent?: string | null
 }
 
 function formatAccuracyPercent(accuracy: number): string {
@@ -49,6 +51,7 @@ export function SurveyThanksPanel({
     experimentType,
     queue,
     mockDistributionSamples = 0,
+    consent,
 }: Props) {
     const nextQueue = queue + 1
     const continueHref =
@@ -328,6 +331,33 @@ export function SurveyThanksPanel({
     return (
         <div className={`mx-auto overflow-visible p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
             <ThankYouConfetti />
+            {consent === "consented" && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-emerald-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                    <div>
+                        <div className="font-bold text-sm">Response Consented</div>
+                        <div className="text-xs opacity-90 mt-0.5">Your consent has been successfully registered. Thank you for participating in the co-author credit survey!</div>
+                    </div>
+                </div>
+            )}
+            {consent === "withdrawn" && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-rose-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                    <div>
+                        <div className="font-bold text-sm">Response Withdrawn</div>
+                        <div className="text-xs opacity-90 mt-0.5">You have withdrawn your consent for this response. The rankings will not be used in our research.</div>
+                    </div>
+                </div>
+            )}
+            {consent === "not_my_paper" && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-amber-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                    <div>
+                        <div className="font-bold text-sm">Verification Flagged</div>
+                        <div className="text-xs opacity-90 mt-0.5">You have indicated that the matched own paper was incorrect. We have flagged this response for manual verification.</div>
+                    </div>
+                </div>
+            )}
             <FadeIn>
                 <h1 className="text-3xl font-bold tracking-tight mb-4">Thank you</h1>
                 <p className="text-base text-muted-foreground leading-relaxed mb-5">

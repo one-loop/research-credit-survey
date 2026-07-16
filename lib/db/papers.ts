@@ -303,7 +303,7 @@ async function getPapersPool(opts: PapersPoolOpts): Promise<PaperRow[]> {
     }
 }
 
-async function hydratePaperRowsById(workIds: string[]): Promise<Map<string, PaperRow>> {
+export async function hydratePaperRowsById(workIds: string[]): Promise<Map<string, PaperRow>> {
     const byId = new Map<string, PaperRow>()
     if (!isSupabaseConfigured() || workIds.length === 0) return byId
     try {

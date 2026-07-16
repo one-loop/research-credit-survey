@@ -1,5 +1,4 @@
 import type { Author } from "@/lib/types"
-import { shuffledAuthorsForRanking } from "@/lib/shuffleAuthors"
 
 export type BoardState = {
     pool: Author[]
@@ -14,7 +13,7 @@ export type BoardAction =
     | { type: "slot_to_slot"; fromSlot: number; targetSlot: number }
 
 export function createInitialBoardState(authors: Author[]): BoardState {
-    const pool = shuffledAuthorsForRanking(authors)
+    const pool = [...authors]
     return {
         pool,
         slots: Array(authors.length).fill(null),

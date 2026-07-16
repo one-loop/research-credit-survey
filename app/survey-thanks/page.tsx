@@ -16,11 +16,13 @@ function SurveyThanksContent() {
     const mockDistributionSamples = parseMockDistributionSampleCount(
         searchParams.get("mockDistribution")
     )
+    const consent = searchParams.get("consent")
     return (
         <SurveyThanksPanel
             experimentType={experimentType}
             queue={queue}
             mockDistributionSamples={mockDistributionSamples}
+            consent={consent}
         />
     )
 }
