@@ -316,7 +316,7 @@ function TrialPageContent() {
             <div
                 className={[
                     "mb-6 transition-opacity rounded-md",
-                    tutorialStep === "byline" || tutorialStep === "envelope" || tutorialStep === "sort"
+                    tutorialStep === "byline" || tutorialStep === "sort"
                         ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
                         : tutorialStep === "done"
                           ? ""

@@ -133,6 +133,7 @@ export async function GET(request: NextRequest) {
                         corresponding_email: mockMatch.corresponding_email || null,
                         field: mockMatch.field || null,
                         domain: mockMatch.domain || null,
+                        subfield: null,
                     }
                 }
             }
