@@ -22,7 +22,7 @@ import { AuthorBylineRankingBoard } from "@/components/AuthorBylineRankingBoard"
 import { cn } from "@/lib/utils"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
-type TutorialStep = "contributions" | "academic_info" | "byline" | "envelope" | "sort" | "done"
+type TutorialStep = "contributions" | "academic_info" | "byline" | "sort" | "done"
 
 const Q1_CORRECT = "fixed_slot"
 const Q2_CORRECT = "by_contribution"
@@ -66,12 +66,11 @@ function TrialPageContent() {
     const [experiment, setExperiment] = useState<"A" | "B" | "C">("A")
     const [work, setWork] = useState<Work | null>(null)
     const [tutorialStep, setTutorialStep] = useState<TutorialStep>("contributions")
-    const [envelopeSwapCompleted, setEnvelopeSwapCompleted] = useState(false)
     const [q1, setQ1] = useState<string>("")
     const [q2, setQ2] = useState<string>("")
     const [respondentJournal, setRespondentJournal] = useState<string | null>(null)
     const [respondentDomain, setRespondentDomain] = useState<string | null>(null)
-    const envelopeSlotAuthorRef = useRef<string | null>(null)
+    const [rankingAuthors, setRankingAuthors] = useState<Author[]>([])
 
     useEffect(() => {
         const failed = typeof window !== "undefined" && sessionStorage.getItem(trialFailedKey(authorId)) === "true"
@@ -93,8 +92,7 @@ function TrialPageContent() {
             assignedJournal ?? undefined
         )
         setWork(w)
-        envelopeSlotAuthorRef.current = null
-        setEnvelopeSwapCompleted(false)
+        setRankingAuthors([])
         setTutorialStep("contributions")
     }, [authorId])
 
@@ -104,26 +102,10 @@ function TrialPageContent() {
     )
     const envelopeSlotIndex = work ? publicationCorrespondingSlotIndex(work.authors) : -1
 
-    const handleEnvelopeSlotAuthorChange = useCallback(
-        (authorId: string | null) => {
-            if (tutorialStep !== "envelope") return
-            if (!authorId) {
-                envelopeSlotAuthorRef.current = null
-                return
-            }
-            if (envelopeSlotAuthorRef.current === null) {
-                envelopeSlotAuthorRef.current = authorId
-                return
-            }
-            if (authorId !== envelopeSlotAuthorRef.current) {
-                setEnvelopeSwapCompleted(true)
-            }
-        },
-        [tutorialStep]
-    )
+    const allSlotsFilled = displayAuthors.length > 0 && rankingAuthors.length === displayAuthors.length
 
-    const handleRankingChange = useCallback(() => {
-        // Practice task does not persist rankings; board manages its own state.
+    const handleRankingChange = useCallback((ranking: Author[]) => {
+        setRankingAuthors(ranking)
     }, [])
 
     function submitQuiz() {
@@ -370,7 +352,6 @@ function TrialPageContent() {
                     envelopeSlotIndex={envelopeSlotIndex}
                     renderAuthorLabel={(author) => trialDisplayName(author, experiment)}
                     onRankingChange={handleRankingChange}
-                    onEnvelopeSlotAuthorChange={handleEnvelopeSlotAuthorChange}
                 />
             </div>
 
@@ -436,40 +417,15 @@ function TrialPageContent() {
                                     goes there.
                                 </p>
                                 <div className="flex justify-end">
-                                    <Button size="sm" onClick={() => setTutorialStep("envelope")}>
+                                    <Button size="sm" onClick={() => setTutorialStep("sort")}>
                                         Next
-                                    </Button>
-                                </div>
-                            </>
-                        )}
-                        {tutorialStep === "envelope" && (
-                            <>
-                                <p className="font-semibold mb-1">
-                                    {experiment === "C" ? "4) Corresponding author & envelope" : "3) Corresponding author & envelope"}
-                                </p>
-                                <p className="text-sm text-muted-foreground mb-2">
-                                    Try it now: drag an author into the envelope slot at position{" "}
-                                    <Em>{slotPhrase}</Em>, then drag a <Em>different</Em> author into that same slot.
-                                    The <Em>envelope</Em> stays on the slot while the name changes.
-                                </p>
-                                <p className="text-sm text-muted-foreground mb-3">
-                                    To continue, swap who is in the envelope slot once so you can see how the icon marks
-                                    the position, not the person.
-                                </p>
-                                <div className="flex justify-end">
-                                    <Button
-                                        size="sm"
-                                        onClick={() => setTutorialStep("sort")}
-                                        disabled={!envelopeSwapCompleted}
-                                    >
-                                        {envelopeSwapCompleted ? "Next" : "Swap first to continue"}
                                     </Button>
                                 </div>
                             </>
                         )}
                         {tutorialStep === "sort" && (
                             <>
-                                <p className="font-semibold mb-1">{experiment === "C" ? "5) Sort the byline" : "4) Sort the byline"}</p>
+                                <p className="font-semibold mb-1">{experiment === "C" ? "4) Sort the byline" : "3) Sort the byline"}</p>
                                 <p className="text-sm text-muted-foreground mb-3">
                                     Fill every byline slot with the order you would expect in{" "}
                                     <Em>{journalLabel}</Em> in the <Em>{domainLabel}</Em> field, based on the
@@ -486,8 +442,13 @@ function TrialPageContent() {
                 </>
             )}
 
-            <div className="flex justify-end">
-                <Button onClick={() => setPhase("quiz")} disabled={tutorialStep !== "done"}>
+            <div className="flex flex-col items-end gap-2">
+                {tutorialStep === "done" && !allSlotsFilled ? (
+                    <p className="text-xs text-muted-foreground">
+                        Please drag all authors into the byline slots to continue.
+                    </p>
+                ) : null}
+                <Button onClick={() => setPhase("quiz")} disabled={tutorialStep !== "done" || !allSlotsFilled}>
                     Continue to instruction check
                 </Button>
             </div>
