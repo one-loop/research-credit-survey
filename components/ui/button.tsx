@@ -9,16 +9,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-gradient-to-b from-primary/95 via-primary to-primary/95 text-primary-foreground border border-t-white/10 border-b-black/20 border-x-black/10 shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_1.5px_0_rgba(255,255,255,0.15)] hover:from-primary hover:to-primary/95 transition-all",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-gradient-to-b from-destructive/95 via-destructive to-destructive/95 text-white border border-t-white/10 border-b-black/30 border-x-black/20 shadow-[0_2px_4px_rgba(0,0,0,0.15),inset_0_1.5px_0_rgba(255,255,255,0.2)] hover:from-destructive hover:to-destructive/95 transition-all",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-input/80 bg-background shadow-[0_1px_2px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-accent hover:text-accent-foreground transition-all",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-gradient-to-b from-secondary/95 via-secondary to-secondary/95 text-secondary-foreground border border-t-white/20 border-b-black/10 border-x-black/5 shadow-[0_1px_2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.3)] hover:from-secondary hover:to-secondary/95 transition-all",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 transition-all",
+        link: "text-primary underline-offset-4 hover:underline transition-all",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

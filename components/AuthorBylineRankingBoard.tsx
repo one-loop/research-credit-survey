@@ -187,8 +187,10 @@ function RankingSlot({
     return (
         <div
             className={cn(
-                "relative flex min-h-[3.25rem] min-w-[6.5rem] flex-1 items-center overflow-visible rounded-lg border-2 border-dashed px-2 py-2 transition-colors",
-                author ? "border-violet-950 bg-violet-50/40" : "border-violet-300/90 bg-background",
+                "relative flex min-h-[3.25rem] items-center overflow-visible rounded-lg border-2 border-dashed px-2 py-2 transition-colors",
+                author 
+                    ? "flex-none w-max border-violet-950 bg-violet-50/40" 
+                    : "flex-1 min-w-[6.5rem] border-violet-300/90 bg-background",
                 isOver && "border-violet-600 bg-violet-50/70"
             )}
             style={{ minWidth: cardMinWidthCh ? `${Math.max(cardMinWidthCh + 4, 6.5)}ch` : undefined }}

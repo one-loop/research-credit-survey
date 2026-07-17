@@ -313,7 +313,7 @@ function ExperimentAPageContent() {
                 setSubmittingFadeOut(true)
                 window.setTimeout(() => {
                     router.replace(
-                        `/survey-thanks?experimentType=A&queue=${savedQueue}&responseId=${encodeURIComponent(savedResponseId)}`
+                        `/consent?experimentType=A&queue=${savedQueue}&responseId=${encodeURIComponent(savedResponseId)}`
                     )
                 }, 220)
             } catch {
