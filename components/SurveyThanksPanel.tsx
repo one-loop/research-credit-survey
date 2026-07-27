@@ -330,38 +330,48 @@ export function SurveyThanksPanel({
 
     return (
         <div className={`mx-auto overflow-visible p-6 ${wideLayout ? "max-w-xl" : "max-w-lg"}`}>
-            <ThankYouConfetti />
+            {consent !== "withdrawn" && <ThankYouConfetti />}
             {consent === "consented" && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-emerald-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-emerald-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
                     <div>
                         <div className="font-bold text-sm">Response Consented</div>
-                        <div className="text-xs opacity-90 mt-0.5">Your consent has been successfully registered. Thank you for participating in the co-author credit survey!</div>
+                        <div className="text-xs opacity-90 mt-0.5">Your consent has been successfully registered. Thank you for participating in the study!</div>
                     </div>
                 </div>
             )}
             {consent === "withdrawn" && (
-                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-rose-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-800 dark:text-rose-300 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-rose-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-rose-600 dark:text-rose-400" />
                     <div>
                         <div className="font-bold text-sm">Response Withdrawn</div>
-                        <div className="text-xs opacity-90 mt-0.5">You have withdrawn your consent for this response. The rankings will not be used in our research.</div>
+                        <div className="text-xs opacity-90 mt-0.5">As requested, your response for this paper will not be included or used in our research study.</div>
                     </div>
                 </div>
             )}
             {consent === "not_my_paper" && (
-                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-amber-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-lg shadow-amber-500/5 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
                     <div>
-                        <div className="font-bold text-sm">Verification Flagged</div>
-                        <div className="text-xs opacity-90 mt-0.5">You have indicated that the matched own paper was incorrect. We have flagged this response for manual verification.</div>
+                        <div className="font-bold text-sm">Not Identified as Your Paper</div>
+                        <div className="text-xs opacity-90 mt-0.5">You indicated that this was not your paper. Your response will not be included in the own-paper sub-analysis.</div>
                     </div>
                 </div>
             )}
             <FadeIn>
-                <h1 className="text-3xl font-bold tracking-tight mb-4">Thank you</h1>
+                <h1 className="text-3xl font-bold tracking-tight mb-4">
+                    {consent === "withdrawn"
+                        ? "Thank you for taking part"
+                        : consent === "not_my_paper"
+                          ? "Thank you for participating"
+                          : "Thank you"}
+                </h1>
                 <p className="text-base text-muted-foreground leading-relaxed mb-5">
-                    Your responses are complete. We appreciate you taking the time to participate in this study. Here are your results:
+                    {consent === "withdrawn"
+                        ? "We appreciate you taking the time to participate in this study. As requested, your response for this paper has been withdrawn and will not be used in our research study. Below are your performance results for your own reference:"
+                        : consent === "not_my_paper"
+                          ? "We appreciate you taking the time to participate in this study. Since you indicated that this was not your paper, your response will not be included in the own-paper sub-analysis. Below are your performance results:"
+                          : "Your responses are complete. We appreciate you taking the time to participate in this study. Here are your results:"}
                 </p>
             </FadeIn>
             {showInsightsSection ? (
@@ -429,31 +439,39 @@ export function SurveyThanksPanel({
                     </div>
                 </FadeIn>
             ) : null}
-            <FadeIn delay={160} className="mt-6 space-y-4 border-t pt-6">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                    You can improve your accuracy by completing another block of 5 tasks. Each block
-                    updates your average score and where you rank among other participants.
-                </p>
-                <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-4 space-y-4">
-                    <div>
-                        <p className="text-base font-semibold text-foreground">
-                            Ready for another round?
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                            Five more papers take just a few minutes, and will give you another chance
-                            to raise your accuracy and percentile.
-                        </p>
+            {consent !== "withdrawn" ? (
+                <FadeIn delay={160} className="mt-6 space-y-4 border-t pt-6">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                        You can improve your accuracy by completing another block of 5 tasks. Each block
+                        updates your average score and where you rank among other participants.
+                    </p>
+                    <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-4 space-y-4">
+                        <div>
+                            <p className="text-base font-semibold text-foreground">
+                                Ready for another round?
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                                Five more papers take just a few minutes, and will give you another chance
+                                to raise your accuracy and percentile.
+                            </p>
+                        </div>
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                            <Button variant="outline" asChild className="sm:min-w-[7.5rem]">
+                                <Link href={studyCompleteHref}>I&apos;m done</Link>
+                            </Button>
+                            <Button asChild className="sm:min-w-[12rem]">
+                                <Link href={continueHref}>Keep going, 5 more tasks!</Link>
+                            </Button>
+                        </div>
                     </div>
-                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                        <Button variant="outline" asChild className="sm:min-w-[7.5rem]">
-                            <Link href={studyCompleteHref}>I&apos;m done</Link>
-                        </Button>
-                        <Button asChild className="sm:min-w-[12rem]">
-                            <Link href={continueHref}>Keep going, 5 more tasks!</Link>
-                        </Button>
-                    </div>
-                </div>
-            </FadeIn>
+                </FadeIn>
+            ) : (
+                <FadeIn delay={160} className="mt-6 flex justify-end border-t pt-6">
+                    <Button asChild className="sm:min-w-[10rem]">
+                        <Link href={studyCompleteHref}>Complete session</Link>
+                    </Button>
+                </FadeIn>
+            )}
         </div>
     )
 }

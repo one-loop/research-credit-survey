@@ -10,10 +10,8 @@ Requires .env.local with:
   SUPABASE_SERVICE_ROLE_KEY
 
 Examples:
-  python scripts/supabase_uploader.py "PNAS (3).jsonl"
-  python scripts/supabase_uploader.py "PLOS One.jsonl"
-  python scripts/supabase_uploader.py "PNAS (3).jsonl" "PLOS One.jsonl"
-  python scripts/supabase_uploader.py "PLOS One.jsonl" --start-batch 100 --end-batch 150
+  python scripts/supabase_uploader.py nature.jsonl plos_one.jsonl pnas.jsonl science.jsonl
+  python scripts/supabase_uploader.py nature.jsonl --start-batch 100 --end-batch 150
 """
 
 from __future__ import annotations
@@ -37,7 +35,7 @@ BATCH_SIZE = 500
 MAX_RETRIES = 5
 RETRY_BASE_SECONDS = 1.5
 
-PAPER_COLUMNS = (
+REQUIRED_PAPER_COLUMNS = (
     "work_id",
     "publication_date",
     "journal",
@@ -49,6 +47,8 @@ PAPER_COLUMNS = (
     "authors",
     "experiment_eligibility",
 )
+
+OPTIONAL_PAPER_COLUMNS = ("title",)
 
 
 def has_complete_contributions(paper: dict) -> bool:
@@ -65,7 +65,10 @@ def has_complete_contributions(paper: dict) -> bool:
 
 
 def paper_row(paper: dict) -> dict:
-    row = {key: paper[key] for key in PAPER_COLUMNS}
+    row = {key: paper[key] for key in REQUIRED_PAPER_COLUMNS}
+    for key in OPTIONAL_PAPER_COLUMNS:
+        if key in paper:
+            row[key] = paper[key]
     row["contributions_complete"] = has_complete_contributions(paper)
     return row
 
@@ -151,7 +154,7 @@ def upload_jsonl(
             except json.JSONDecodeError as err:
                 raise ValueError(f"{source}:{line_no}: invalid JSON: {err}") from err
 
-            missing = [key for key in PAPER_COLUMNS if key not in paper]
+            missing = [key for key in REQUIRED_PAPER_COLUMNS if key not in paper]
             if missing:
                 raise ValueError(f"{source}:{line_no}: missing fields: {', '.join(missing)}")
 
@@ -214,7 +217,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "files",
         nargs="+",
-        help='JSONL file paths, e.g. "PNAS (3).jsonl" "PLOS One.jsonl"',
+        help='JSONL file paths, e.g. "nature.jsonl" "plos_one.jsonl" "pnas.jsonl" "science.jsonl"',
     )
     parser.add_argument(
         "--start-batch",

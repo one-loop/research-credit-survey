@@ -170,7 +170,7 @@ export async function GET(request: NextRequest) {
 
             hydratedOwnPapers.push({
                 workId: wId,
-                title: paper.topic || paper.work_id,
+                title: paper.title || paper.topic || paper.work_id,
                 journal: paper.journal || "Unknown Journal",
                 year,
                 correctAuthors,
@@ -194,35 +194,48 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-    let body: { responseId: string; consentStatus: string }
+    let body: { responseId: string; consentStatus: string; explanation?: string }
     try {
         body = await request.json()
     } catch {
         return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
     }
 
-    const { responseId, consentStatus } = body
+    const { responseId, consentStatus, explanation } = body
     if (!responseId || !consentStatus) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
+
+    const trimmedExplanation = typeof explanation === "string" && explanation.trim().length > 0 ? explanation.trim() : null
 
     try {
         if (isSupabaseConfigured()) {
             const supabase = getSupabase()
 
-            // 1. Try to update using proper consent_status column
+            // 1. Try to update using proper consent_status and consent_explanation columns
+            const updatePayload: Record<string, any> = { consent_status: consentStatus }
+            if (trimmedExplanation) {
+                updatePayload.consent_explanation = trimmedExplanation
+            }
+
             const { error: columnError } = await supabase
                 .from("experiment_responses")
-                .update({ consent_status: consentStatus })
+                .update(updatePayload)
                 .eq("id", responseId)
 
             if (columnError) {
                 console.warn(
-                    "Failed to update consent_status column directly, falling back...",
+                    "Failed to update consent columns directly, trying fallback...",
                     columnError.message
                 )
 
-                // 2. Fallback: retrieve demographics, merge consent_status and save
+                // Try consent_status alone if consent_explanation column doesn't exist yet
+                const { error: statusOnlyError } = await supabase
+                    .from("experiment_responses")
+                    .update({ consent_status: consentStatus })
+                    .eq("id", responseId)
+
+                // Fallback: retrieve demographics, merge consent_status and explanation
                 const { data: currentData } = await supabase
                     .from("experiment_responses")
                     .select("respondent_demographics,feedback")
@@ -233,12 +246,14 @@ export async function POST(request: NextRequest) {
                 const updatedDemographics = {
                     ...priorDemographics,
                     consent_status: consentStatus,
+                    ...(trimmedExplanation && { consent_explanation: trimmedExplanation }),
                 }
 
                 const currentFeedback = currentData?.feedback || ""
+                const explanationTag = trimmedExplanation ? ` | Explanation: ${trimmedExplanation}` : ""
                 const updatedFeedback = currentFeedback
-                    ? `${currentFeedback}\n[IRB Consent: ${consentStatus}]`
-                    : `[IRB Consent: ${consentStatus}]`
+                    ? `${currentFeedback}\n[IRB Consent: ${consentStatus}${explanationTag}]`
+                    : `[IRB Consent: ${consentStatus}${explanationTag}]`
 
                 const { error: fallbackError } = await supabase
                     .from("experiment_responses")
@@ -248,7 +263,7 @@ export async function POST(request: NextRequest) {
                     })
                     .eq("id", responseId)
 
-                if (fallbackError) {
+                if (fallbackError && statusOnlyError) {
                     console.error("Fallback update also failed:", fallbackError.message)
                     return NextResponse.json({ error: "Failed to update consent status" }, { status: 500 })
                 }
@@ -261,10 +276,16 @@ export async function POST(request: NextRequest) {
                 const match = responses.find((r) => r.responseId === responseId)
                 if (match) {
                     match.consent_status = consentStatus
+                    if (trimmedExplanation) {
+                        match.consent_explanation = trimmedExplanation
+                    }
                     if (!match.respondent_demographics) {
                         match.respondent_demographics = {}
                     }
                     match.respondent_demographics.consent_status = consentStatus
+                    if (trimmedExplanation) {
+                        match.respondent_demographics.consent_explanation = trimmedExplanation
+                    }
                     await fs.writeFile(RESPONSES_PATH, JSON.stringify(responses, null, 2), "utf-8")
                 } else {
                     return NextResponse.json({ error: "Response not found" }, { status: 404 })

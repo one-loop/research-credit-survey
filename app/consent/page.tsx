@@ -1,8 +1,8 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, ChevronDown, ChevronUp, HelpCircle, ShieldCheck } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -22,7 +22,7 @@ type VerificationResponsePayload = {
 function ConsentContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    
+
     const responseId = searchParams.get("responseId") || ""
     const experimentType = searchParams.get("experimentType") || "A"
     const queue = Number(searchParams.get("queue") ?? "0")
@@ -30,19 +30,26 @@ function ConsentContent() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [ownPapers, setOwnPapers] = useState<VerificationResponsePayload[]>([])
+    const [explanation, setExplanation] = useState("")
+    const [whyShowingOpen, setWhyShowingOpen] = useState(true)
     const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+    const explanationRef = useRef(explanation)
+    explanationRef.current = explanation
 
     const handleConsentAction = useCallback(async (status: "consented" | "withdrawn" | "not_my_paper") => {
         if (!responseId) return
         setActionLoading(status)
-        
+
         try {
+            const currentExplanation = explanationRef.current.trim()
             const res = await fetch("/api/survey/verification", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     responseId,
-                    consentStatus: status
+                    consentStatus: status,
+                    explanation: currentExplanation || undefined,
                 })
             })
 
@@ -86,7 +93,7 @@ function ConsentContent() {
                 if (!data.ok || !data.ownPapers) {
                     throw new Error(data.error || "Failed to load verification info")
                 }
-                
+
                 // If they have already consented to a previous block in the study,
                 // auto-consent this block and bypass the verification/consent page
                 if (data.alreadyConsented) {
@@ -95,7 +102,7 @@ function ConsentContent() {
                 }
 
                 setOwnPapers(data.ownPapers)
-                
+
                 // If this response did not contain any own papers, skip consent
                 if (data.ownPapers.length === 0) {
                     router.replace(`/survey-thanks?experimentType=${experimentType}&queue=${queue}&responseId=${encodeURIComponent(responseId)}`)
@@ -137,26 +144,28 @@ function ConsentContent() {
     }
 
     return (
-        <SurveyPageEnter className="max-w-3xl mx-auto p-6">
+        <SurveyPageEnter className="max-w-3xl mx-auto p-6 space-y-6">
+            {/* Main Header & Intro */}
             <FadeIn>
-                <h1 className="text-2xl font-bold mb-2">Publication Verification & Choice</h1>
-                <p className="mb-6 text-muted-foreground text-sm leading-relaxed">
-                    One of the papers you evaluated during this survey was a publication for which you were identified as the corresponding author. Below, you can verify this paper with the correct (non-anonymized) author byline. If you do not wish to participate, you can choose to not participate in the study by withdrawing your responses.
+                <h1 className="text-2xl font-bold mb-3 tracking-tight">Publication Verification & Consent</h1>
+                <p className="text-sm text-muted-foreground leading-relaxed bg-muted/40 p-4 rounded-lg border border-border/50">
+                    This paper was initially presented without identifying information so that your response would not be influenced by recognizing the paper, its authors, or its published author order. We are now asking you to confirm whether the paper is yours and to decide whether we may use your response in a separate sub-analysis.
                 </p>
             </FadeIn>
 
+            {/* Paper Details Card */}
             {ownPapers.map((paper) => {
                 const pctAccuracy = paper.accuracy !== null ? Math.round(paper.accuracy * 100) : null
 
                 return (
                     <FadeIn key={paper.workId} delay={40}>
-                        <Card className="mb-6">
+                        <Card className="bg-muted/40 border-border/50 shadow-none">
                             <CardHeader className="pb-4">
-                                <CardTitle className="text-lg font-bold leading-tight">
+                                <CardTitle className="text-lg font-bold leading-tight text-foreground">
                                     {paper.title}
                                 </CardTitle>
-                                <CardDescription className="text-xs">
-                                    Published in {paper.journal} • {paper.year}
+                                <CardDescription className="text-sm text-muted-foreground">
+                                    Published in <span className="font-medium text-foreground">{paper.journal}</span> • {paper.year}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
@@ -201,7 +210,7 @@ function ConsentContent() {
                                 {pctAccuracy !== null && (
                                     <div className="flex items-center justify-between border-t pt-4 text-sm">
                                         <span className="text-muted-foreground">Sorting Concordance Accuracy</span>
-                                        <span className="font-bold text-violet-700 dark:text-violet-300 bg-violet-100/30 dark:bg-violet-950/20 px-2 py-0.5 rounded border border-violet-200/50 dark:border-violet-800/30">
+                                        <span className="font-bold text-violet-700 dark:text-violet-300 bg-violet-100/30 dark:bg-violet-950/20 px-2.5 py-0.5 rounded border border-violet-200/50 dark:border-violet-800/30">
                                             {pctAccuracy}%
                                         </span>
                                     </div>
@@ -212,49 +221,151 @@ function ConsentContent() {
                 )
             })}
 
-            {/* IRB Consent Panel */}
+            {/* Why We Are Showing You This (Collapsible) */}
             <FadeIn delay={80}>
-                <Card className="mb-8">
-                    <CardContent className="p-4 space-y-2">
-                        <h3 className="font-semibold text-sm">Verification & Research Choice</h3>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                            Please verify that this is your paper. You can consent to include your responses in the study, indicate that this is not your paper, or choose to withdraw your responses entirely from the research.
-                        </p>
+                <Card className="bg-muted/40 border-border/50 shadow-none overflow-hidden">
+                    <CardHeader
+                        className="pb-3 cursor-pointer select-none hover:bg-muted/60 transition-colors"
+                        onClick={() => setWhyShowingOpen((prev) => !prev)}
+                    >
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                                <HelpCircle className="h-4 w-4 text-foreground shrink-0" />
+                                Why we are showing you this
+                            </CardTitle>
+                            <div className="text-muted-foreground">
+                                {whyShowingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </div>
+                        </div>
+                    </CardHeader>
+                    {whyShowingOpen && (
+                        <CardContent className="space-y-4 text-sm leading-relaxed text-muted-foreground pt-1 border-t border-border/40">
+                            <p>
+                                Author order does not always map directly or unambiguously onto the contributions listed in a paper. Differences may arise for several legitimate reasons. For example:
+                            </p>
+                            <ul className="list-disc pl-5 space-y-2 text-sm leading-relaxed">
+                                <li>
+                                    The published byline may reflect disciplinary conventions, seniority, supervision, or project leadership that is not fully represented in the contribution statement.
+                                </li>
+                                <li>
+                                    The contribution statement may not capture all of the work, negotiations, or circumstances that influenced the final author order.
+                                </li>
+                                <li>
+                                    Institutional, interpersonal, or political considerations may have affected the byline.
+                                </li>
+                                <li>
+                                    Your interpretation of the contributions may reasonably differ from the interpretation used when the paper was published.
+                                </li>
+                            </ul>
+                            <p>
+                                A difference between your selected order and the published byline does not necessarily mean that either ordering is incorrect. We are interested in understanding why these differences occur.
+                            </p>
+                            <p className="text-xs bg-background/60 p-3 rounded border border-border/40 font-medium text-foreground">
+                                Your response and any explanation you provide will not be publicly attributed to you or to this paper. The results will be analyzed and reported only in anonymized or aggregated form.
+                            </p>
+                        </CardContent>
+                    )}
+                </Card>
+            </FadeIn>
+
+            {/* Optional Free-Text Explanation Box */}
+            <FadeIn delay={100}>
+                <Card className="bg-muted/40 border-border/50 shadow-none">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base font-bold">
+                            Optional Explanation of Differences
+                        </CardTitle>
+                        <CardDescription className="text-sm leading-relaxed text-muted-foreground">
+                            Please use the space below to explain any factors that may account for this difference. You may describe, for example, contribution details that were not included in the contribution statement, disciplinary practices, authorship negotiations, supervisory roles, seniority, institutional considerations, or any other relevant circumstances.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <textarea
+                            id="consent-explanation"
+                            value={explanation}
+                            onChange={(e) => setExplanation(e.target.value)}
+                            rows={5}
+                            maxLength={4000}
+                            placeholder="Optional: Explain any relevant factors, contribution details, supervisory roles, or disciplinary practices..."
+                            className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[7rem]"
+                        />
                     </CardContent>
                 </Card>
             </FadeIn>
 
-            {/* Action Buttons */}
-            <FadeIn delay={120} className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 border-t pt-6">
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <Button
-                        variant="destructive"
-                        onClick={() => handleConsentAction("withdrawn")}
-                        disabled={actionLoading !== null}
-                        className="sm:min-w-[10rem] bg-gradient-to-b from-[#c8323a] via-[#b92c33] to-[#aa282f] border border-t-white/10 border-b-black/30 border-x-black/20 shadow-[0_2px_4px_rgba(0,0,0,0.15),inset_0_1.5px_0_rgba(255,255,255,0.2)] text-white hover:from-[#b92c33] hover:to-[#aa282f] transition-all"
-                    >
-                        {actionLoading === "withdrawn" && <Spinner className="mr-2" />}
-                        Withdraw Response
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => handleConsentAction("not_my_paper")}
-                        disabled={actionLoading !== null}
-                        className="sm:min-w-[10rem]"
-                    >
-                        {actionLoading === "not_my_paper" && <Spinner className="mr-2" />}
-                        This is not my paper
-                    </Button>
+            {/* Consent Options & Action Cards */}
+            <FadeIn delay={120} className="space-y-4 pt-2">
+                <h3 className="text-base font-bold tracking-tight">Please select your decision:</h3>
+
+                {/* Option 1: I Consent */}
+                <div className="rounded-lg border border-emerald-300 dark:border-emerald-800/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-4 space-y-3">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-2 font-semibold text-sm text-emerald-950 dark:text-emerald-100">
+                            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            I consent to use this response
+                        </div>
+                        <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80 leading-relaxed">
+                            By selecting this option, you confirm that the paper is yours and consent to the response and any optional explanation being used in the own-paper sub-analysis. The information will remain anonymized and will not be reported in a way that identifies you or the paper.
+                        </p>
+                    </div>
+                    <div className="flex justify-end pt-1">
+                        <Button
+                            variant="default"
+                            onClick={() => handleConsentAction("consented")}
+                            disabled={actionLoading !== null}
+                            className="sm:min-w-[14rem] bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm"
+                        >
+                            {actionLoading === "consented" && <Spinner className="mr-2" />}
+                            I consent to use this response
+                        </Button>
+                    </div>
                 </div>
-                <Button
-                    variant="default"
-                    onClick={() => handleConsentAction("consented")}
-                    disabled={actionLoading !== null}
-                    className="sm:min-w-[12rem] bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                    {actionLoading === "consented" && <Spinner className="mr-2" />}
-                    I consent to use this response
-                </Button>
+
+                {/* Option 2: This is not my paper */}
+                <div className="rounded-lg border border-amber-300 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-950/30 p-4 space-y-3">
+                    <div className="space-y-1">
+                        <div className="font-semibold text-sm text-amber-950 dark:text-amber-100">
+                            This is not my paper
+                        </div>
+                        <p className="text-xs text-amber-900/80 dark:text-amber-200/80 leading-relaxed">
+                            Select this option if you are not an author of the paper or believe that the paper has been incorrectly matched to you. The response will not be included in the own-paper sub-analysis.
+                        </p>
+                    </div>
+                    <div className="flex justify-end pt-1">
+                        <Button
+                            variant="default"
+                            onClick={() => handleConsentAction("not_my_paper")}
+                            disabled={actionLoading !== null}
+                            className="sm:min-w-[14rem] bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm"
+                        >
+                            {actionLoading === "not_my_paper" && <Spinner className="mr-2" />}
+                            This is not my paper
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Option 3: Withdraw this response */}
+                <div className="rounded-lg border border-red-200/60 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10 p-4 space-y-3">
+                    <div className="space-y-1">
+                        <div className="font-semibold text-sm text-destructive">
+                            Withdraw this response
+                        </div>
+                        <p className="text-xs text-red-900/90 dark:text-red-200/90 leading-relaxed">
+                            Select this option if you do not want the response associated with this paper to be retained or analyzed. You may wish to withdraw because you are uncomfortable with the paper having been included, because the response could be personally sensitive, or for any other reason. You do not need to provide a reason.
+                        </p>
+                    </div>
+                    <div className="flex justify-end pt-1">
+                        <Button
+                            variant="destructive"
+                            onClick={() => handleConsentAction("withdrawn")}
+                            disabled={actionLoading !== null}
+                            className="sm:min-w-[14rem] bg-gradient-to-b from-[#c8323a] via-[#b92c33] to-[#aa282f] border border-t-white/10 border-b-black/30 border-x-black/20 text-white hover:from-[#b92c33] hover:to-[#aa282f]"
+                        >
+                            {actionLoading === "withdrawn" && <Spinner className="mr-2" />}
+                            Withdraw this response
+                        </Button>
+                    </div>
+                </div>
             </FadeIn>
         </SurveyPageEnter>
     )
