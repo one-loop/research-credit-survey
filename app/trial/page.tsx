@@ -97,7 +97,7 @@ function TrialPageContent() {
     }, [authorId])
 
     const displayAuthors = useMemo(
-        () => (work ? shuffledAuthorsForRanking(work.authors) : []),
+        () => (work ? work.authors : []),
         [work?.work_id]
     )
     const envelopeSlotIndex = work ? publicationCorrespondingSlotIndex(work.authors) : -1
