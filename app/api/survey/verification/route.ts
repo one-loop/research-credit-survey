@@ -170,7 +170,7 @@ export async function GET(request: NextRequest) {
 
             hydratedOwnPapers.push({
                 workId: wId,
-                title: paper.topic || paper.work_id,
+                title: paper.title || paper.topic || paper.work_id,
                 journal: paper.journal || "Unknown Journal",
                 year,
                 correctAuthors,

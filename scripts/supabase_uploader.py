@@ -10,10 +10,8 @@ Requires .env.local with:
   SUPABASE_SERVICE_ROLE_KEY
 
 Examples:
-  python scripts/supabase_uploader.py "PNAS (3).jsonl"
-  python scripts/supabase_uploader.py "PLOS One.jsonl"
-  python scripts/supabase_uploader.py "PNAS (3).jsonl" "PLOS One.jsonl"
-  python scripts/supabase_uploader.py "PLOS One.jsonl" --start-batch 100 --end-batch 150
+  python scripts/supabase_uploader.py nature.jsonl plos_one.jsonl pnas.jsonl science.jsonl
+  python scripts/supabase_uploader.py nature.jsonl --start-batch 100 --end-batch 150
 """
 
 from __future__ import annotations
@@ -40,6 +38,7 @@ RETRY_BASE_SECONDS = 1.5
 PAPER_COLUMNS = (
     "work_id",
     "publication_date",
+    "title",
     "journal",
     "topic",
     "subfield",
@@ -214,7 +213,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "files",
         nargs="+",
-        help='JSONL file paths, e.g. "PNAS (3).jsonl" "PLOS One.jsonl"',
+        help='JSONL file paths, e.g. "nature.jsonl" "plos_one.jsonl" "pnas.jsonl" "science.jsonl"',
     )
     parser.add_argument(
         "--start-batch",

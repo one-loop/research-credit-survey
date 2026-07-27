@@ -57,6 +57,7 @@ type PaperAuthor = {
 export type PaperRow = {
     work_id: string
     publication_date: string | null
+    title?: string | null
     journal: string | null
     topic: string | null
     subfield: string | null
@@ -132,10 +133,11 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
         }
     })
     const displayName =
-        paper.topic ?? paper.journal ?? paper.work_id
+        paper.title ?? paper.topic ?? paper.journal ?? paper.work_id
     return {
         work_id: paper.work_id,
         display_name: displayName,
+        title: paper.title ?? undefined,
         field: paper.field ?? undefined,
         domain: paper.domain ?? undefined,
         journal: paper.journal ?? undefined,
@@ -150,7 +152,7 @@ function mapPaperToWork(paper: PaperRow, isOwnWork = false): Work {
 }
 
 const PAPER_COLUMNS =
-    "work_id,publication_date,journal,topic,subfield,field,domain,corresponding_email,authors,experiment_eligibility,work_exposure"
+    "work_id,publication_date,title,journal,topic,subfield,field,domain,corresponding_email,authors,experiment_eligibility,work_exposure"
 
 /** Minimal columns for pool selection; full rows are loaded for the chosen works only. */
 const POOL_LIGHT_COLUMNS =
