@@ -259,7 +259,7 @@ function TrialPageContent() {
             : fixedCorrSlot === 0
                 ? "1 (first from the left)"
                 : fixedCorrSlot === displayAuthors.length - 1
-                    ? `${displayAuthors.length} (second to last from the left)`
+                    ? `${displayAuthors.length} (last from the left)`
                     : `${fixedCorrSlot + 1} (from the left)`
 
     return (
