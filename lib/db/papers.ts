@@ -633,7 +633,8 @@ export async function getRespondentLatestCompletion(
                     : 0
 
             let foundConsentStatus: string | null = null
-            for (const r of authorResps) {
+            for (let i = authorResps.length - 1; i >= 0; i--) {
+                const r = authorResps[i]
                 const status = r.consent_status || r.respondent_demographics?.consent_status
                 if (status) {
                     foundConsentStatus = status
