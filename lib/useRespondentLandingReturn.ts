@@ -9,6 +9,8 @@ export type RespondentLandingReturn = {
     showThanks: boolean
     experimentType: ExperimentType
     latestQueueIndex: number
+    hasConsented: boolean
+    consentStatus: string | null
 }
 
 const DEFAULT_EXPERIMENT: ExperimentType = "A"
@@ -19,12 +21,16 @@ export function useRespondentLandingReturn(): RespondentLandingReturn {
     const [showThanks, setShowThanks] = useState(false)
     const [experimentType, setExperimentType] = useState<ExperimentType>(DEFAULT_EXPERIMENT)
     const [latestQueueIndex, setLatestQueueIndex] = useState(0)
+    const [hasConsented, setHasConsented] = useState(false)
+    const [consentStatus, setConsentStatus] = useState<string | null>(null)
 
     useEffect(() => {
         if (!participantReady) return
 
         if (!authorId) {
             setShowThanks(false)
+            setHasConsented(false)
+            setConsentStatus(null)
             setStatus("resolved")
             return
         }
@@ -39,10 +45,14 @@ export function useRespondentLandingReturn(): RespondentLandingReturn {
                     hasCompleted?: boolean
                     experimentType?: ExperimentType | null
                     latestQueueIndex?: number | null
+                    hasConsented?: boolean
+                    consentStatus?: string | null
                 }) => {
                     if (cancelled) return
                     const completed = Boolean(data.hasCompleted)
                     setShowThanks(completed)
+                    setHasConsented(Boolean(data.hasConsented))
+                    setConsentStatus(data.consentStatus ?? null)
                     if (data.experimentType === "B" || data.experimentType === "C") {
                         setExperimentType(data.experimentType)
                     } else {
@@ -59,6 +69,8 @@ export function useRespondentLandingReturn(): RespondentLandingReturn {
             .catch(() => {
                 if (cancelled) return
                 setShowThanks(false)
+                setHasConsented(false)
+                setConsentStatus(null)
                 setStatus("resolved")
             })
 
@@ -72,5 +84,7 @@ export function useRespondentLandingReturn(): RespondentLandingReturn {
         showThanks,
         experimentType,
         latestQueueIndex,
+        hasConsented,
+        consentStatus,
     }
 }

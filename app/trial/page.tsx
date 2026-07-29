@@ -157,7 +157,7 @@ function TrialPageContent() {
             <div className="max-w-3xl mx-auto p-6">
                 <h1 className="text-2xl font-bold mb-4">Practice task</h1>
                 <p className="text-muted-foreground mb-4 leading-relaxed">
-                    Prior to the main study, you will complete a brief practice task to familiarize you with the format of the questions and the interface. 
+                    Prior to the main study, you will complete a brief practice task to familiarize you with the format of the questions and the interface.
                 </p>
                 <div className="flex justify-end">
                     <Button onClick={() => setPhase("practice")}>Start practice</Button>
@@ -257,10 +257,10 @@ function TrialPageContent() {
         fixedCorrSlot < 0
             ? "—"
             : fixedCorrSlot === 0
-              ? "1 (first from the left)"
-              : fixedCorrSlot === displayAuthors.length - 1
-                ? `${displayAuthors.length} (last from the left)`
-                : `${fixedCorrSlot + 1} (from the left)`
+                ? "1 (first from the left)"
+                : fixedCorrSlot === displayAuthors.length - 1
+                    ? `${displayAuthors.length} (last from the left)`
+                    : `${fixedCorrSlot + 1} (from the left)`
 
     return (
         <div
@@ -280,8 +280,8 @@ function TrialPageContent() {
                     tutorialStep === "contributions"
                         ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
                         : tutorialStep === "done"
-                          ? ""
-                          : "opacity-35",
+                            ? ""
+                            : "opacity-35",
                 ].join(" ")}
             >
                 <p className="text-lg font-medium">Author contributions (practice)</p>
@@ -301,8 +301,8 @@ function TrialPageContent() {
                         tutorialStep === "academic_info"
                             ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
                             : tutorialStep === "done"
-                              ? ""
-                              : "opacity-35",
+                                ? ""
+                                : "opacity-35",
                     ].join(" ")}
                 >
                     <ExperimentCAcademicInfoTable
@@ -319,8 +319,8 @@ function TrialPageContent() {
                     tutorialStep === "byline" || tutorialStep === "sort"
                         ? "relative z-20 bg-card/95 p-3 ring-4 ring-violet-950 ring-offset-4"
                         : tutorialStep === "done"
-                          ? ""
-                          : "opacity-35",
+                            ? ""
+                            : "opacity-35",
                 ].join(" ")}
             >
                 <p className="font-medium mb-2 leading-relaxed">

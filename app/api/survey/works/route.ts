@@ -75,37 +75,52 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    if (selected.length === 0 || !useSupabase) {
-        dataSource = "mock"
-        const worksPool = mockWorksPool
-        const findWorkByAuthorId = (id: string) =>
-            worksPool.find((w) => w.authors.some((a) => a.id === id))
-        const ownWorkRaw = authorId ? findWorkByAuthorId(authorId) : undefined
-        const ownWork =
-            ownWorkRaw && workIsExperimentEligible(ownWorkRaw, experimentType)
-                ? ownWorkRaw
-                : undefined
-        const targetDomain = ownWork?.domain
-        const targetJournal = ownWork?.journal
-        const candidatePool = worksPool.filter((w) => {
-            if (ownWork && w.work_id === ownWork.work_id) return false
-            if (authorId && !targetJournal) return false
-            if (targetDomain && w.domain !== targetDomain) return false
-            if (targetJournal && w.journal !== targetJournal) return false
-            if (!workIsExperimentEligible(w, experimentType)) return false
-            return true
-        })
-        const pool =
-            authorId && targetJournal
-                ? candidatePool
-                : authorId
-                  ? []
-                  : worksPool.filter(
-                        (w) =>
-                            (!ownWork || w.work_id !== ownWork.work_id) &&
-                            workIsExperimentEligible(w, experimentType)
-                    )
-        selected = selectMockWorksByAuthorBins(ownWork, pool, experimentType)
+    if (selected.length < WORKS_PER_RESPONDENT || !useSupabase) {
+        if (selected.length === 0) {
+            dataSource = "mock"
+            const worksPool = mockWorksPool
+            const findWorkByAuthorId = (id: string) =>
+                worksPool.find((w) => w.authors.some((a) => a.id === id))
+            const ownWorkRaw = authorId ? findWorkByAuthorId(authorId) : undefined
+            const ownWork =
+                ownWorkRaw && workIsExperimentEligible(ownWorkRaw, experimentType)
+                    ? ownWorkRaw
+                    : undefined
+            const targetDomain = ownWork?.domain
+            const targetJournal = ownWork?.journal
+            const candidatePool = worksPool.filter((w) => {
+                if (ownWork && w.work_id === ownWork.work_id) return false
+                if (authorId && !targetJournal) return false
+                if (targetDomain && w.domain !== targetDomain) return false
+                if (targetJournal && w.journal !== targetJournal) return false
+                if (!workIsExperimentEligible(w, experimentType)) return false
+                return true
+            })
+            const pool =
+                authorId && targetJournal
+                    ? candidatePool
+                    : authorId
+                      ? []
+                      : worksPool.filter(
+                            (w) =>
+                                (!ownWork || w.work_id !== ownWork.work_id) &&
+                                workIsExperimentEligible(w, experimentType)
+                        )
+            selected = selectMockWorksByAuthorBins(ownWork, pool, experimentType)
+        }
+
+        // Final backfill check: if still under WORKS_PER_RESPONDENT, fill from mock pool
+        if (selected.length < WORKS_PER_RESPONDENT) {
+            const existingIds = new Set(selected.map((w) => w.work_id))
+            const availableMock = mockWorksPool.filter(
+                (w) => !existingIds.has(w.work_id) && workIsExperimentEligible(w, experimentType)
+            )
+            for (const mockItem of availableMock) {
+                if (selected.length >= WORKS_PER_RESPONDENT) break
+                selected.push(mockItem)
+                existingIds.add(mockItem.work_id)
+            }
+        }
     }
 
     selected = filterWorksForExperiment(selected, experimentType)
