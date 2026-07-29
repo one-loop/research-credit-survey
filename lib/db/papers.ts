@@ -552,43 +552,105 @@ export async function getRespondentLatestCompletion(
     hasCompleted: boolean
     experimentType: ExperimentType | null
     latestQueueIndex: number | null
+    hasConsented: boolean
+    consentStatus: string | null
 }> {
-    if (!authorId || !isSupabaseConfigured()) {
-        return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
+    if (!authorId) {
+        return { hasCompleted: false, experimentType: null, latestQueueIndex: null, hasConsented: false, consentStatus: null }
     }
-    try {
-        const supabase = getSupabase()
-        const { data, error } = await supabase
-            .from("experiment_responses")
-            .select("queue_index,experiment_type")
-            .eq("author_id", authorId)
-            .order("created_at", { ascending: false })
-            .limit(1)
 
-        if (error || !data?.length) {
-            return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
-        }
+    if (isSupabaseConfigured()) {
+        try {
+            const supabase = getSupabase()
+            const { data, error } = await supabase
+                .from("experiment_responses")
+                .select("queue_index,experiment_type,consent_status,respondent_demographics")
+                .eq("author_id", authorId)
+                .order("created_at", { ascending: false })
 
-        const row = data[0] as {
-            queue_index?: number | null
-            experiment_type?: string | null
+            if (error || !data?.length) {
+                return { hasCompleted: false, experimentType: null, latestQueueIndex: null, hasConsented: false, consentStatus: null }
+            }
+
+            const latestRow = data[0] as {
+                queue_index?: number | null
+                experiment_type?: string | null
+                consent_status?: string | null
+                respondent_demographics?: Record<string, any> | null
+            }
+            const experimentType =
+                latestRow.experiment_type === "A" || latestRow.experiment_type === "B" || latestRow.experiment_type === "C"
+                    ? latestRow.experiment_type
+                    : null
+            const latest = latestRow.queue_index
+            const latestQueueIndex =
+                typeof latest === "number" && Number.isFinite(latest) && latest >= 0
+                    ? Math.floor(latest)
+                    : 0
+
+            let foundConsentStatus: string | null = null
+            for (const r of data as any[]) {
+                const status = r.consent_status || r.respondent_demographics?.consent_status
+                if (status) {
+                    foundConsentStatus = status
+                    break
+                }
+            }
+
+            return {
+                hasCompleted: true,
+                experimentType,
+                latestQueueIndex,
+                hasConsented: Boolean(foundConsentStatus),
+                consentStatus: foundConsentStatus,
+            }
+        } catch {
+            return { hasCompleted: false, experimentType: null, latestQueueIndex: null, hasConsented: false, consentStatus: null }
         }
-        const experimentType =
-            row.experiment_type === "A" || row.experiment_type === "B" || row.experiment_type === "C"
-                ? row.experiment_type
-                : null
-        const latest = row.queue_index
-        const latestQueueIndex =
-            typeof latest === "number" && Number.isFinite(latest) && latest >= 0
-                ? Math.floor(latest)
-                : 0
-        return {
-            hasCompleted: true,
-            experimentType,
-            latestQueueIndex,
+    } else {
+        // Local file fallback
+        try {
+            const { promises: fs } = await import("fs")
+            const path = await import("path")
+            const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
+            const raw = await fs.readFile(RESPONSES_PATH, "utf-8")
+            const responses = JSON.parse(raw) as any[]
+            const authorResps = responses.filter((r) => r.author_id === authorId)
+
+            if (authorResps.length === 0) {
+                return { hasCompleted: false, experimentType: null, latestQueueIndex: null, hasConsented: false, consentStatus: null }
+            }
+
+            const latestRow = authorResps[authorResps.length - 1]
+            const experimentType =
+                latestRow.experiment_type === "A" || latestRow.experiment_type === "B" || latestRow.experiment_type === "C"
+                    ? latestRow.experiment_type
+                    : null
+            const latest = latestRow.queue_index
+            const latestQueueIndex =
+                typeof latest === "number" && Number.isFinite(latest) && latest >= 0
+                    ? Math.floor(latest)
+                    : 0
+
+            let foundConsentStatus: string | null = null
+            for (const r of authorResps) {
+                const status = r.consent_status || r.respondent_demographics?.consent_status
+                if (status) {
+                    foundConsentStatus = status
+                    break
+                }
+            }
+
+            return {
+                hasCompleted: true,
+                experimentType,
+                latestQueueIndex,
+                hasConsented: Boolean(foundConsentStatus),
+                consentStatus: foundConsentStatus,
+            }
+        } catch {
+            return { hasCompleted: false, experimentType: null, latestQueueIndex: null, hasConsented: false, consentStatus: null }
         }
-    } catch {
-        return { hasCompleted: false, experimentType: null, latestQueueIndex: null }
     }
 }
 
@@ -879,32 +941,100 @@ async function getExperimentPapersPrioritized(
             ownPaper = eligibleOwnPapers.find((p) => p.work_id === nextOwnWorkId) ?? null
         }
 
-        const seenStatsByWork = await getSeenWorkStatsForPool(
+        let currentPool = strictPool
+        let seenStatsByWork = await getSeenWorkStatsForPool(
             [
-                ...strictPool.map((row) => row.work_id),
+                ...currentPool.map((row) => row.work_id),
                 ...(ownPaper ? [ownPaper.work_id] : []),
             ],
             authorId
         )
 
-        const selectedRows = selectPaperRowsForAuthorBinBatch({
-            pool: strictPool,
+        let activeScope = scope
+        let selectedRows = selectPaperRowsForAuthorBinBatch({
+            pool: currentPool,
             ownPaper,
             ownWorkId: ownPaper?.work_id,
             authorId,
             experimentType,
             seenStatsByWork,
             reservedWorkIds: ownWorkIds,
-            scope,
-        }).slice(0, worksPer)
+            scope: activeScope,
+        })
+
+        // If journal-restricted pool yields fewer than worksPer, relax to domain pool
+        if (selectedRows.length < worksPer && scope.domain) {
+            const domainPool = await getPapersPool({
+                domain: scope.domain,
+                excludeWorkIds: Array.from(ownWorkIds),
+                limit: POOL_TOTAL_LIMIT,
+                experimentType,
+            })
+
+            const existingIds = new Set(currentPool.map((r) => r.work_id))
+            const additional = domainPool.filter((r) => !existingIds.has(r.work_id))
+            currentPool = [...currentPool, ...additional]
+
+            seenStatsByWork = await getSeenWorkStatsForPool(
+                [
+                    ...currentPool.map((row) => row.work_id),
+                    ...(ownPaper ? [ownPaper.work_id] : []),
+                ],
+                authorId
+            )
+
+            activeScope = { domain: scope.domain }
+            selectedRows = selectPaperRowsForAuthorBinBatch({
+                pool: currentPool,
+                ownPaper,
+                ownWorkId: ownPaper?.work_id,
+                authorId,
+                experimentType,
+                seenStatsByWork,
+                reservedWorkIds: ownWorkIds,
+                scope: activeScope,
+            })
+        }
+
+        // If domain pool still yields fewer than worksPer, relax to global pool
+        if (selectedRows.length < worksPer) {
+            const globalPool = await getPapersPool({
+                excludeWorkIds: Array.from(ownWorkIds),
+                limit: POOL_TOTAL_LIMIT,
+                experimentType,
+            })
+
+            const existingIds = new Set(currentPool.map((r) => r.work_id))
+            const additional = globalPool.filter((r) => !existingIds.has(r.work_id))
+            currentPool = [...currentPool, ...additional]
+
+            seenStatsByWork = await getSeenWorkStatsForPool(
+                [
+                    ...currentPool.map((row) => row.work_id),
+                    ...(ownPaper ? [ownPaper.work_id] : []),
+                ],
+                authorId
+            )
+
+            activeScope = {}
+            selectedRows = selectPaperRowsForAuthorBinBatch({
+                pool: currentPool,
+                ownPaper,
+                ownWorkId: ownPaper?.work_id,
+                authorId,
+                experimentType,
+                seenStatsByWork,
+                reservedWorkIds: ownWorkIds,
+                scope: activeScope,
+            })
+        }
+
+        selectedRows = selectedRows.slice(0, worksPer)
 
         const hydrated = await hydratePaperRowsById(selectedRows.map((row) => row.work_id))
         const binRows = selectedRows.map((row) => hydrated.get(row.work_id) ?? row)
 
-        return filterWorksToRespondentScope(
-            binRows.map((row) => mapPaperToWork(row, row.work_id === ownPaper?.work_id)),
-            scope
-        )
+        return binRows.map((row) => mapPaperToWork(row, row.work_id === ownPaper?.work_id))
     }
 
     const strictPool = await getPapersPool({

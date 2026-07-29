@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
 import { AccuracyCalculationInfo } from "@/components/AccuracyCalculationInfo"
 import { AccuracyDistributionChart } from "@/components/AccuracyDistributionChart"
@@ -25,6 +25,10 @@ import {
 import { mockAccuracySamples } from "@/lib/survey/mockDistributionSamples"
 import type { InstitutionLeaderboardEntry } from "@/lib/survey/institutionLeaderboard"
 import { formatOrdinal } from "@/lib/survey/percentileFormat"
+
+import { useRouter } from "next/navigation"
+import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
+import { Spinner } from "@/components/ui/spinner"
 
 type Props = {
     experimentType: ExperimentType
@@ -53,6 +57,49 @@ export function SurveyThanksPanel({
     mockDistributionSamples = 0,
     consent,
 }: Props) {
+    const router = useRouter()
+    const { authorId } = useSurveyParticipant()
+    const [checkingConsent, setCheckingConsent] = useState(false)
+
+    const handleFinishStudy = useCallback(async () => {
+        setCheckingConsent(true)
+        try {
+            const allSessionResponseIds: string[] = []
+            if (typeof window !== "undefined") {
+                for (let q = 0; q <= queue; q++) {
+                    const id = window.sessionStorage.getItem(`responseId_${experimentType}_${q}`)
+                    if (id) allSessionResponseIds.push(id)
+                }
+            }
+
+            const queryParts: string[] = []
+            if (allSessionResponseIds.length > 0) {
+                queryParts.push(`responseIds=${encodeURIComponent(allSessionResponseIds.join(","))}`)
+            }
+            if (authorId) {
+                queryParts.push(`authorId=${encodeURIComponent(authorId)}`)
+            }
+
+            if (queryParts.length > 0) {
+                const res = await fetch(`/api/survey/verification?${queryParts.join("&")}`)
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data.ok && data.ownPapers && data.ownPapers.length > 0 && !data.alreadyConsented) {
+                        const refIds = allSessionResponseIds.length > 0 ? allSessionResponseIds.join(",") : data.ownPapers[0]?.responseId || ""
+                        router.push(
+                            `/consent?experimentType=${experimentType}&queue=${queue}&responseIds=${encodeURIComponent(refIds)}`
+                        )
+                        return
+                    }
+                }
+            }
+        } catch {
+            // fallback to study-complete
+        } finally {
+            setCheckingConsent(false)
+        }
+        router.push(`/study-complete?experimentType=${experimentType}&queue=${queue}`)
+    }, [experimentType, queue, authorId, router])
     const nextQueue = queue + 1
     const continueHref =
         experimentType === "B"
@@ -439,7 +486,7 @@ export function SurveyThanksPanel({
                     </div>
                 </FadeIn>
             ) : null}
-            {consent !== "withdrawn" ? (
+            {!consent ? (
                 <FadeIn delay={160} className="mt-6 space-y-4 border-t pt-6">
                     <p className="text-sm text-muted-foreground leading-relaxed">
                         You can improve your accuracy by completing another block of 5 tasks. Each block
@@ -456,8 +503,14 @@ export function SurveyThanksPanel({
                             </p>
                         </div>
                         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                            <Button variant="outline" asChild className="sm:min-w-[7.5rem]">
-                                <Link href={studyCompleteHref}>I&apos;m done</Link>
+                            <Button
+                                variant="outline"
+                                onClick={() => void handleFinishStudy()}
+                                disabled={checkingConsent}
+                                className="sm:min-w-[7.5rem]"
+                            >
+                                {checkingConsent && <Spinner className="mr-2" />}
+                                I&apos;m done
                             </Button>
                             <Button asChild className="sm:min-w-[12rem]">
                                 <Link href={continueHref}>Keep going, 5 more tasks!</Link>
@@ -467,8 +520,13 @@ export function SurveyThanksPanel({
                 </FadeIn>
             ) : (
                 <FadeIn delay={160} className="mt-6 flex justify-end border-t pt-6">
-                    <Button asChild className="sm:min-w-[10rem]">
-                        <Link href={studyCompleteHref}>Complete session</Link>
+                    <Button
+                        onClick={() => void handleFinishStudy()}
+                        disabled={checkingConsent}
+                        className="sm:min-w-[10rem]"
+                    >
+                        {checkingConsent && <Spinner className="mr-2" />}
+                        Complete session
                     </Button>
                 </FadeIn>
             )}

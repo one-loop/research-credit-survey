@@ -8,7 +8,8 @@ import { worksPool } from "@/lib/mockData"
 
 const RESPONSES_PATH = path.join(process.cwd(), "data", "responses.json")
 
-type VerificationResponsePayload = {
+export type VerificationResponsePayload = {
+    responseId: string
     workId: string
     title: string
     journal: string
@@ -16,110 +17,132 @@ type VerificationResponsePayload = {
     correctAuthors: Array<{ id: string; name: string; initials: string; isCorresponding: boolean }>
     respondentRanking: Array<{ id: string; name: string; initials: string }>
     accuracy: number | null
+    consentStatus?: string | null
+    consentExplanation?: string | null
 }
 
 export async function GET(request: NextRequest) {
     const responseId = request.nextUrl.searchParams.get("responseId")
-    if (!responseId) {
-        return NextResponse.json({ error: "Missing responseId" }, { status: 400 })
+    const authorId = request.nextUrl.searchParams.get("authorId")
+    const responseIdsParam = request.nextUrl.searchParams.get("responseIds")
+
+    if (!responseId && !authorId && !responseIdsParam) {
+        return NextResponse.json({ error: "Missing responseId or authorId" }, { status: 400 })
     }
 
     try {
-        let responseRow: any = null
+        let responseRows: any[] = []
 
-        // 1. Fetch the response row
+        // 1. Fetch relevant response rows
         if (isSupabaseConfigured()) {
             const supabase = getSupabase()
-            const { data, error } = await supabase
-                .from("experiment_responses")
-                .select("*")
-                .eq("id", responseId)
-                .single()
+            let fetchedRows: any[] = []
 
-            if (error || !data) {
-                console.error("Failed to fetch response from Supabase:", error?.message)
-                return NextResponse.json({ error: "Response not found in DB" }, { status: 404 })
+            if (responseIdsParam) {
+                const ids = responseIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
+                if (ids.length > 0) {
+                    const { data } = await supabase.from("experiment_responses").select("*").in("id", ids)
+                    if (data) fetchedRows = data
+                }
+            } else if (responseId) {
+                const { data } = await supabase.from("experiment_responses").select("*").eq("id", responseId)
+                if (data) fetchedRows = data
+            } else if (authorId) {
+                const { data } = await supabase.from("experiment_responses").select("*").eq("author_id", authorId)
+                if (data) fetchedRows = data
             }
-            responseRow = data
+
+            const resolvedAuthorId = authorId || fetchedRows.find((r) => r.author_id)?.author_id
+            if (resolvedAuthorId) {
+                const { data: authorResps } = await supabase
+                    .from("experiment_responses")
+                    .select("*")
+                    .eq("author_id", resolvedAuthorId)
+                responseRows = authorResps && authorResps.length > 0 ? authorResps : fetchedRows
+            } else {
+                responseRows = fetchedRows
+            }
         } else {
+            // Local file-based fallback
             try {
                 const raw = await fs.readFile(RESPONSES_PATH, "utf-8")
                 const responses = JSON.parse(raw) as any[]
-                responseRow = responses.find((r) => r.responseId === responseId)
-            } catch (err) {
+                let fetchedRows: any[] = []
+
+                if (responseIdsParam) {
+                    const ids = new Set(responseIdsParam.split(",").map((s) => s.trim()))
+                    fetchedRows = responses.filter((r) => ids.has(r.responseId || r.id))
+                } else if (responseId) {
+                    fetchedRows = responses.filter((r) => r.responseId === responseId || r.id === responseId)
+                } else if (authorId) {
+                    fetchedRows = responses.filter((r) => r.author_id === authorId)
+                }
+
+                const resolvedAuthorId = authorId || fetchedRows.find((r) => r.author_id)?.author_id
+                if (resolvedAuthorId) {
+                    const authorResps = responses.filter((r) => r.author_id === resolvedAuthorId)
+                    responseRows = authorResps.length > 0 ? authorResps : fetchedRows
+                } else {
+                    responseRows = fetchedRows
+                }
+            } catch {
                 // file may not exist
             }
-            if (!responseRow) {
-                return NextResponse.json({ error: "Response not found in local file" }, { status: 404 })
+        }
+
+        if (responseRows.length === 0) {
+            return NextResponse.json({ ok: true, ownPapers: [], alreadyConsented: false })
+        }
+
+        // Check if any response from this participant was already consented
+        const alreadyConsented = responseRows.some(
+            (r) =>
+                r.consent_status === "consented" ||
+                r.respondent_demographics?.consent_status === "consented"
+        )
+
+        // 2. Identify all own papers across the participant's responses
+        const ownPaperEntries: Array<{ responseRow: any; ownWorkId: string }> = []
+        const effectiveAuthorId = authorId || responseRows.find((r) => r.author_id)?.author_id
+
+        for (const row of responseRows) {
+            let ownWorkId = row.own_work || null
+            if (!ownWorkId && effectiveAuthorId) {
+                const workIds = Array.isArray(row.work_ids) ? row.work_ids : Object.keys(row.rankings || {})
+                const mockOwn = worksPool.find(
+                    (w) => workIds.includes(w.work_id) && w.authors.some((a) => a.id === effectiveAuthorId)
+                )
+                if (mockOwn) {
+                    ownWorkId = mockOwn.work_id
+                }
+            }
+            if (ownWorkId) {
+                ownPaperEntries.push({ responseRow: row, ownWorkId })
             }
         }
 
-        const workIds: string[] = responseRow.work_ids || []
-        const rankings: Record<string, string[]> = responseRow.rankings || {}
-        const ownWorkId: string | null = responseRow.own_work || null
-        const authorId: string | null = responseRow.author_id || null
-
-        // Check if this respondent has already consented to any previous responses
-        let alreadyConsented = false
-        if (authorId) {
-            if (isSupabaseConfigured()) {
-                const supabase = getSupabase()
-                const { data: siblings } = await supabase
-                    .from("experiment_responses")
-                    .select("consent_status, respondent_demographics")
-                    .eq("author_id", authorId)
-                    .neq("id", responseId)
-
-                if (siblings && siblings.length > 0) {
-                    alreadyConsented = siblings.some(
-                        (s: any) =>
-                            s.consent_status === "consented" ||
-                            s.respondent_demographics?.consent_status === "consented"
-                    )
-                }
-            } else {
-                try {
-                    const raw = await fs.readFile(RESPONSES_PATH, "utf-8")
-                    const responses = JSON.parse(raw) as any[]
-                    const siblings = responses.filter(
-                        (r) => r.author_id === authorId && r.responseId !== responseId
-                    )
-                    alreadyConsented = siblings.some(
-                        (s: any) =>
-                            s.consent_status === "consented" ||
-                            s.respondent_demographics?.consent_status === "consented"
-                    )
-                } catch {
-                    // file might not exist
-                }
-            }
-        }
-
-        // 2. Identify target own paper(s) to show
-        // We will scan the workIds and check if they match the ownWorkId, OR if
-        // the authorId is in their authors array (supporting multiple if needed)
-        const ownPapersToFetch = new Set<string>()
-        if (ownWorkId) {
-            ownPapersToFetch.add(ownWorkId)
+        if (ownPaperEntries.length === 0) {
+            return NextResponse.json({ ok: true, ownPapers: [], alreadyConsented })
         }
 
         // 3. Hydrate the papers
+        const ownWorkIds = Array.from(new Set(ownPaperEntries.map((e) => e.ownWorkId)))
         let papersMap = new Map<string, PaperRow>()
-        if (isSupabaseConfigured() && ownPapersToFetch.size > 0) {
-            papersMap = await hydratePaperRowsById(Array.from(ownPapersToFetch))
+        if (isSupabaseConfigured() && ownWorkIds.length > 0) {
+            papersMap = await hydratePaperRowsById(ownWorkIds)
         }
 
-        // Fallback to mock data if not in DB or empty
         const hydratedOwnPapers: VerificationResponsePayload[] = []
-        for (const wId of ownPapersToFetch) {
+
+        for (const { responseRow: row, ownWorkId: wId } of ownPaperEntries) {
             let paper = papersMap.get(wId)
             if (!paper) {
-                // look up in mock pool
                 const mockMatch = worksPool.find((w) => w.work_id === wId)
                 if (mockMatch) {
                     paper = {
                         work_id: mockMatch.work_id,
                         topic: mockMatch.display_name,
+                        title: mockMatch.display_name,
                         journal: mockMatch.journal || null,
                         publication_date: mockMatch.publication_date || null,
                         authors: (mockMatch.authors || []).map((a) => ({
@@ -148,7 +171,7 @@ export async function GET(request: NextRequest) {
                 isCorresponding: Boolean(a.corresponding || a.is_corresponding || a.isCorresponding),
             }))
 
-            // Map the respondent's sorted list of author IDs to non-anonymized names
+            const rankings: Record<string, string[]> = row.rankings || {}
             const respondentSortedIds = rankings[wId] || []
             const respondentRanking = respondentSortedIds.map((aId) => {
                 const match = correctAuthors.find((ca) => ca.id === aId)
@@ -159,16 +182,39 @@ export async function GET(request: NextRequest) {
                 }
             })
 
-            // Calculate accuracy for this specific own paper
-            const canonicalForAccuracy = originalAuthors.map((a: any) => ({
-                id: a.author_id || a.id || "",
-                equal_contrib: Boolean(a.equal_contrib || a.equalContrib),
-            }))
-            const accuracy = rankingAccuracyForWork(canonicalForAccuracy, respondentSortedIds)
+            let accuracy: number | null = null
+            if (row.work_accuracies && typeof row.work_accuracies[wId] === "number" && Number.isFinite(row.work_accuracies[wId])) {
+                accuracy = row.work_accuracies[wId]
+            } else {
+                const canonicalForAccuracy = originalAuthors.map((a: any, idx: number) => ({
+                    id: a.author_id || a.id || String(idx),
+                    equal_contrib: Boolean(a.equal_contrib || a.equalContrib),
+                }))
+                accuracy = rankingAccuracyForWork(canonicalForAccuracy, respondentSortedIds)
 
+                if (accuracy === null && originalAuthors.length >= 2 && respondentSortedIds.length >= 2) {
+                    // Try positional indexing if ID strings differed
+                    const posCanonical = originalAuthors.map((a: any, idx: number) => ({
+                        id: String(idx),
+                        equal_contrib: Boolean(a.equal_contrib || a.equalContrib),
+                    }))
+                    const posRanking = respondentSortedIds.map((aId) => {
+                        const foundIdx = originalAuthors.findIndex((a: any, idx: number) => (a.author_id || a.id || String(idx)) === aId)
+                        return foundIdx >= 0 ? String(foundIdx) : aId
+                    })
+                    accuracy = rankingAccuracyForWork(posCanonical, posRanking)
+                }
+            }
+
+            if (accuracy === null && typeof row.average_accuracy === "number" && Number.isFinite(row.average_accuracy)) {
+                accuracy = row.average_accuracy
+            }
             const year = paper.publication_date ? paper.publication_date.substring(0, 4) : "N/A"
 
+            const respId = row.id || row.responseId || ""
+
             hydratedOwnPapers.push({
+                responseId: respId,
                 workId: wId,
                 title: paper.title || paper.topic || paper.work_id,
                 journal: paper.journal || "Unknown Journal",
@@ -176,123 +222,130 @@ export async function GET(request: NextRequest) {
                 correctAuthors,
                 respondentRanking,
                 accuracy,
+                consentStatus: row.consent_status || row.respondent_demographics?.consent_status || null,
+                consentExplanation: row.consent_explanation || row.respondent_demographics?.consent_explanation || null,
             })
         }
+
+        const firstRow = responseRows[0] || {}
 
         return NextResponse.json({
             ok: true,
             ownPapers: hydratedOwnPapers,
-            experimentType: responseRow.experiment_type || "A",
-            queue: responseRow.queue_index || 0,
+            experimentType: firstRow.experiment_type || "A",
+            queue: firstRow.queue_index || 0,
             alreadyConsented,
         })
-
     } catch (err: any) {
         console.error("Error in GET /api/survey/verification:", err)
         return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
     }
 }
 
+async function updateSingleConsent(
+    responseId: string,
+    consentStatus: string,
+    explanation?: string | null
+) {
+    const trimmedExplanation = typeof explanation === "string" && explanation.trim().length > 0 ? explanation.trim() : null
+
+    if (isSupabaseConfigured()) {
+        const supabase = getSupabase()
+
+        const updatePayload: Record<string, any> = { consent_status: consentStatus }
+        if (trimmedExplanation) {
+            updatePayload.consent_explanation = trimmedExplanation
+        }
+
+        const { error: columnError } = await supabase
+            .from("experiment_responses")
+            .update(updatePayload)
+            .eq("id", responseId)
+
+        if (columnError) {
+            console.warn(
+                `Failed to update consent columns directly for ${responseId}, trying fallback...`,
+                columnError.message
+            )
+
+            const { error: statusOnlyError } = await supabase
+                .from("experiment_responses")
+                .update({ consent_status: consentStatus })
+                .eq("id", responseId)
+
+            const { data: currentData } = await supabase
+                .from("experiment_responses")
+                .select("respondent_demographics,feedback")
+                .eq("id", responseId)
+                .single()
+
+            const priorDemographics = currentData?.respondent_demographics || {}
+            const updatedDemographics = {
+                ...priorDemographics,
+                consent_status: consentStatus,
+                ...(trimmedExplanation && { consent_explanation: trimmedExplanation }),
+            }
+
+            const currentFeedback = currentData?.feedback || ""
+            const explanationTag = trimmedExplanation ? ` | Explanation: ${trimmedExplanation}` : ""
+            const updatedFeedback = currentFeedback
+                ? `${currentFeedback}\n[IRB Consent: ${consentStatus}${explanationTag}]`
+                : `[IRB Consent: ${consentStatus}${explanationTag}]`
+
+            const { error: fallbackError } = await supabase
+                .from("experiment_responses")
+                .update({
+                    respondent_demographics: updatedDemographics,
+                    feedback: updatedFeedback,
+                })
+                .eq("id", responseId)
+
+            if (fallbackError && statusOnlyError) {
+                throw new Error(`Failed to update consent status for ${responseId}`)
+            }
+        }
+    } else {
+        // File-based update
+        const raw = await fs.readFile(RESPONSES_PATH, "utf-8")
+        const responses = JSON.parse(raw) as any[]
+        const match = responses.find((r) => r.responseId === responseId || r.id === responseId)
+        if (match) {
+            match.consent_status = consentStatus
+            if (trimmedExplanation) {
+                match.consent_explanation = trimmedExplanation
+            }
+            if (!match.respondent_demographics) {
+                match.respondent_demographics = {}
+            }
+            match.respondent_demographics.consent_status = consentStatus
+            if (trimmedExplanation) {
+                match.respondent_demographics.consent_explanation = trimmedExplanation
+            }
+            await fs.writeFile(RESPONSES_PATH, JSON.stringify(responses, null, 2), "utf-8")
+        }
+    }
+}
+
 export async function POST(request: NextRequest) {
-    let body: { responseId: string; consentStatus: string; explanation?: string }
+    let body: any
     try {
         body = await request.json()
     } catch {
         return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
     }
 
-    const { responseId, consentStatus, explanation } = body
-    if (!responseId || !consentStatus) {
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-    }
-
-    const trimmedExplanation = typeof explanation === "string" && explanation.trim().length > 0 ? explanation.trim() : null
-
     try {
-        if (isSupabaseConfigured()) {
-            const supabase = getSupabase()
-
-            // 1. Try to update using proper consent_status and consent_explanation columns
-            const updatePayload: Record<string, any> = { consent_status: consentStatus }
-            if (trimmedExplanation) {
-                updatePayload.consent_explanation = trimmedExplanation
-            }
-
-            const { error: columnError } = await supabase
-                .from("experiment_responses")
-                .update(updatePayload)
-                .eq("id", responseId)
-
-            if (columnError) {
-                console.warn(
-                    "Failed to update consent columns directly, trying fallback...",
-                    columnError.message
-                )
-
-                // Try consent_status alone if consent_explanation column doesn't exist yet
-                const { error: statusOnlyError } = await supabase
-                    .from("experiment_responses")
-                    .update({ consent_status: consentStatus })
-                    .eq("id", responseId)
-
-                // Fallback: retrieve demographics, merge consent_status and explanation
-                const { data: currentData } = await supabase
-                    .from("experiment_responses")
-                    .select("respondent_demographics,feedback")
-                    .eq("id", responseId)
-                    .single()
-
-                const priorDemographics = currentData?.respondent_demographics || {}
-                const updatedDemographics = {
-                    ...priorDemographics,
-                    consent_status: consentStatus,
-                    ...(trimmedExplanation && { consent_explanation: trimmedExplanation }),
-                }
-
-                const currentFeedback = currentData?.feedback || ""
-                const explanationTag = trimmedExplanation ? ` | Explanation: ${trimmedExplanation}` : ""
-                const updatedFeedback = currentFeedback
-                    ? `${currentFeedback}\n[IRB Consent: ${consentStatus}${explanationTag}]`
-                    : `[IRB Consent: ${consentStatus}${explanationTag}]`
-
-                const { error: fallbackError } = await supabase
-                    .from("experiment_responses")
-                    .update({
-                        respondent_demographics: updatedDemographics,
-                        feedback: updatedFeedback,
-                    })
-                    .eq("id", responseId)
-
-                if (fallbackError && statusOnlyError) {
-                    console.error("Fallback update also failed:", fallbackError.message)
-                    return NextResponse.json({ error: "Failed to update consent status" }, { status: 500 })
+        if (Array.isArray(body.decisions)) {
+            const decisions: Array<{ responseId: string; consentStatus: string; explanation?: string }> = body.decisions
+            for (const d of decisions) {
+                if (d.responseId && d.consentStatus) {
+                    await updateSingleConsent(d.responseId, d.consentStatus, d.explanation)
                 }
             }
+        } else if (body.responseId && body.consentStatus) {
+            await updateSingleConsent(body.responseId, body.consentStatus, body.explanation)
         } else {
-            // File-based update
-            try {
-                const raw = await fs.readFile(RESPONSES_PATH, "utf-8")
-                const responses = JSON.parse(raw) as any[]
-                const match = responses.find((r) => r.responseId === responseId)
-                if (match) {
-                    match.consent_status = consentStatus
-                    if (trimmedExplanation) {
-                        match.consent_explanation = trimmedExplanation
-                    }
-                    if (!match.respondent_demographics) {
-                        match.respondent_demographics = {}
-                    }
-                    match.respondent_demographics.consent_status = consentStatus
-                    if (trimmedExplanation) {
-                        match.respondent_demographics.consent_explanation = trimmedExplanation
-                    }
-                    await fs.writeFile(RESPONSES_PATH, JSON.stringify(responses, null, 2), "utf-8")
-                } else {
-                    return NextResponse.json({ error: "Response not found" }, { status: 404 })
-                }
-            } catch (err) {
-                return NextResponse.json({ error: "Failed to read local file" }, { status: 500 })
-            }
+            return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
         }
 
         return NextResponse.json({ ok: true })
