@@ -233,8 +233,6 @@ function buildAuthorBinPoolQuery(
     )
         .gte("author_count", min)
         .lte("author_count", max)
-        .order("work_exposure", { ascending: true, nullsFirst: true })
-        .order("work_id", { ascending: true })
         .limit(perBinLimit)
 }
 
@@ -443,12 +441,13 @@ async function getSeenWorkStatsForPool(
         const supabase = getSupabase()
         const { data, error } = await supabase
             .from("experiment_responses")
-            .select("author_id,work_ids,experiment_type")
+            .select("id,author_id,work_ids,experiment_type")
             .overlaps("work_ids", workIds)
 
         if (error || !data?.length) return byWork
 
         for (const row of data as Array<{
+            id?: string | null
             author_id: string | null
             work_ids: string[] | null
             experiment_type: ExperimentType | null
@@ -461,16 +460,20 @@ async function getSeenWorkStatsForPool(
                     stats = {
                         seenByRespondent: false,
                         uniqueRespondents: new Set<string>(),
+                        totalResponsesCount: 0,
                         experimentsSeenIn: new Set<ExperimentType>(),
                     }
                     byWork.set(workId, stats)
                 }
+                stats.totalResponsesCount = (stats.totalResponsesCount ?? 0) + 1
                 if (authorId && row.author_id === authorId) {
                     stats.seenByRespondent = true
                 }
-                if (typeof row.author_id === "string" && row.author_id.length > 0) {
-                    stats.uniqueRespondents.add(row.author_id)
-                }
+                const respondentKey =
+                    typeof row.author_id === "string" && row.author_id.length > 0
+                        ? row.author_id
+                        : row.id ?? `resp_${stats.totalResponsesCount}`
+                stats.uniqueRespondents.add(respondentKey)
                 if (row.experiment_type === "A" || row.experiment_type === "B" || row.experiment_type === "C") {
                     stats.experimentsSeenIn.add(row.experiment_type)
                 }
