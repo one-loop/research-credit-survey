@@ -885,7 +885,8 @@ async function getExperimentPapersPrioritized(
     authorId: string | undefined,
     worksPer: number,
     experimentType: ExperimentType,
-    queueIndex: number
+    queueIndex: number,
+    domain?: string
 ): Promise<Work[]> {
     let scope: RespondentPaperScope = {}
     const ownWorkIds = new Set<string>()
@@ -1038,38 +1039,70 @@ async function getExperimentPapersPrioritized(
         return binRows.map((row) => mapPaperToWork(row, row.work_id === ownPaper?.work_id))
     }
 
+    const domainScope: RespondentPaperScope = domain ? { domain } : {}
     const strictPool = await getPapersPool({
-        domain: scope.domain,
-        journal: scope.journal,
-        scope,
+        domain: domainScope.domain,
+        journal: domainScope.journal,
+        scope: domainScope,
         excludeWorkIds: Array.from(ownWorkIds),
         limit: POOL_TOTAL_LIMIT,
         experimentType,
     })
 
-    const seenStatsByWork = await getSeenWorkStatsForPool(
-        strictPool.map((row) => row.work_id),
+    let currentPool = strictPool
+    let seenStatsByWork = await getSeenWorkStatsForPool(
+        currentPool.map((row) => row.work_id),
         authorId
     )
 
-    const selectedRows = selectPaperRowsForAuthorBinBatch({
-        pool: strictPool,
+    let activeScope = domainScope
+    let selectedRows = selectPaperRowsForAuthorBinBatch({
+        pool: currentPool,
         ownPaper: null,
         ownWorkId: undefined,
         authorId,
         experimentType,
         seenStatsByWork,
         reservedWorkIds: ownWorkIds,
-        scope,
-    }).slice(0, worksPer)
+        scope: activeScope,
+    })
+
+    // If domain pool yields fewer than worksPer, relax to global pool
+    if (selectedRows.length < worksPer && domainScope.domain) {
+        const globalPool = await getPapersPool({
+            excludeWorkIds: Array.from(ownWorkIds),
+            limit: POOL_TOTAL_LIMIT,
+            experimentType,
+        })
+
+        const existingIds = new Set(currentPool.map((r) => r.work_id))
+        const additional = globalPool.filter((r) => !existingIds.has(r.work_id))
+        currentPool = [...currentPool, ...additional]
+
+        seenStatsByWork = await getSeenWorkStatsForPool(
+            currentPool.map((row) => row.work_id),
+            authorId
+        )
+
+        activeScope = {}
+        selectedRows = selectPaperRowsForAuthorBinBatch({
+            pool: currentPool,
+            ownPaper: null,
+            ownWorkId: undefined,
+            authorId,
+            experimentType,
+            seenStatsByWork,
+            reservedWorkIds: ownWorkIds,
+            scope: activeScope,
+        })
+    }
+
+    selectedRows = selectedRows.slice(0, worksPer)
 
     const hydrated = await hydratePaperRowsById(selectedRows.map((row) => row.work_id))
     const binRows = selectedRows.map((row) => hydrated.get(row.work_id) ?? row)
 
-    return filterWorksToRespondentScope(
-        binRows.map((row) => mapPaperToWork(row, false)),
-        scope
-    )
+    return binRows.map((row) => mapPaperToWork(row, false))
 }
 
 /**
@@ -1268,11 +1301,12 @@ export async function getExperimentPapers(
     authorId: string | undefined,
     worksPer: number,
     experimentType: ExperimentType = "A",
-    queueIndex = 0
+    queueIndex = 0,
+    domain?: string
 ): Promise<Work[]> {
     if (!isSupabaseConfigured()) return []
     // Use one consistent selector across experiments:
     // own paper + same-domain-and-journal fillers prioritized by prior exposure.
-    return getExperimentPapersPrioritized(authorId, worksPer, experimentType, queueIndex)
+    return getExperimentPapersPrioritized(authorId, worksPer, experimentType, queueIndex, domain)
 }
 

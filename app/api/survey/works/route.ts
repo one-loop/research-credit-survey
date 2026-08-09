@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     const queueIndexRaw = Number(request.nextUrl.searchParams.get("queueIndex") ?? "0")
     const queueIndex = Number.isFinite(queueIndexRaw) && queueIndexRaw >= 0 ? Math.floor(queueIndexRaw) : 0
     const experimentType = requestedExperiment === "B" || requestedExperiment === "C" ? requestedExperiment : "A"
+    const requestedDomain = request.nextUrl.searchParams.get("domain")?.trim() || undefined
     const useSupabase = isSupabaseConfigured()
 
     let selected: Work[] = []
@@ -67,9 +68,9 @@ export async function GET(request: NextRequest) {
 
     if (useSupabase) {
         const start = Date.now()
-        selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT, experimentType, queueIndex)
+        selected = await getExperimentPapers(authorId, WORKS_PER_RESPONDENT, experimentType, queueIndex, requestedDomain)
         const duration = Date.now() - start
-        console.log("[survey/works] Supabase experiment papers took", duration, "ms", "| queue:", queueIndex)
+        console.log("[survey/works] Supabase experiment papers took", duration, "ms", "| queue:", queueIndex, "| domain:", requestedDomain ?? "any")
         if (selected.length > 0) {
             dataSource = "supabase"
         }
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
                 ownWorkRaw && workIsExperimentEligible(ownWorkRaw, experimentType)
                     ? ownWorkRaw
                     : undefined
-            const targetDomain = ownWork?.domain
+            const targetDomain = ownWork?.domain || requestedDomain
             const targetJournal = ownWork?.journal
             const candidatePool = worksPool.filter((w) => {
                 if (ownWork && w.work_id === ownWork.work_id) return false
@@ -99,13 +100,15 @@ export async function GET(request: NextRequest) {
             const pool =
                 authorId && targetJournal
                     ? candidatePool
-                    : authorId
-                      ? []
-                      : worksPool.filter(
-                            (w) =>
-                                (!ownWork || w.work_id !== ownWork.work_id) &&
-                                workIsExperimentEligible(w, experimentType)
-                        )
+                    : targetDomain && candidatePool.length > 0
+                      ? candidatePool
+                      : authorId
+                        ? []
+                        : worksPool.filter(
+                              (w) =>
+                                  (!ownWork || w.work_id !== ownWork.work_id) &&
+                                  workIsExperimentEligible(w, experimentType)
+                          )
             selected = selectMockWorksByAuthorBins(ownWork, pool, experimentType)
         }
 

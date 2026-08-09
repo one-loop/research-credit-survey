@@ -124,7 +124,7 @@ function HomeContent() {
             <FadeIn>
                 <h1 className="text-3xl font-bold tracking-tight mb-4">Contribution Ranking Study</h1>
                 <p className="text-muted-foreground">
-                    The estimated time for this study is <strong className="font-bold text-foreground">10 minutes.</strong>
+                    The estimated time for this study is <strong className="font-bold text-foreground">15 minutes.</strong>
                 </p>
             </FadeIn>
 
@@ -137,7 +137,7 @@ function HomeContent() {
                 <div className="space-y-2">
                     <h2 className="text-lg font-bold text-foreground">Purpose of the study</h2>
                     <p>
-                        Many academic journals use the Contributor Roles Taxonomy (CRediT) to describe individual contributions to research. We aim to study how researchers interpret these contributor roles, assess their importance, and use them to determine authorship order.
+                        Contributor roles describe who did what on a research paper, from designing the study to analyzing data to writing it up. Some journals record these contributions using a standardized system called the Contributor Roles Taxonomy (CRediT), while others describe them in the authors&apos; own words. For this study, we draw on papers from both: where contributions were written in free form, we mapped each one onto its equivalent CRediT role, so that all papers are represented using the same set of standardized roles. We&apos;re interested in how researchers interpret authorship order in light of these contributions, whether the roles are read consistently, how much weight people give to each, and how they relate to the order in which authors are listed.
                     </p>
                     <p>
                         Some details about the specific design and purpose of certain study tasks will not be disclosed before participation because this could influence your responses. These details will be fully explained after you complete the study. At that time, you will have an opportunity to ask questions and decide whether the relevant responses may be used.
@@ -162,10 +162,10 @@ function HomeContent() {
                 <div className="space-y-2">
                     <h2 className="text-lg font-bold text-foreground">Voluntary participation and withdrawal</h2>
                     <p>
-                        Participation is voluntary. You may stop participating at any time without penalty or loss of benefits to which you are otherwise entitled.
+                        Participation is voluntary. You may stop participating at any time without penalty.
                     </p>
                     <p>
-                        You may also request the withdrawal of your responses and personal data by contacting the research team. Where removal remains technically possible, your identifiable data will be deleted and excluded from future analysis. Data that have already been fully anonymized or included in aggregated analyses may no longer be identifiable or removable.
+                        You may also request the withdrawal of your responses and personal data by contacting the research team. Data that have already been fully anonymized or included in aggregated analyses may no longer be identifiable or removable.
                     </p>
                 </div>
 
@@ -226,8 +226,7 @@ function HomeContent() {
                         </p>
                     </div>
                     <p className="pt-2">
-                        For questions about your rights as a research participant, contact the New York University Abu Dhabi Institutional Review Board and refer to protocol <span className="font-medium
-                        ">#[IRB NUMBER]</span>:
+                        For questions about your rights as a research participant, contact the New York University Abu Dhabi Institutional Review Board and refer to protocol <span className="font-medium">#HRPP-2026-78</span>:
                     </p>
                     <ul className="list-disc pl-6 space-y-1.5">
                         <li>Telephone: +971 2 628 4313</li>

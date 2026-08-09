@@ -70,6 +70,8 @@ def paper_row(paper: dict) -> dict:
         if key in paper:
             row[key] = paper[key]
     row["contributions_complete"] = has_complete_contributions(paper)
+    if isinstance(row.get("journal"), str) and "proceedings of the national academy of sciences" in row["journal"].lower():
+        row["journal"] = "PNAS"
     return row
 
 
