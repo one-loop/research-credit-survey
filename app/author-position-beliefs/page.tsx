@@ -49,7 +49,7 @@ function AuthorPositionBeliefsContent() {
 
             <FadeInStagger className="space-y-8" step={50}>
                 <div className="space-y-3">
-                    <p className="font-medium">Who is most likely to be younger?</p>
+                    <p className="font-medium">Who is most likely to be a junior author?</p>
                     <RadioGroup
                         value={younger}
                         onValueChange={(value) => setYounger(value as FirstLastPosition)}

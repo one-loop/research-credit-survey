@@ -120,6 +120,19 @@ function ExperimentBPageContent() {
 
         params.set("experimentType", "B")
         params.set("queueIndex", String(queueIndex))
+        if (typeof window !== "undefined") {
+            const demoRaw = window.sessionStorage.getItem(`respondentDemographics_${keyAuthor}`)
+            if (demoRaw) {
+                try {
+                    const parsed = JSON.parse(demoRaw) as { primary_domain?: string }
+                    if (parsed.primary_domain) {
+                        params.set("domain", parsed.primary_domain)
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+        }
         fetch(`/api/survey/works?${params.toString()}`, { credentials: "same-origin" })
             .then((res) => {
                 if (res.status === 403) {
