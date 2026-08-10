@@ -389,6 +389,7 @@ function enrichMockAuthor(author: Author, workIndex: number, authorIndex: number
 
 export const worksPool: Work[] = baseWorksPool.map((work, workIndex) => ({
     ...work,
+    experiment_eligibility: work.experiment_eligibility ?? ["A", "B", "C"],
     domain:
         work.domain ??
         (work.field === "field_a" ? "Social Sciences" : "Physical Sciences"),
