@@ -8,12 +8,25 @@ import { SURVEY_PARTICIPANT_COOKIE } from "@/lib/survey/participant"
  */
 export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
-    const authorId = url.searchParams.get("authorId")?.trim()
+    const rawAuthor = url.searchParams.get("authorId") ?? url.searchParams.get("author_id")
+
+    // Explicit reset / anonymous trigger for testing
+    if (rawAuthor === "none" || rawAuthor === "clear" || url.searchParams.get("anonymous") === "true") {
+        url.searchParams.delete("authorId")
+        url.searchParams.delete("author_id")
+        url.searchParams.delete("anonymous")
+        const res = NextResponse.redirect(url)
+        res.cookies.delete(SURVEY_PARTICIPANT_COOKIE)
+        return res
+    }
+
+    const authorId = rawAuthor?.trim()
     if (!authorId) {
         return NextResponse.next()
     }
 
     url.searchParams.delete("authorId")
+    url.searchParams.delete("author_id")
     const res = NextResponse.redirect(url)
     res.cookies.set(SURVEY_PARTICIPANT_COOKIE, authorId, {
         httpOnly: true,

@@ -37,20 +37,21 @@ function summaryPayload(
 
 export async function GET(request: NextRequest) {
     const authorId = getParticipantAuthorId(request)
+    const responseId = request.nextUrl.searchParams.get("responseId")?.trim() || null
     const experimentType = parseExperimentType(request.nextUrl.searchParams.get("experimentType"))
     const queueRaw = Number(request.nextUrl.searchParams.get("queueIndex") ?? "0")
     const queueIndex = Number.isFinite(queueRaw) && queueRaw >= 0 ? Math.floor(queueRaw) : 0
     const scope = parseScope(request.nextUrl.searchParams.get("scope"))
 
     if (scope === "summary") {
-        const summary = await getRespondentAccuracySummary(authorId, experimentType, queueIndex)
+        const summary = await getRespondentAccuracySummary(authorId, experimentType, queueIndex, responseId)
         return NextResponse.json(summaryPayload(queueIndex, experimentType, summary))
     }
 
     if (scope === "analytics") {
         const [summary, respondentInstitutionKey] = await Promise.all([
-            getRespondentAccuracySummary(authorId, experimentType, queueIndex),
-            getRespondentInstitutionKeyForExperiment(authorId, experimentType),
+            getRespondentAccuracySummary(authorId, experimentType, queueIndex, responseId),
+            getRespondentInstitutionKeyForExperiment(authorId, experimentType, responseId),
         ])
         const comparisonScore =
             summary.respondentAverageAccuracy ?? summary.queueAccuracy ?? null
@@ -81,8 +82,8 @@ export async function GET(request: NextRequest) {
     }
 
     const [summary, respondentInstitutionKey] = await Promise.all([
-        getRespondentAccuracySummary(authorId, experimentType, queueIndex),
-        getRespondentInstitutionKeyForExperiment(authorId, experimentType),
+        getRespondentAccuracySummary(authorId, experimentType, queueIndex, responseId),
+        getRespondentInstitutionKeyForExperiment(authorId, experimentType, responseId),
     ])
     const comparisonScore = summary.respondentAverageAccuracy ?? summary.queueAccuracy ?? null
     const { distribution, leaderboard, institutionPercentile } = await getExperimentThankYouAnalytics(

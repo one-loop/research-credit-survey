@@ -140,7 +140,7 @@ function RespondentSurveyContent() {
                     setInstitutionLoading(false)
                 }
             }
-        }, 300)
+        }, 180)
 
         return () => {
             window.clearTimeout(handle)

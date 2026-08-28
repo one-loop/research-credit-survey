@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { AlertTriangle, Info } from "lucide-react"
+import { AlertTriangle, Check, Copy, Info, Mail, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
@@ -24,6 +24,16 @@ function StudyCompleteContent() {
     const [feedback, setFeedback] = useState("")
     const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
     const [ownPapers, setOwnPapers] = useState<VerificationResponsePayload[]>([])
+    const [shareUrl, setShareUrl] = useState("")
+    const [copied, setCopied] = useState(false)
+    const [canNativeShare, setCanNativeShare] = useState(false)
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            setShareUrl(window.location.origin)
+            setCanNativeShare(typeof navigator !== "undefined" && typeof navigator.share === "function")
+        }
+    }, [])
 
     useEffect(() => {
         if (responseIdFromUrl) {
@@ -82,6 +92,39 @@ function StudyCompleteContent() {
         }
     }
 
+    async function handleCopyLink() {
+        if (!shareUrl) return
+        try {
+            await navigator.clipboard.writeText(shareUrl)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2500)
+        } catch {
+            // fallback for older browsers
+        }
+    }
+
+    async function handleNativeShare() {
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({
+                    title: "Research Study on Author Contributions and Byline Ordering",
+                    text: "Participate in this research study exploring how contributor roles (CRediT) relate to author order in academic papers.",
+                    url: shareUrl || window.location.origin,
+                })
+            } catch {
+                // user cancelled or failed
+            }
+        } else {
+            void handleCopyLink()
+        }
+    }
+
+    const emailSubject = encodeURIComponent("Research Study on Author Contributions and Byline Ordering")
+    const emailBody = encodeURIComponent(
+        `Hi,\n\nI recently participated in a research study conducted by researchers at NYU Abu Dhabi investigating how contributor roles (CRediT) relate to author bylines in research publications. I thought you might be interested in taking part:\n\n${shareUrl || "https://..."}\n\nBest regards,`
+    )
+    const mailtoHref = `mailto:?subject=${emailSubject}&body=${emailBody}`
+
     const canSubmitFeedback = feedback.trim().length > 0 && feedbackStatus !== "saving" && feedbackStatus !== "saved"
 
     const withdrawnCount = ownPapers.filter((p) => p.consentStatus === "withdrawn").length
@@ -133,8 +176,81 @@ function StudyCompleteContent() {
                 )}
             </FadeIn>
 
+            {/* Share with Colleagues Section */}
+            <FadeIn delay={100} className="space-y-3 border-t pt-6">
+                <div className="rounded-xl border border-border/80 bg-muted/30 p-5 space-y-3.5">
+                    <div className="space-y-1">
+                        <h2 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
+                            <Share2 className="h-4 w-4 text-primary shrink-0" />
+                            Share with your colleagues
+                        </h2>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                            We are actively collecting responses from researchers across all disciplines. Feel free to share this study with your co-authors and colleagues:
+                        </p>
+                    </div>
+
+                    {/* Share URL input and copy button */}
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            readOnly
+                            value={shareUrl || "Loading link..."}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs sm:text-sm font-mono text-muted-foreground select-all focus:outline-none focus:ring-1 focus:ring-primary"
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <Button
+                            type="button"
+                            variant={copied ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => void handleCopyLink()}
+                            className="shrink-0 gap-1.5 min-w-[6.5rem]"
+                        >
+                            {copied ? (
+                                <>
+                                    <Check className="h-4 w-4 text-emerald-500" />
+                                    <span>Copied!</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Copy className="h-4 w-4" />
+                                    <span>Copy link</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
+
+                    {/* Quick share options */}
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            asChild
+                            className="text-xs gap-1.5"
+                        >
+                            <a href={mailtoHref} target="_blank" rel="noopener noreferrer">
+                                <Mail className="h-3.5 w-3.5" />
+                                Email to a colleague
+                            </a>
+                        </Button>
+                        {canNativeShare && (
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void handleNativeShare()}
+                                className="text-xs gap-1.5"
+                            >
+                                <Share2 className="h-3.5 w-3.5" />
+                                Share…
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </FadeIn>
+
             {/* Optional Feedback Section */}
-            <FadeIn delay={110} className="space-y-3 border-t pt-6">
+            <FadeIn delay={130} className="space-y-3 border-t pt-6">
                 <div>
                     <label htmlFor="survey-feedback" className="block text-sm font-medium text-foreground">
                         Feedback <span className="font-normal text-muted-foreground">(optional)</span>
@@ -179,7 +295,7 @@ function StudyCompleteContent() {
             </FadeIn>
 
             {/* Closing Message */}
-            <FadeIn delay={150} className="space-y-4 border-t pt-6">
+            <FadeIn delay={160} className="space-y-4 border-t pt-6">
                 <p className="text-base text-muted-foreground leading-relaxed">
                     You may now close this window.
                 </p>

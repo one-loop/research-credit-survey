@@ -723,25 +723,33 @@ export type RespondentAccuracySummary = {
 export async function getRespondentAccuracySummary(
     authorId: string | undefined,
     experimentType: ExperimentType,
-    queueIndex: number
+    queueIndex: number,
+    responseId?: string | null
 ): Promise<RespondentAccuracySummary> {
     const empty: RespondentAccuracySummary = {
         queueAccuracy: null,
         respondentAverageAccuracy: null,
         queuesCompleted: 0,
     }
-    if (!authorId || !isSupabaseConfigured()) return empty
+    if (!isSupabaseConfigured()) return empty
+    if (!authorId && !responseId) return empty
 
     try {
         const supabase = getSupabase()
-        const { data, error } = await supabase
+        let query = supabase
             .from("experiment_responses")
-            .select("queue_index,average_accuracy")
-            .eq("author_id", authorId)
+            .select("id,queue_index,average_accuracy")
             .eq("experiment_type", experimentType)
             .order("queue_index", { ascending: true })
             .order("created_at", { ascending: true })
 
+        if (authorId) {
+            query = query.eq("author_id", authorId)
+        } else if (responseId) {
+            query = query.eq("id", responseId)
+        }
+
+        const { data, error } = await query
         if (error || !data?.length) return empty
 
         const queueScores: number[] = []
@@ -749,6 +757,7 @@ export async function getRespondentAccuracySummary(
 
         for (const raw of data) {
             const row = raw as {
+                id?: string
                 queue_index?: number | null
                 average_accuracy?: number | null
             }
@@ -764,7 +773,7 @@ export async function getRespondentAccuracySummary(
 
             if (typeof accuracy === "number" && Number.isFinite(accuracy)) {
                 queueScores.push(accuracy)
-                if (rowQueue === queueIndex) {
+                if (rowQueue === queueIndex || (responseId && row.id === responseId)) {
                     queueAccuracy = accuracy
                 }
             }
@@ -776,7 +785,7 @@ export async function getRespondentAccuracySummary(
                 : null
 
         return {
-            queueAccuracy,
+            queueAccuracy: queueAccuracy ?? (queueScores.length > 0 ? queueScores[queueScores.length - 1] : null),
             respondentAverageAccuracy,
             queuesCompleted: queueScores.length,
         }

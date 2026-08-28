@@ -239,6 +239,8 @@ export async function POST(request: NextRequest) {
 
     let responseId: string
 
+    const initialConsentStatus = ownWork ? "pending" : "consented"
+
     if (isSupabaseConfigured()) {
         const supabase = getSupabase()
         const { data, error } = await supabase
@@ -257,6 +259,7 @@ export async function POST(request: NextRequest) {
                 queue_index: queueIndex,
                 average_accuracy: averageAccuracy,
                 work_accuracies: workAccuracies,
+                consent_status: initialConsentStatus,
             })
             .select("id")
             .single()

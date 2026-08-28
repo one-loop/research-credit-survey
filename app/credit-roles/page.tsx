@@ -35,7 +35,7 @@ function CreditRolesContent() {
     }
 
     return (
-        <SurveyPageEnter className="max-w-4xl mx-auto p-6">
+        <SurveyPageEnter className="max-w-3xl mx-auto p-6">
             <FadeIn>
                 <h1 className="text-2xl font-bold mb-4">
                     Contributor Role Taxonomy (CRediT)
@@ -81,9 +81,8 @@ function CreditRolesContent() {
                                 {creditRoles.map((role, idx) => (
                                     <tr
                                         key={role.id}
-                                        className={`transition-colors hover:bg-muted/30 ${
-                                            idx % 2 === 0 ? "bg-background" : "bg-muted/15"
-                                        }`}
+                                        className={`transition-colors hover:bg-muted/30 ${idx % 2 === 0 ? "bg-background" : "bg-muted/15"
+                                            }`}
                                     >
                                         <td className="py-3.5 px-4 sm:px-6 font-semibold text-foreground align-top">
                                             {role.name}
