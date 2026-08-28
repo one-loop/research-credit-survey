@@ -94,13 +94,6 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ ok: true, ownPapers: [], alreadyConsented: false })
         }
 
-        // Check if any response from this participant was already consented
-        const alreadyConsented = responseRows.some(
-            (r) =>
-                r.consent_status === "consented" ||
-                r.respondent_demographics?.consent_status === "consented"
-        )
-
         // 2. Identify all own papers across the participant's responses
         const ownPaperEntries: Array<{ responseRow: any; ownWorkId: string }> = []
         const effectiveAuthorId = authorId || responseRows.find((r) => r.author_id)?.author_id
@@ -121,8 +114,22 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // Check if all own papers from this participant have already been decided
+        const alreadyConsented =
+            ownPaperEntries.length > 0 &&
+            ownPaperEntries.every((e) => {
+                const status =
+                    e.responseRow.consent_status ||
+                    e.responseRow.respondent_demographics?.consent_status
+                return (
+                    status === "consented" ||
+                    status === "withdrawn" ||
+                    status === "not_my_paper"
+                )
+            })
+
         if (ownPaperEntries.length === 0) {
-            return NextResponse.json({ ok: true, ownPapers: [], alreadyConsented })
+            return NextResponse.json({ ok: true, ownPapers: [], alreadyConsented: false })
         }
 
         // 3. Hydrate the papers
