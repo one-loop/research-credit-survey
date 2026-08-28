@@ -97,21 +97,28 @@ export function getCachedExperimentAnalyticsRows(
 
 export async function getRespondentInstitutionKeyForExperiment(
     authorId: string | undefined,
-    experimentType: ExperimentType
+    experimentType: ExperimentType,
+    responseId?: string | null
 ): Promise<string | null> {
-    if (!authorId || !isSupabaseConfigured()) return null
+    if (!isSupabaseConfigured() || (!authorId && !responseId)) return null
 
     try {
         const supabase = getSupabase()
-        const { data } = await supabase
+        let query = supabase
             .from("experiment_responses")
             .select("respondent_demographics")
-            .eq("author_id", authorId)
             .eq("experiment_type", experimentType)
             .not("respondent_demographics", "is", null)
             .order("created_at", { ascending: false })
             .limit(1)
 
+        if (authorId) {
+            query = query.eq("author_id", authorId)
+        } else if (responseId) {
+            query = query.eq("id", responseId)
+        }
+
+        const { data } = await query
         const demo = (data?.[0] as { respondent_demographics?: Record<string, unknown> })
             ?.respondent_demographics
         return institutionKeyFromDemographics(demo ?? null)

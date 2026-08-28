@@ -7,25 +7,48 @@ type InstitutionRow = {
     "display name"?: string
 }
 
+type InstitutionItem = { id: string; label: string }
+
+// In-memory cache for fast repeated queries
+const memoryCache = new Map<string, InstitutionItem[]>()
+const MAX_CACHE_SIZE = 1000
+
+// Remember which query pattern works so we don't try failed columns repeatedly
+let knownWorkingAttempt: { select: string; column: string } | null = null
+
 export async function GET(request: NextRequest) {
     const q = (request.nextUrl.searchParams.get("q") ?? "").trim()
     if (q.length < 2) {
-        return NextResponse.json({ items: [] as Array<{ id: string; label: string }> })
+        return NextResponse.json(
+            { items: [] as InstitutionItem[] },
+            { headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" } }
+        )
     }
+
+    const qLower = q.toLocaleLowerCase()
+
+    // Check memory cache first
+    const cached = memoryCache.get(qLower)
+    if (cached) {
+        return NextResponse.json(
+            { items: cached },
+            { headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" } }
+        )
+    }
+
     if (!isSupabaseConfigured()) {
-        return NextResponse.json({ items: [] as Array<{ id: string; label: string }> })
+        return NextResponse.json({ items: [] as InstitutionItem[] })
     }
 
     const supabase = getSupabase()
-    const limit = 12
-    const qLower = q.toLocaleLowerCase()
+    const limit = 15
 
-    const attempts = [
-        { select: "id,display_name", column: "display_name" },
-        { select: "display_name", column: "display_name" },
-        { select: 'id,"display name"', column: "display name" },
-        { select: '"display name"', column: "display name" },
-    ] as const
+    const attempts = knownWorkingAttempt
+        ? [knownWorkingAttempt]
+        : [
+              { select: "id,display_name", column: "display_name" },
+              { select: 'id,"display name"', column: "display name" },
+          ]
 
     let rows: InstitutionRow[] | null = null
     let error: { message?: string } | null = null
@@ -35,10 +58,12 @@ export async function GET(request: NextRequest) {
             .from("institutions")
             .select(attempt.select)
             .ilike(attempt.column, `%${q}%`)
-            .limit(limit)
+            .limit(limit * 2)
+
         if (!result.error) {
             rows = result.data as InstitutionRow[] | null
             error = null
+            knownWorkingAttempt = attempt
             break
         }
         error = result.error
@@ -46,12 +71,12 @@ export async function GET(request: NextRequest) {
 
     if (error) {
         console.error("[institutions/search] query failed:", error.message)
-        return NextResponse.json({ items: [] as Array<{ id: string; label: string }> })
+        return NextResponse.json({ items: [] as InstitutionItem[] })
     }
 
-    const dedupedByLabel = new Map<string, { id: string; label: string }>()
+    const dedupedByLabel = new Map<string, InstitutionItem>()
     for (const row of rows ?? []) {
-        const label = row.display_name ?? row["display name"] ?? ""
+        const label = (row.display_name ?? row["display name"] ?? "").trim()
         const id = String(row.id ?? label)
         if (!label || !id) continue
         if (!dedupedByLabel.has(label)) {
@@ -73,6 +98,20 @@ export async function GET(request: NextRequest) {
         })
         .slice(0, limit)
 
-    return NextResponse.json({ items })
+    // Save to in-memory cache
+    if (memoryCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = memoryCache.keys().next().value
+        if (firstKey) memoryCache.delete(firstKey)
+    }
+    memoryCache.set(qLower, items)
+
+    return NextResponse.json(
+        { items },
+        {
+            headers: {
+                "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400",
+            },
+        }
+    )
 }
 

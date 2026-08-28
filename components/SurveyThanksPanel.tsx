@@ -42,12 +42,20 @@ function formatAccuracyPercent(accuracy: number): string {
     return `${Math.round(accuracy * 100)}%`
 }
 
-function queueAccuracyQuery(experimentType: ExperimentType, queue: number, scope: string) {
+function queueAccuracyQuery(
+    experimentType: ExperimentType,
+    queue: number,
+    scope: string,
+    responseId?: string | null
+) {
     const params = new URLSearchParams({
         experimentType,
         queueIndex: String(queue),
         scope,
     })
+    if (responseId) {
+        params.set("responseId", responseId)
+    }
     return `/api/survey/queue-accuracy?${params.toString()}`
 }
 
@@ -60,6 +68,14 @@ export function SurveyThanksPanel({
     const router = useRouter()
     const { authorId } = useSurveyParticipant()
     const [checkingConsent, setCheckingConsent] = useState(false)
+    const [currentResponseId, setCurrentResponseId] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const id = window.sessionStorage.getItem(`responseId_${experimentType}_${queue}`)
+            if (id) setCurrentResponseId(id)
+        }
+    }, [experimentType, queue])
 
     const handleFinishStudy = useCallback(async () => {
         setCheckingConsent(true)
@@ -90,6 +106,22 @@ export function SurveyThanksPanel({
                             `/consent?experimentType=${experimentType}&queue=${queue}&responseIds=${encodeURIComponent(refIds)}`
                         )
                         return
+                    } else if (allSessionResponseIds.length > 0) {
+                        // Automatically consent since no own work was shown
+                        try {
+                            await fetch("/api/survey/verification", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    decisions: allSessionResponseIds.map((id) => ({
+                                        responseId: id,
+                                        consentStatus: "consented",
+                                    })),
+                                }),
+                            })
+                        } catch {
+                            // ignore non-fatal update error
+                        }
                     }
                 }
             }
@@ -137,7 +169,13 @@ export function SurveyThanksPanel({
         let cancelled = false
         setSummaryLoading(true)
 
-        fetch(queueAccuracyQuery(experimentType, queue, "summary"), { credentials: "same-origin" })
+        const respId =
+            currentResponseId ||
+            (typeof window !== "undefined"
+                ? window.sessionStorage.getItem(`responseId_${experimentType}_${queue}`)
+                : null)
+
+        fetch(queueAccuracyQuery(experimentType, queue, "summary", respId), { credentials: "same-origin" })
             .then((res) => (res.ok ? res.json() : Promise.resolve({})))
             .then(
                 (data: {
@@ -178,13 +216,19 @@ export function SurveyThanksPanel({
         return () => {
             cancelled = true
         }
-    }, [experimentType, queue])
+    }, [experimentType, queue, currentResponseId])
 
     useEffect(() => {
         let cancelled = false
         setAnalyticsLoading(true)
 
-        fetch(queueAccuracyQuery(experimentType, queue, "analytics"), {
+        const respId =
+            currentResponseId ||
+            (typeof window !== "undefined"
+                ? window.sessionStorage.getItem(`responseId_${experimentType}_${queue}`)
+                : null)
+
+        fetch(queueAccuracyQuery(experimentType, queue, "analytics", respId), {
             credentials: "same-origin",
         })
             .then((res) => (res.ok ? res.json() : Promise.resolve({})))
