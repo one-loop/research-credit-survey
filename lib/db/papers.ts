@@ -594,7 +594,7 @@ export async function getRespondentLatestCompletion(
             let foundConsentStatus: string | null = null
             for (const r of data as any[]) {
                 const status = r.consent_status || r.respondent_demographics?.consent_status
-                if (status) {
+                if (status && status !== "pending") {
                     foundConsentStatus = status
                     break
                 }
@@ -638,7 +638,7 @@ export async function getRespondentLatestCompletion(
             let foundConsentStatus: string | null = null
             for (const r of authorResps) {
                 const status = r.consent_status || r.respondent_demographics?.consent_status
-                if (status) {
+                if (status && status !== "pending") {
                     foundConsentStatus = status
                     break
                 }

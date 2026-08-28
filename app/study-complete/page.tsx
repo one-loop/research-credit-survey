@@ -46,15 +46,27 @@ function StudyCompleteContent() {
     }, [responseIdFromUrl, experimentType, queue])
 
     useEffect(() => {
-        const query = responseId
-            ? `responseId=${encodeURIComponent(responseId)}`
-            : authorId
-              ? `authorId=${encodeURIComponent(authorId)}`
-              : null
+        const allSessionResponseIds: string[] = []
+        if (typeof window !== "undefined") {
+            for (let q = 0; q <= queue; q++) {
+                const id = window.sessionStorage.getItem(`responseId_${experimentType}_${q}`)
+                if (id) allSessionResponseIds.push(id)
+            }
+        }
 
-        if (!query) return
+        const queryParts: string[] = []
+        if (allSessionResponseIds.length > 0) {
+            queryParts.push(`responseIds=${encodeURIComponent(allSessionResponseIds.join(","))}`)
+        } else if (responseId) {
+            queryParts.push(`responseId=${encodeURIComponent(responseId)}`)
+        }
+        if (authorId) {
+            queryParts.push(`authorId=${encodeURIComponent(authorId)}`)
+        }
 
-        fetch(`/api/survey/verification?${query}`)
+        if (queryParts.length === 0) return
+
+        fetch(`/api/survey/verification?${queryParts.join("&")}`)
             .then((res) => (res.ok ? res.json() : null))
             .then((data: { ok?: boolean; ownPapers?: VerificationResponsePayload[] }) => {
                 if (data?.ok && Array.isArray(data.ownPapers)) {
@@ -62,7 +74,7 @@ function StudyCompleteContent() {
                 }
             })
             .catch(() => {})
-    }, [responseId, authorId])
+    }, [responseId, authorId, experimentType, queue])
 
     async function submitFeedback() {
         const trimmed = feedback.trim()
