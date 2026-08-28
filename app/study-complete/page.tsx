@@ -100,6 +100,24 @@ function StudyCompleteContent() {
             setTimeout(() => setCopied(false), 2500)
         } catch {
             // fallback for older browsers
+            try {
+                const textarea = document.createElement("textarea")
+                textarea.value = shareUrl
+                textarea.setAttribute("readonly", "")
+                textarea.style.position = "fixed"
+                textarea.style.opacity = "0"
+                document.body.appendChild(textarea)
+                textarea.focus()
+                textarea.select()
+                const ok = document.execCommand("copy")
+                document.body.removeChild(textarea)
+                if (ok) {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2500)
+                }
+            } catch {
+                // ignore
+            }
         }
     }
 
