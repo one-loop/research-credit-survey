@@ -46,9 +46,7 @@ export async function GET(request: NextRequest) {
     const attempts = knownWorkingAttempt
         ? [knownWorkingAttempt]
         : [
-              { select: "display_name", column: "display_name" },
               { select: "id,display_name", column: "display_name" },
-              { select: '"display name"', column: "display name" },
               { select: 'id,"display name"', column: "display name" },
           ]
 
