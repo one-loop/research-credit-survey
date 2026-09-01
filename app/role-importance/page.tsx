@@ -3,13 +3,14 @@
 import { creditRoles } from "@/lib/mockData"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useCallback, useEffect, useState } from "react"
-import { Suspense } from "react"
+import { Suspense, useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
 import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 function RoleImportanceContent() {
+    const router = useRouter()
     const { authorId } = useSurveyParticipant()
     const [assignedExperiment, setAssignedExperiment] = useState<"A" | "B" | "C" | null>(null)
     const trialHref = "/contribution-position-beliefs"
@@ -173,11 +174,21 @@ function RoleImportanceContent() {
                     </p>
                 )}
                 {worksReady && allRolesScored ? (
-                    <Link href={trialHref}>
-                        <Button>
-                            Continue
-                        </Button>
-                    </Link>
+                    <Button
+                        onClick={() => {
+                            trackSurveyStep({
+                                step: "role_importance",
+                                authorId,
+                                experimentType: assignedExperiment,
+                                metadata: {
+                                    role_importance: values,
+                                },
+                            })
+                            router.push(trialHref)
+                        }}
+                    >
+                        Continue
+                    </Button>
                 ) : worksError ? (
                     <Button
                         variant="outline"

@@ -13,7 +13,10 @@ import {
 import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
 import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
+import { useRouter } from "next/navigation"
+
 function AuthorPositionBeliefsContent() {
+    const router = useRouter()
     const { authorId } = useSurveyParticipant()
     const [younger, setYounger] = useState<FirstLastPosition | "">("")
     const [pi, setPi] = useState<FirstLastPosition | "">("")
@@ -53,12 +56,17 @@ function AuthorPositionBeliefsContent() {
             </FadeIn>
 
             <FadeInStagger className="space-y-8" step={50}>
-                <div className="space-y-3">
-                    <p className="font-medium">Who is most likely to be a junior author?</p>
+                <div>
+                    <h2 className="text-sm font-semibold mb-1 text-foreground">
+                        Who is usually the younger researcher?
+                    </h2>
+                    <p className="text-xs text-muted-foreground mb-3">
+                        In your field, who is more likely to be the younger or earlier-career researcher?
+                    </p>
                     <RadioGroup
                         value={younger}
-                        onValueChange={(value) => setYounger(value as FirstLastPosition)}
-                        className="space-y-2 text-sm"
+                        onValueChange={(v) => setYounger(v as FirstLastPosition)}
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                     >
                         <label className="flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50/40 px-3 py-2.5 cursor-pointer">
                             <RadioGroupItem value="first" className="mt-0.5 border-violet-950 text-violet-950" />
@@ -71,12 +79,17 @@ function AuthorPositionBeliefsContent() {
                     </RadioGroup>
                 </div>
 
-                <div className="space-y-3">
-                    <p className="font-medium">Who is most likely to be PI (Primary Investigator)?</p>
+                <div>
+                    <h2 className="text-sm font-semibold mb-1 text-foreground">
+                        Who is usually the Principal Investigator (PI)?
+                    </h2>
+                    <p className="text-xs text-muted-foreground mb-3">
+                        In your field, who is more likely to be the lab head, lead PI, or senior author?
+                    </p>
                     <RadioGroup
                         value={pi}
-                        onValueChange={(value) => setPi(value as FirstLastPosition)}
-                        className="space-y-2 text-sm"
+                        onValueChange={(v) => setPi(v as FirstLastPosition)}
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                     >
                         <label className="flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50/40 px-3 py-2.5 cursor-pointer">
                             <RadioGroupItem value="first" className="mt-0.5 border-violet-950 text-violet-950" />
@@ -92,8 +105,19 @@ function AuthorPositionBeliefsContent() {
 
             <FadeIn delay={120} className="mt-8 flex justify-end">
                 {allAnswered ? (
-                    <Button asChild>
-                        <Link href="/trial">Continue</Link>
+                    <Button
+                        onClick={() => {
+                            trackSurveyStep({
+                                step: "position_beliefs_authors",
+                                authorId,
+                                metadata: {
+                                    author_position_beliefs: { younger, pi },
+                                },
+                            })
+                            router.push("/trial")
+                        }}
+                    >
+                        Continue
                     </Button>
                 ) : (
                     <Button disabled>Answer both questions to continue</Button>

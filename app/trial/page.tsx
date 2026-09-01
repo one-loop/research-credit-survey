@@ -117,12 +117,30 @@ function TrialPageContent() {
                 sessionStorage.setItem(trialPassedKey(authorId), "true")
                 sessionStorage.removeItem(trialFailedKey(authorId))
             }
+            trackSurveyStep({
+                step: "trial",
+                authorId,
+                experimentType: experiment,
+                metadata: {
+                    trial_passed: true,
+                    trial_failed: false,
+                },
+            })
             setPhase("passed")
         } else {
             if (typeof window !== "undefined") {
                 sessionStorage.setItem(trialFailedKey(authorId), "true")
                 sessionStorage.removeItem(trialPassedKey(authorId))
             }
+            trackSurveyStep({
+                step: "trial",
+                authorId,
+                experimentType: experiment,
+                metadata: {
+                    trial_passed: false,
+                    trial_failed: true,
+                },
+            })
             setPhase("failed")
         }
     }
