@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 function CreditRolesContent() {
     const router = useRouter()
@@ -23,6 +24,7 @@ function CreditRolesContent() {
             router.replace("/respondent-survey")
             return
         }
+        trackSurveyStep({ step: "credit_roles", authorId })
         setReady(true)
     }, [participantReady, authorId, router])
 

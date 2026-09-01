@@ -170,6 +170,7 @@ export async function POST(request: NextRequest) {
         ownWorkId?: string | null
         creditRolePositionBeliefs?: CreditRolePositionBeliefs | null
         authorPositionBeliefs?: AuthorPositionBeliefs | null
+        sessionId?: string | null
     }
     try {
         body = await request.json()
@@ -272,6 +273,23 @@ export async function POST(request: NextRequest) {
             )
         }
         responseId = data.id as string
+
+        if (body.sessionId) {
+            try {
+                await supabase
+                    .from("survey_sessions")
+                    .update({
+                        current_step: "results",
+                        highest_step: "results",
+                        is_completed: true,
+                        response_id: responseId,
+                        last_active_at: new Date().toISOString(),
+                    })
+                    .eq("session_id", body.sessionId)
+            } catch (sessErr) {
+                console.error("[complete] Failed to link survey_session:", sessErr)
+            }
+        }
     } else {
         responseId = randomUUID()
     }

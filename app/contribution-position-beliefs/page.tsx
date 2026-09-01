@@ -14,6 +14,7 @@ import {
 } from "@/lib/survey/preTaskBeliefs"
 import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import { cn } from "@/lib/utils"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 const POSITIONS: { value: AuthorPosition; label: string }[] = [
     { value: "first", label: "First author" },
@@ -25,6 +26,10 @@ function ContributionPositionBeliefsContent() {
     const { authorId } = useSurveyParticipant()
     const [values, setValues] = useState<CreditRolePositionBeliefs>({})
     const allRolesAnswered = creditRoles.every((role) => values[role.id] !== undefined)
+
+    useEffect(() => {
+        trackSurveyStep({ step: "position_beliefs_roles", authorId })
+    }, [authorId])
 
     useEffect(() => {
         if (typeof window === "undefined") return

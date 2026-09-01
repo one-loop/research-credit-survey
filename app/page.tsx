@@ -11,6 +11,7 @@ import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import { SURVEY_PARTICIPANT_STORAGE_KEY } from "@/lib/survey/participant"
 
 import { useRouter } from "next/navigation"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 type RespondentContext = { journal: string | null; domain: string | null }
 
@@ -22,6 +23,11 @@ function HomeContent() {
     const [showLoadingScreen, setShowLoadingScreen] = useState(false)
     const [loadingScreenFading, setLoadingScreenFading] = useState(false)
     const beginHref = "/respondent-survey"
+
+    useEffect(() => {
+        if (!participantReady) return
+        trackSurveyStep({ step: "landing", authorId })
+    }, [participantReady, authorId])
 
     useEffect(() => {
         if (landingReturn.ready && (landingReturn.hasConsented || landingReturn.consentStatus)) {
@@ -41,11 +47,15 @@ function HomeContent() {
     useEffect(() => {
         if (!participantReady) return
         if (typeof window === "undefined") return
-        // Treat every landing-page visit as a fresh session, but keep cookie-backed participant id for links.
+        // Keep cookie-backed participant id and persistent funnel session id for links.
         const preservedParticipant = sessionStorage.getItem(SURVEY_PARTICIPANT_STORAGE_KEY)
+        const preservedSessionId = sessionStorage.getItem("survey_funnel_session_id")
         window.sessionStorage.clear()
         if (preservedParticipant) {
             sessionStorage.setItem(SURVEY_PARTICIPANT_STORAGE_KEY, preservedParticipant)
+        }
+        if (preservedSessionId) {
+            sessionStorage.setItem("survey_funnel_session_id", preservedSessionId)
         }
         setLoadingContext(Boolean(authorId))
         setShowLoadingScreen(Boolean(authorId))

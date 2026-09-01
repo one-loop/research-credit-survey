@@ -17,6 +17,7 @@ import { useExperimentRankingTiming } from "@/lib/useExperimentRankingTiming"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { TaskTransition } from "@/components/SurveyMotion"
 import { logExperimentTaskDebug } from "@/lib/survey/experimentTaskDebug"
+import { trackSurveyStep, getOrCreateSessionId } from "@/lib/survey/funnelTracker"
 
 function ExperimentAPageContent() {
     const router = useRouter()
@@ -175,6 +176,26 @@ function ExperimentAPageContent() {
         return () => window.clearTimeout(handle)
     }, [loading, showLoadingScreen])
 
+    useEffect(() => {
+        if (works && works.length > 0 && currentIndex < works.length) {
+            const partialRankings: Record<string, string[]> = {}
+            works.slice(0, trialResults.length).forEach((w, i) => {
+                if (trialResults[i]) partialRankings[w.work_id] = trialResults[i]
+            })
+
+            trackSurveyStep({
+                step: `task_${currentIndex + 1}`,
+                authorId,
+                experimentType: "A",
+                metadata: {
+                    tasks_completed_so_far: trialResults.length,
+                    completed_work_ids: works.slice(0, trialResults.length).map((w) => w.work_id),
+                    partial_rankings: partialRankings,
+                },
+            })
+        }
+    }, [currentIndex, works, trialResults, authorId])
+
     const totalWorks = works?.length ?? 0
     const isComplete = totalWorks > 0 && currentIndex >= totalWorks
     const currentWork = works && totalWorks > 0 ? works[currentIndex] : null
@@ -282,6 +303,7 @@ function ExperimentAPageContent() {
                 readPreTaskBeliefsForSubmit(authorId)
 
             try {
+                const sessionId = getOrCreateSessionId()
                 const res = await fetch("/api/survey/complete", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -296,6 +318,7 @@ function ExperimentAPageContent() {
                         respondentDemographics,
                         creditRolePositionBeliefs,
                         authorPositionBeliefs,
+                        sessionId,
                     }),
                 })
                 const data = (await res.json()) as {
@@ -313,6 +336,15 @@ function ExperimentAPageContent() {
                     return
                 }
                 const savedResponseId = data.responseId
+
+                trackSurveyStep({
+                    step: "results",
+                    authorId,
+                    experimentType: "A",
+                    isCompleted: true,
+                    responseId: savedResponseId,
+                    sessionId,
+                })
                 const savedQueue =
                     typeof data.queueIndex === "number" && data.queueIndex >= 0
                         ? data.queueIndex

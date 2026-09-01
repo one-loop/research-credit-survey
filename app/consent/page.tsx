@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import type { VerificationResponsePayload } from "@/app/api/survey/verification/route"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 type PaperDecision = {
     status: "consented" | "withdrawn" | "not_my_paper" | null
@@ -32,6 +33,10 @@ function ConsentContent() {
 
     const decisionsRef = useRef(decisions)
     decisionsRef.current = decisions
+
+    useEffect(() => {
+        trackSurveyStep({ step: "consent", experimentType })
+    }, [experimentType])
 
     useEffect(() => {
         let cancelled = false

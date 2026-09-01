@@ -20,6 +20,7 @@ import { ExperimentCAcademicInfoTable } from "@/components/ExperimentCAcademicIn
 import { AuthorContributionsMatrix } from "@/components/AuthorContributionsMatrix"
 import { AuthorBylineRankingBoard } from "@/components/AuthorBylineRankingBoard"
 import { cn } from "@/lib/utils"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 type Phase = "welcome" | "practice" | "quiz" | "passed" | "failed"
 type TutorialStep = "contributions" | "academic_info" | "byline" | "sort" | "done"
@@ -80,6 +81,7 @@ function TrialPageContent() {
         }
         const exp = getAssignedExperimentFromSession(authorId)
         setExperiment(exp)
+        trackSurveyStep({ step: "trial", authorId, experimentType: exp })
         const context = getRespondentContextFromSession(authorId)
         const demographics = readRespondentDemographics(authorId)
         const assignedJournal = context.journal ?? null
