@@ -11,12 +11,17 @@ import {
     authorPositionBeliefsStorageKey,
 } from "@/lib/survey/preTaskBeliefs"
 import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 function AuthorPositionBeliefsContent() {
     const { authorId } = useSurveyParticipant()
     const [younger, setYounger] = useState<FirstLastPosition | "">("")
     const [pi, setPi] = useState<FirstLastPosition | "">("")
     const allAnswered = younger !== "" && pi !== ""
+
+    useEffect(() => {
+        trackSurveyStep({ step: "position_beliefs_authors", authorId })
+    }, [authorId])
 
     useEffect(() => {
         if (typeof window === "undefined") return

@@ -9,6 +9,7 @@ import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import type { ExperimentType } from "@/lib/survey/experimentAssignment"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import type { VerificationResponsePayload } from "@/app/api/survey/verification/route"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 function StudyCompleteContent() {
     const searchParams = useSearchParams()
@@ -27,6 +28,15 @@ function StudyCompleteContent() {
     const [shareUrl, setShareUrl] = useState("")
     const [copied, setCopied] = useState(false)
     const [canNativeShare, setCanNativeShare] = useState(false)
+
+    useEffect(() => {
+        trackSurveyStep({
+            step: "study_complete",
+            authorId,
+            experimentType,
+            isCompleted: true,
+        })
+    }, [authorId, experimentType])
 
     useEffect(() => {
         if (typeof window !== "undefined") {

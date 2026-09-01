@@ -18,6 +18,7 @@ import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { TaskTransition } from "@/components/SurveyMotion"
 import { logExperimentTaskDebug } from "@/lib/survey/experimentTaskDebug"
 import { filterWorksForExperiment } from "@/lib/survey/experimentEligibility"
+import { trackSurveyStep, getOrCreateSessionId } from "@/lib/survey/funnelTracker"
 
 function anonymizedBylineName(author: Author): string {
     const withAnonymized = author as Author & { anonymized_name?: string }
@@ -191,6 +192,26 @@ function ExperimentBPageContent() {
         return () => window.clearTimeout(handle)
     }, [loading, showLoadingScreen])
 
+    useEffect(() => {
+        if (works && works.length > 0 && currentIndex < works.length) {
+            const partialRankings: Record<string, string[]> = {}
+            works.slice(0, trialResults.length).forEach((w, i) => {
+                if (trialResults[i]) partialRankings[w.work_id] = trialResults[i]
+            })
+
+            trackSurveyStep({
+                step: `task_${currentIndex + 1}`,
+                authorId,
+                experimentType: "B",
+                metadata: {
+                    tasks_completed_so_far: trialResults.length,
+                    completed_work_ids: works.slice(0, trialResults.length).map((w) => w.work_id),
+                    partial_rankings: partialRankings,
+                },
+            })
+        }
+    }, [currentIndex, works, trialResults, authorId])
+
     const totalWorks = works?.length ?? 0
     const isComplete = totalWorks > 0 && currentIndex >= totalWorks
     const currentWork = works && totalWorks > 0 ? works[currentIndex] : null
@@ -198,7 +219,6 @@ function ExperimentBPageContent() {
         () => (currentWork ? shuffledAuthorsForRanking(currentWork.authors) : []),
         [currentWork?.work_id]
     )
-
 
     const rankingUiActive =
         trialGate === "ok" &&
@@ -299,6 +319,7 @@ function ExperimentBPageContent() {
                 readPreTaskBeliefsForSubmit(authorId)
 
             try {
+                const sessionId = getOrCreateSessionId()
                 const res = await fetch("/api/survey/complete", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -313,6 +334,7 @@ function ExperimentBPageContent() {
                         respondentDemographics,
                         creditRolePositionBeliefs,
                         authorPositionBeliefs,
+                        sessionId,
                     }),
                 })
                 const data = (await res.json()) as {
@@ -330,6 +352,15 @@ function ExperimentBPageContent() {
                     return
                 }
                 const savedResponseId = data.responseId
+
+                trackSurveyStep({
+                    step: "results",
+                    authorId,
+                    experimentType: "B",
+                    isCompleted: true,
+                    responseId: savedResponseId,
+                    sessionId,
+                })
                 const savedQueue =
                     typeof data.queueIndex === "number" && data.queueIndex >= 0
                         ? data.queueIndex

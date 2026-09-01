@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Suspense } from "react"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 function RoleImportanceContent() {
     const { authorId } = useSurveyParticipant()
@@ -17,6 +18,10 @@ function RoleImportanceContent() {
     const [worksError, setWorksError] = useState<string | null>(null)
     const [isPrefetching, setIsPrefetching] = useState(false)
     const allRolesScored = creditRoles.every((role) => values[role.id] !== undefined)
+
+    useEffect(() => {
+        trackSurveyStep({ step: "role_importance", authorId, experimentType: assignedExperiment })
+    }, [authorId, assignedExperiment])
 
     const prefetchWorks = useCallback(async (experiment: "A" | "B" | "C") => {
         const params = new URLSearchParams()

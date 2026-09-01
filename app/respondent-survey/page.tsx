@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { FadeIn, FadeInStagger, SurveyPageEnter } from "@/components/SurveyMotion"
+import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 const inputClass =
     "w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -82,6 +83,10 @@ function RespondentSurveyContent() {
     const [error, setError] = useState<string | null>(null)
     const institutionQueryCacheRef = useRef<Map<string, InstitutionOption[]>>(new Map())
     const institutionRequestAbortRef = useRef<AbortController | null>(null)
+
+    useEffect(() => {
+        trackSurveyStep({ step: "demographics", authorId })
+    }, [authorId])
 
     useEffect(() => {
         if (typeof window === "undefined") return
@@ -173,6 +178,12 @@ function RespondentSurveyContent() {
             const keyAuthor = authorId ?? "none"
             window.sessionStorage.setItem(`respondentDemographics_${keyAuthor}`, JSON.stringify(demographics))
         }
+
+        trackSurveyStep({
+            step: "demographics",
+            authorId,
+            demographics,
+        })
 
         router.replace("/credit-roles")
     }
