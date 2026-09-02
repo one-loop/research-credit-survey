@@ -76,6 +76,13 @@ export type TrackStepPayload = {
     responseId?: string | null
 }
 
+import {
+    readCreditRolePositionBeliefsFromSession,
+    readAuthorPositionBeliefsFromSession,
+    readRoleImportanceFromSession,
+    readDemographicsFromSession,
+} from "./preTaskBeliefs"
+
 /**
  * Sends a non-blocking step tracking event to /api/survey/track-step.
  */
@@ -85,16 +92,33 @@ export function trackSurveyStep(payload: TrackStepPayload): void {
     const sessionId = payload.sessionId || getOrCreateSessionId()
     if (!sessionId) return
 
+    const keyAuthor = payload.authorId ?? null
+    const roleImportance = readRoleImportanceFromSession(keyAuthor)
+    const rolePositions = readCreditRolePositionBeliefsFromSession(keyAuthor)
+    const authorPositions = readAuthorPositionBeliefsFromSession(keyAuthor)
+    const savedDemographics = readDemographicsFromSession(keyAuthor)
+
+    const metadata: Record<string, unknown> = {
+        screen_width: window.innerWidth,
+        screen_height: window.innerHeight,
+        referrer: document.referrer || null,
+        pathname: window.location.pathname,
+    }
+    if (roleImportance) metadata.role_importance = roleImportance
+    if (rolePositions) metadata.credit_role_position_beliefs = rolePositions
+    if (authorPositions) metadata.author_position_beliefs = authorPositions
+
+    if (payload.metadata) {
+        Object.assign(metadata, payload.metadata)
+    }
+
+    const demographics = payload.demographics ?? savedDemographics ?? null
+
     const body: TrackStepPayload = {
         ...payload,
         sessionId,
-        metadata: {
-            screen_width: window.innerWidth,
-            screen_height: window.innerHeight,
-            referrer: document.referrer || null,
-            pathname: window.location.pathname,
-            ...payload.metadata,
-        },
+        demographics,
+        metadata,
     }
 
     try {
