@@ -88,7 +88,26 @@ export async function POST(request: NextRequest) {
                         typeof existing.metadata === "object" && existing.metadata !== null
                             ? (existing.metadata as Record<string, unknown>)
                             : {}
-                    updatePayload.metadata = { ...priorMeta, ...metadata }
+                    const mergedMeta: Record<string, unknown> = { ...priorMeta, ...metadata }
+
+                    // Protect against concurrent race conditions erasing earlier saved steps:
+                    if (priorMeta.role_importance && !metadata.role_importance) {
+                        mergedMeta.role_importance = priorMeta.role_importance
+                    }
+                    if (priorMeta.credit_role_position_beliefs && !metadata.credit_role_position_beliefs) {
+                        mergedMeta.credit_role_position_beliefs = priorMeta.credit_role_position_beliefs
+                    }
+                    if (priorMeta.author_position_beliefs && !metadata.author_position_beliefs) {
+                        mergedMeta.author_position_beliefs = priorMeta.author_position_beliefs
+                    }
+                    if (priorMeta.partial_rankings && !metadata.partial_rankings) {
+                        mergedMeta.partial_rankings = priorMeta.partial_rankings
+                    }
+                    if (priorMeta.trial_passed !== undefined && metadata.trial_passed === undefined) {
+                        mergedMeta.trial_passed = priorMeta.trial_passed
+                    }
+
+                    updatePayload.metadata = mergedMeta
                 }
                 if (isCompleted || existing.is_completed) {
                     updatePayload.is_completed = true

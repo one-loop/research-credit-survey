@@ -43,6 +43,34 @@ export function readAuthorPositionBeliefsFromSession(
     }
 }
 
+export function readRoleImportanceFromSession(
+    authorId: string | null | undefined
+): Record<string, number> | undefined {
+    if (typeof window === "undefined") return undefined
+    const key = `roleImportance_${authorId ?? "none"}`
+    const stored = window.sessionStorage.getItem(key)
+    if (!stored) return undefined
+    try {
+        return JSON.parse(stored) as Record<string, number>
+    } catch {
+        return undefined
+    }
+}
+
+export function readDemographicsFromSession(
+    authorId: string | null | undefined
+): Record<string, unknown> | undefined {
+    if (typeof window === "undefined") return undefined
+    const key = `respondentDemographics_${authorId ?? "none"}`
+    const stored = window.sessionStorage.getItem(key)
+    if (!stored) return undefined
+    try {
+        return JSON.parse(stored) as Record<string, unknown>
+    } catch {
+        return undefined
+    }
+}
+
 export function readPreTaskBeliefsForSubmit(authorId: string | null | undefined): {
     creditRolePositionBeliefs?: CreditRolePositionBeliefs
     authorPositionBeliefs?: AuthorPositionBeliefs
