@@ -10,7 +10,7 @@ import { trackSurveyStep } from "@/lib/survey/funnelTracker"
 
 function RoleImportanceContent() {
     const router = useRouter()
-    const { authorId } = useSurveyParticipant()
+    const { authorId, ready: participantReady } = useSurveyParticipant()
     const [assignedExperiment, setAssignedExperiment] = useState<"A" | "B" | "C" | null>(null)
     const trialHref = "/contribution-position-beliefs"
     const [values, setValues] = useState<Record<string, number>>({})
@@ -20,8 +20,9 @@ function RoleImportanceContent() {
     const allRolesScored = creditRoles.every((role) => values[role.id] !== undefined)
 
     useEffect(() => {
+        if (!participantReady) return
         trackSurveyStep({ step: "role_importance", authorId, experimentType: assignedExperiment })
-    }, [authorId, assignedExperiment])
+    }, [participantReady, authorId, assignedExperiment])
 
     const prefetchWorks = useCallback(async (experiment: "A" | "B" | "C") => {
         const params = new URLSearchParams()

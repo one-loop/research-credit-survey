@@ -70,7 +70,7 @@ type InstitutionOption = { id: string; label: string }
 
 function RespondentSurveyContent() {
     const router = useRouter()
-    const { authorId } = useSurveyParticipant()
+    const { authorId, ready: participantReady } = useSurveyParticipant()
     const [primaryDomain, setPrimaryDomain] = useState("")
     const [primaryField, setPrimaryField] = useState("")
     const [gender, setGender] = useState("")
@@ -85,8 +85,9 @@ function RespondentSurveyContent() {
     const institutionRequestAbortRef = useRef<AbortController | null>(null)
 
     useEffect(() => {
+        if (!participantReady) return
         trackSurveyStep({ step: "demographics", authorId })
-    }, [authorId])
+    }, [participantReady, authorId])
 
     useEffect(() => {
         if (typeof window === "undefined") return

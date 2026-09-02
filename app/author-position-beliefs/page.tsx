@@ -16,14 +16,15 @@ import { useRouter } from "next/navigation"
 
 function AuthorPositionBeliefsContent() {
     const router = useRouter()
-    const { authorId } = useSurveyParticipant()
+    const { authorId, ready: participantReady } = useSurveyParticipant()
     const [younger, setYounger] = useState<FirstLastPosition | "">("")
     const [pi, setPi] = useState<FirstLastPosition | "">("")
     const allAnswered = younger !== "" && pi !== ""
 
     useEffect(() => {
+        if (!participantReady) return
         trackSurveyStep({ step: "position_beliefs_authors", authorId })
-    }, [authorId])
+    }, [participantReady, authorId])
 
     useEffect(() => {
         if (typeof window === "undefined") return
