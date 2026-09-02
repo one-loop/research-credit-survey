@@ -55,9 +55,9 @@ function ExperimentBPageContent() {
     const [submittingFadeOut, setSubmittingFadeOut] = useState(false)
 
     useEffect(() => {
-        if (!participantReady || !returnCheck.ready) return
+        if (!participantReady) return
         if (typeof window === "undefined") return
-        if (returnCheck.hasPriorResponses) {
+        if (sessionStorage.getItem(trialPassedKey(authorId)) === "true") {
             setTrialGate("ok")
             return
         }
@@ -65,11 +65,13 @@ function ExperimentBPageContent() {
             setTrialGate("failed")
             return
         }
-        if (sessionStorage.getItem(trialPassedKey(authorId)) !== "true") {
-            router.replace("/trial")
-            return
+        if (returnCheck.ready) {
+            if (returnCheck.hasPriorResponses) {
+                setTrialGate("ok")
+            } else {
+                router.replace("/trial")
+            }
         }
-        setTrialGate("ok")
     }, [participantReady, returnCheck.ready, returnCheck.hasPriorResponses, authorId, router])
 
     useEffect(() => {

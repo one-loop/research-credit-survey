@@ -19,9 +19,6 @@ function HomeContent() {
     const router = useRouter()
     const { authorId, ready: participantReady } = useSurveyParticipant()
     const landingReturn = useRespondentLandingReturn()
-    const [loadingContext, setLoadingContext] = useState(false)
-    const [showLoadingScreen, setShowLoadingScreen] = useState(false)
-    const [loadingScreenFading, setLoadingScreenFading] = useState(false)
     const beginHref = "/respondent-survey"
 
     useEffect(() => {
@@ -31,9 +28,6 @@ function HomeContent() {
         // If the participant has completed the study and is in a completion/thanks state,
         // do not wipe storage or start a new survey session.
         if (landingReturn.showThanks || landingReturn.hasConsented || landingReturn.consentStatus) {
-            setLoadingContext(false)
-            setShowLoadingScreen(false)
-            setLoadingScreenFading(false)
             return
         }
 
@@ -44,9 +38,6 @@ function HomeContent() {
         }
         const freshSessionId = initNewSessionId()
         trackSurveyStep({ step: "landing", sessionId: freshSessionId, authorId })
-        setLoadingContext(Boolean(authorId))
-        setShowLoadingScreen(Boolean(authorId))
-        setLoadingScreenFading(false)
     }, [
         participantReady,
         landingReturn.ready,
@@ -72,13 +63,8 @@ function HomeContent() {
     ])
 
     useEffect(() => {
-        if (!participantReady) return
-        if (!authorId) {
-            setLoadingContext(false)
-            return
-        }
+        if (!participantReady || !authorId) return
         let cancelled = false
-        setLoadingContext(true)
         fetch(`/api/survey/respondent-context`, { credentials: "same-origin" })
             .then((res) => (res.ok ? (res.json() as Promise<RespondentContext>) : Promise.resolve({ journal: null, domain: null })))
             .then((data) => {
@@ -90,27 +76,10 @@ function HomeContent() {
             .catch(() => {
                 // ignore
             })
-            .finally(() => {
-                if (!cancelled) setLoadingContext(false)
-            })
         return () => {
             cancelled = true
         }
     }, [participantReady, authorId])
-
-    useEffect(() => {
-        if (loadingContext) {
-            setShowLoadingScreen(true)
-            setLoadingScreenFading(false)
-            return
-        }
-        if (!showLoadingScreen) return
-        setLoadingScreenFading(true)
-        const handle = window.setTimeout(() => {
-            setShowLoadingScreen(false)
-        }, 320)
-        return () => window.clearTimeout(handle)
-    }, [loadingContext, showLoadingScreen])
 
     if (!participantReady || !landingReturn.ready) {
         return <SurveyLoadingScreen message="Loading…" />
@@ -125,15 +94,6 @@ function HomeContent() {
                 experimentType={landingReturn.experimentType}
                 queue={landingReturn.latestQueueIndex}
                 consent={landingReturn.consentStatus}
-            />
-        )
-    }
-
-    if (authorId && showLoadingScreen) {
-        return (
-            <SurveyLoadingScreen
-                message="Loading Experiment... Just a moment"
-                fading={loadingScreenFading}
             />
         )
     }
