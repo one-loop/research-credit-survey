@@ -1,7 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import { Suspense, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { creditRoles } from "@/lib/mockData"
 import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -23,6 +23,7 @@ const POSITIONS: { value: AuthorPosition; label: string }[] = [
 ]
 
 function ContributionPositionBeliefsContent() {
+    const router = useRouter()
     const { authorId } = useSurveyParticipant()
     const [values, setValues] = useState<CreditRolePositionBeliefs>({})
     const allRolesAnswered = creditRoles.every((role) => values[role.id] !== undefined)
@@ -65,30 +66,27 @@ function ContributionPositionBeliefsContent() {
                         <div className="max-w-full overflow-x-auto rounded-lg border border-violet-950 bg-card shadow-sm">
                             <table className="w-auto border-collapse text-xs">
                                 <thead>
-                                    <tr className="border-b border-violet-200 bg-violet-50 text-violet-950">
-                                        <th className="px-3 py-2.5 text-right font-semibold">Role</th>
-                                        {POSITIONS.map((position) => (
-                                            <th
-                                                key={position.value}
-                                                className="px-3 py-2.5 text-center font-semibold whitespace-nowrap"
-                                            >
-                                                {position.label}
+                                    <tr className="border-b border-violet-950 bg-violet-950 text-violet-100">
+                                        <th className="py-2.5 px-3 text-left font-medium">Contributor role</th>
+                                        {POSITIONS.map((pos) => (
+                                            <th key={pos.value} className="py-2.5 px-3 text-center font-medium min-w-[90px]">
+                                                {pos.label}
                                             </th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {creditRoles.map((role, rowIndex) => (
+                                    {creditRoles.map((role, idx) => (
                                         <tr
                                             key={role.id}
-                                            className={rowIndex % 2 === 0 ? "bg-background" : "bg-violet-50/50"}
+                                            className={cn(
+                                                "border-b border-border/60 transition-colors",
+                                                idx % 2 === 1 && "bg-muted/15"
+                                            )}
                                         >
                                             <th
                                                 scope="row"
-                                                className={cn(
-                                                    "px-3 py-2 text-right font-normal text-muted-foreground whitespace-nowrap",
-                                                    rowIndex % 2 === 0 ? "bg-background" : "bg-violet-50/50"
-                                                )}
+                                                className="px-3 py-2 text-left font-normal text-muted-foreground whitespace-nowrap"
                                             >
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
@@ -137,8 +135,19 @@ function ContributionPositionBeliefsContent() {
 
             <FadeIn delay={120} className="mt-8 flex justify-end">
                 {allRolesAnswered ? (
-                    <Button asChild>
-                        <Link href="/author-position-beliefs">Continue</Link>
+                    <Button
+                        onClick={() => {
+                            trackSurveyStep({
+                                step: "position_beliefs_roles",
+                                authorId,
+                                metadata: {
+                                    credit_role_position_beliefs: values,
+                                },
+                            })
+                            router.push("/author-position-beliefs")
+                        }}
+                    >
+                        Continue
                     </Button>
                 ) : (
                     <Button disabled>Answer every role to continue</Button>
