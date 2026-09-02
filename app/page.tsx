@@ -25,8 +25,18 @@ function HomeContent() {
     const beginHref = "/respondent-survey"
 
     useEffect(() => {
-        if (!participantReady) return
+        if (!participantReady || !landingReturn.ready) return
         if (typeof window === "undefined") return
+
+        // If the participant has completed the study and is in a completion/thanks state,
+        // do not wipe storage or start a new survey session.
+        if (landingReturn.showThanks || landingReturn.hasConsented || landingReturn.consentStatus) {
+            setLoadingContext(false)
+            setShowLoadingScreen(false)
+            setLoadingScreenFading(false)
+            return
+        }
+
         const preservedParticipant = sessionStorage.getItem(SURVEY_PARTICIPANT_STORAGE_KEY)
         window.sessionStorage.clear()
         if (preservedParticipant) {
@@ -37,7 +47,14 @@ function HomeContent() {
         setLoadingContext(Boolean(authorId))
         setShowLoadingScreen(Boolean(authorId))
         setLoadingScreenFading(false)
-    }, [participantReady, authorId])
+    }, [
+        participantReady,
+        landingReturn.ready,
+        landingReturn.showThanks,
+        landingReturn.hasConsented,
+        landingReturn.consentStatus,
+        authorId,
+    ])
 
     useEffect(() => {
         if (landingReturn.ready && (landingReturn.hasConsented || landingReturn.consentStatus)) {
