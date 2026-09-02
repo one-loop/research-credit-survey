@@ -92,7 +92,16 @@ export function trackSurveyStep(payload: TrackStepPayload): void {
     const sessionId = payload.sessionId || getOrCreateSessionId()
     if (!sessionId) return
 
-    const keyAuthor = payload.authorId ?? null
+    const resolvedAuthorId =
+        (typeof payload.authorId === "string" && payload.authorId.trim().length > 0
+            ? payload.authorId.trim()
+            : undefined) ??
+        (typeof window !== "undefined"
+            ? window.sessionStorage.getItem("surveyParticipantAuthorId") ?? undefined
+            : undefined) ??
+        null
+
+    const keyAuthor = resolvedAuthorId
     const roleImportance = readRoleImportanceFromSession(keyAuthor)
     const rolePositions = readCreditRolePositionBeliefsFromSession(keyAuthor)
     const authorPositions = readAuthorPositionBeliefsFromSession(keyAuthor)
@@ -116,6 +125,7 @@ export function trackSurveyStep(payload: TrackStepPayload): void {
 
     const body: TrackStepPayload = {
         ...payload,
+        authorId: resolvedAuthorId,
         sessionId,
         demographics,
         metadata,

@@ -24,13 +24,14 @@ const POSITIONS: { value: AuthorPosition; label: string }[] = [
 
 function ContributionPositionBeliefsContent() {
     const router = useRouter()
-    const { authorId } = useSurveyParticipant()
+    const { authorId, ready: participantReady } = useSurveyParticipant()
     const [values, setValues] = useState<CreditRolePositionBeliefs>({})
     const allRolesAnswered = creditRoles.every((role) => values[role.id] !== undefined)
 
     useEffect(() => {
+        if (!participantReady) return
         trackSurveyStep({ step: "position_beliefs_roles", authorId })
-    }, [authorId])
+    }, [participantReady, authorId])
 
     useEffect(() => {
         if (typeof window === "undefined") return

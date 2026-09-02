@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/server"
 import { FUNNEL_STEPS, type FunnelStep } from "@/lib/survey/funnelTracker"
+import { getParticipantAuthorId } from "@/lib/survey/participant"
 
 function getStepRank(step: string): number {
     const idx = FUNNEL_STEPS.indexOf(step as FunnelStep)
@@ -31,6 +32,12 @@ export async function POST(request: NextRequest) {
         if (!sessionId || typeof sessionId !== "string") {
             return NextResponse.json({ error: "Missing sessionId" }, { status: 400 })
         }
+
+        const cookieAuthorId = getParticipantAuthorId(request)
+        const effectiveAuthorId =
+            (typeof authorId === "string" && authorId.trim().length > 0 ? authorId.trim() : undefined) ??
+            cookieAuthorId ??
+            null
 
         const stepName = typeof step === "string" && step.trim().length > 0 ? step.trim() : "unknown"
         const now = new Date().toISOString()
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
                     last_active_at: now,
                 }
 
-                if (authorId && !existing.author_id) updatePayload.author_id = authorId
+                if (effectiveAuthorId && !existing.author_id) updatePayload.author_id = effectiveAuthorId
                 if (experimentType && !existing.experiment_type) updatePayload.experiment_type = experimentType
                 if (demographics) {
                     const priorDemo =
@@ -126,7 +133,7 @@ export async function POST(request: NextRequest) {
                 // Insert brand new session
                 const insertPayload: Record<string, unknown> = {
                     session_id: sessionId,
-                    author_id: authorId ?? null,
+                    author_id: effectiveAuthorId,
                     experiment_type: experimentType ?? null,
                     current_step: stepName,
                     highest_step: stepName,

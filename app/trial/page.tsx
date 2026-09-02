@@ -61,7 +61,7 @@ function trialDisplayName(author: Author, experiment: "A" | "B" | "C"): string {
 }
 
 function TrialPageContent() {
-    const { authorId } = useSurveyParticipant()
+    const { authorId, ready: participantReady } = useSurveyParticipant()
 
     const [phase, setPhase] = useState<Phase>("welcome")
     const [experiment, setExperiment] = useState<"A" | "B" | "C">("A")
@@ -74,6 +74,7 @@ function TrialPageContent() {
     const [rankingAuthors, setRankingAuthors] = useState<Author[]>([])
 
     useEffect(() => {
+        if (!participantReady) return
         const failed = typeof window !== "undefined" && sessionStorage.getItem(trialFailedKey(authorId)) === "true"
         if (failed) {
             setPhase("failed")

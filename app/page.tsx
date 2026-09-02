@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { SurveyLoadingScreen } from "@/components/SurveyLoadingScreen"
 import { useSurveyParticipant } from "@/lib/useSurveyParticipant"
 import { useRespondentLandingReturn } from "@/lib/useRespondentLandingReturn"
@@ -20,6 +20,7 @@ function HomeContent() {
     const { authorId, ready: participantReady } = useSurveyParticipant()
     const landingReturn = useRespondentLandingReturn()
     const beginHref = "/respondent-survey"
+    const sessionInitializedRef = useRef(false)
 
     useEffect(() => {
         if (!participantReady || !landingReturn.ready) return
@@ -31,13 +32,20 @@ function HomeContent() {
             return
         }
 
-        const preservedParticipant = sessionStorage.getItem(SURVEY_PARTICIPANT_STORAGE_KEY)
+        if (sessionInitializedRef.current) return
+        sessionInitializedRef.current = true
+
+        const currentParticipant =
+            authorId ||
+            sessionStorage.getItem(SURVEY_PARTICIPANT_STORAGE_KEY) ||
+            undefined
+
         window.sessionStorage.clear()
-        if (preservedParticipant) {
-            sessionStorage.setItem(SURVEY_PARTICIPANT_STORAGE_KEY, preservedParticipant)
+        if (currentParticipant) {
+            sessionStorage.setItem(SURVEY_PARTICIPANT_STORAGE_KEY, currentParticipant)
         }
         const freshSessionId = initNewSessionId()
-        trackSurveyStep({ step: "landing", sessionId: freshSessionId, authorId })
+        trackSurveyStep({ step: "landing", sessionId: freshSessionId, authorId: currentParticipant })
     }, [
         participantReady,
         landingReturn.ready,
