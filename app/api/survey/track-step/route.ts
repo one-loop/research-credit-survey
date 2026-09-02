@@ -95,7 +95,14 @@ export async function POST(request: NextRequest) {
                     if (responseId) updatePayload.response_id = responseId
                 }
 
-                await supabase.from("survey_sessions").update(updatePayload).eq("session_id", sessionId)
+                const { error: updateError } = await supabase
+                    .from("survey_sessions")
+                    .update(updatePayload)
+                    .eq("session_id", sessionId)
+
+                if (updateError) {
+                    console.error("[track-step] Error updating session:", updateError.message)
+                }
             } else {
                 // Insert brand new session
                 const insertPayload: Record<string, unknown> = {
@@ -113,7 +120,10 @@ export async function POST(request: NextRequest) {
                     last_active_at: now,
                 }
 
-                await supabase.from("survey_sessions").insert(insertPayload)
+                const { error: insertError } = await supabase.from("survey_sessions").insert(insertPayload)
+                if (insertError) {
+                    console.error("[track-step] Error inserting session:", insertError.message)
+                }
             }
         }
 

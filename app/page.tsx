@@ -11,7 +11,7 @@ import { FadeIn, SurveyPageEnter } from "@/components/SurveyMotion"
 import { SURVEY_PARTICIPANT_STORAGE_KEY } from "@/lib/survey/participant"
 
 import { useRouter } from "next/navigation"
-import { trackSurveyStep } from "@/lib/survey/funnelTracker"
+import { trackSurveyStep, initNewSessionId } from "@/lib/survey/funnelTracker"
 
 type RespondentContext = { journal: string | null; domain: string | null }
 
@@ -26,7 +26,17 @@ function HomeContent() {
 
     useEffect(() => {
         if (!participantReady) return
-        trackSurveyStep({ step: "landing", authorId })
+        if (typeof window === "undefined") return
+        const preservedParticipant = sessionStorage.getItem(SURVEY_PARTICIPANT_STORAGE_KEY)
+        window.sessionStorage.clear()
+        if (preservedParticipant) {
+            sessionStorage.setItem(SURVEY_PARTICIPANT_STORAGE_KEY, preservedParticipant)
+        }
+        const freshSessionId = initNewSessionId()
+        trackSurveyStep({ step: "landing", sessionId: freshSessionId, authorId })
+        setLoadingContext(Boolean(authorId))
+        setShowLoadingScreen(Boolean(authorId))
+        setLoadingScreenFading(false)
     }, [participantReady, authorId])
 
     useEffect(() => {
@@ -43,24 +53,6 @@ function HomeContent() {
         landingReturn.latestQueueIndex,
         router,
     ])
-
-    useEffect(() => {
-        if (!participantReady) return
-        if (typeof window === "undefined") return
-        // Keep cookie-backed participant id and persistent funnel session id for links.
-        const preservedParticipant = sessionStorage.getItem(SURVEY_PARTICIPANT_STORAGE_KEY)
-        const preservedSessionId = sessionStorage.getItem("survey_funnel_session_id")
-        window.sessionStorage.clear()
-        if (preservedParticipant) {
-            sessionStorage.setItem(SURVEY_PARTICIPANT_STORAGE_KEY, preservedParticipant)
-        }
-        if (preservedSessionId) {
-            sessionStorage.setItem("survey_funnel_session_id", preservedSessionId)
-        }
-        setLoadingContext(Boolean(authorId))
-        setShowLoadingScreen(Boolean(authorId))
-        setLoadingScreenFading(false)
-    }, [participantReady, authorId])
 
     useEffect(() => {
         if (!participantReady) return

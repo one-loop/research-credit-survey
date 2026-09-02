@@ -22,6 +22,19 @@ const SESSION_STORAGE_KEY = "survey_funnel_session_id"
 const COOKIE_NAME = "survey_funnel_session_id"
 
 /**
+ * Force initialize a brand new session ID (used when starting a new survey run from the landing page).
+ */
+export function initNewSessionId(): string {
+    if (typeof window === "undefined") return ""
+    const id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, id)
+    if (typeof document !== "undefined") {
+        document.cookie = `${COOKIE_NAME}=${encodeURIComponent(id)}; path=/; max-age=86400; SameSite=Lax`
+    }
+    return id
+}
+
+/**
  * Get or initialize a unique persistent session ID for the current browser session.
  */
 export function getOrCreateSessionId(): string {
